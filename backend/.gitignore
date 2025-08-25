@@ -1,1 +1,39 @@
 .vercel
+
+# Test files and data
+test-*.js
+test/
+tests/
+*.test.js
+*.spec.js
+
+# Test data and uploads
+test-data/
+test-uploads/
+uploads/
+uploads/test/
+
+# Environment files
+.env
+.env.local
+.env.test
+.env.production
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+database.sqlite
+
+# Server logs
+server.log
+*.log
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencies
+node_modules/
