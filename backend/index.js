@@ -19,9 +19,21 @@ app.use(morgan('dev'));
 // 注意：express.json() 和 express.urlencoded() 会干扰文件上传
 // 只在需要的地方使用，避免影响 multer 中间件
 
-// 静态文件服务
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/uploads/thumbnails', express.static(path.join(__dirname, 'uploads/thumbnails')));
+// 静态文件服务 - 添加CORS头
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  setHeaders: (res, path) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+  }
+}));
+app.use('/uploads/thumbnails', express.static(path.join(__dirname, 'uploads/thumbnails'), {
+  setHeaders: (res, path) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+  }
+}));
 
 // 路由导入
 const userRoutes = require('./routes/users');
@@ -32,6 +44,8 @@ const scannerRoutes = require('./routes/scanners');
 const statsRoutes = require('./routes/stats');
 const filmStockRoutes = require('./routes/filmStocks');
 const filmRollRoutes = require('./routes/filmRolls');
+const rollPhotosRoutes = require('./routes/rollPhotos');
+const mapRoutes = require('./routes/map');
 
 // 根路径路由
 app.get('/', (req, res) => {
@@ -46,7 +60,8 @@ app.get('/', (req, res) => {
       scanners: '/api/scanners',
       stats: '/api/stats',
       filmStocks: '/api/filmStocks',
-      filmRolls: '/api/filmRolls'
+      filmRolls: '/api/filmRolls',
+      map: '/api/map'
     },
     status: 'running',
     timestamp: new Date().toISOString()
@@ -62,6 +77,8 @@ app.use('/api/scanners', scannerRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/filmStocks', filmStockRoutes);
 app.use('/api/filmRolls', filmRollRoutes);
+app.use('/', rollPhotosRoutes);
+app.use('/api/map', mapRoutes);
 
 // 错误处理中间件
 app.use((err, req, res, next) => {

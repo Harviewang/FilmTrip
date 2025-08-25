@@ -1,0 +1,58 @@
+<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="sunsetGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#FF6B35;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#F7931E;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFD23F;stop-opacity:1" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Sunset sky -->
+  <rect width="400" height="200" fill="url(#sunsetGradient)"/>
+  
+  <!-- Water -->
+  <rect x="0" y="200" width="400" height="100" fill="#4682B4"/>
+  
+  <!-- Sun reflection -->
+  <ellipse cx="200" cy="250" rx="15" ry="40" fill="#FFD700" opacity="0.6"/>
+  
+  <!-- Setting sun -->
+  <circle cx="200" cy="180" r="25" fill="#FF4500"/>
+  
+  <!-- Silhouette of person -->
+  <ellipse cx="120" cy="190" rx="8" ry="15" fill="#000"/>
+  <rect x="117" y="175" width="6" height="15" fill="#000"/>
+  <circle cx="120" cy="170" r="4" fill="#000"/>
+  <rect x="115" y="180" width="4" height="8" fill="#000"/>
+  <rect x="121" y="180" width="4" height="8" fill="#000"/>
+  
+  <!-- Boat silhouette -->
+  <ellipse cx="300" cy="195" rx="30" ry="5" fill="#000"/>
+  <rect x="295" y="190" width="3" height="10" fill="#000"/>
+  <polygon points="295,185 305,185 300,190" fill="#000"/>
+  
+  <!-- Water ripples -->
+  <ellipse cx="150" cy="220" rx="20" ry="3" fill="none" stroke="#87CEEB" stroke-width="1" opacity="0.5"/>
+  <ellipse cx="250" cy="240" rx="15" ry="2" fill="none" stroke="#87CEEB" stroke-width="1" opacity="0.5"/>
+  <ellipse cx="320" cy="230" rx="18" ry="2" fill="none" stroke="#87CEEB" stroke-width="1" opacity="0.5"/>
+  
+  <!-- Film frame border -->
+  <rect x="0" y="0" width="400" height="300" fill="none" stroke="#333" stroke-width="8"/>
+  
+  <!-- Film sprocket holes -->
+  <rect x="5" y="20" width="8" height="6" fill="#333"/>
+  <rect x="5" y="40" width="8" height="6" fill="#333"/>
+  <rect x="5" y="60" width="8" height="6" fill="#333"/>
+  <rect x="5" y="80" width="8" height="6" fill="#333"/>
+  <rect x="5" y="100" width="8" height="6" fill="#333"/>
+  
+  <rect x="387" y="20" width="8" height="6" fill="#333"/>
+  <rect x="387" y="40" width="8" height="6" fill="#333"/>
+  <rect x="387" y="60" width="8" height="6" fill="#333"/>
+  <rect x="387" y="80" width="8" height="6" fill="#333"/>
+  <rect x="387" y="100" width="8" height="6" fill="#333"/>
+  
+  <!-- Photo info -->
+  <text x="20" y="280" font-family="Arial, sans-serif" font-size="12" fill="#333">Roll 001 - Photo 02</text>
+  <text x="20" y="295" font-family="Arial, sans-serif" font-size="10" fill="#666">Kodak Portra 400</text>
+</svg>

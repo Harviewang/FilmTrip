@@ -2,7 +2,7 @@ const betterSqlite3 = require('better-sqlite3');
 const path = require('path');
 
 // 数据库连接
-const dbPath = path.join(__dirname, '../database.sqlite');
+const dbPath = path.join(__dirname, '../data/filmtrip.db');
 const db = betterSqlite3(dbPath);
 
 // 数据库初始化

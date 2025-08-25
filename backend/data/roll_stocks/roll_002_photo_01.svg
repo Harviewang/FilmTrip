@@ -1,0 +1,82 @@
+<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cityGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A90E2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7B68EE;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Night sky -->
+  <rect width="400" height="200" fill="url(#cityGradient)"/>
+  
+  <!-- Stars -->
+  <circle cx="50" cy="30" r="1" fill="white"/>
+  <circle cx="120" cy="45" r="1" fill="white"/>
+  <circle cx="200" cy="25" r="1" fill="white"/>
+  <circle cx="280" cy="40" r="1" fill="white"/>
+  <circle cx="350" cy="35" r="1" fill="white"/>
+  <circle cx="380" cy="20" r="1" fill="white"/>
+  
+  <!-- Moon -->
+  <circle cx="320" cy="60" r="20" fill="#F0F8FF"/>
+  <circle cx="325" cy="55" r="3" fill="#E6E6FA" opacity="0.5"/>
+  <circle cx="315" cy="65" r="2" fill="#E6E6FA" opacity="0.5"/>
+  
+  <!-- City buildings -->
+  <rect x="0" y="150" width="60" height="150" fill="#2F4F4F"/>
+  <rect x="60" y="120" width="50" height="180" fill="#36454F"/>
+  <rect x="110" y="140" width="40" height="160" fill="#2F4F4F"/>
+  <rect x="150" y="100" width="70" height="200" fill="#36454F"/>
+  <rect x="220" y="130" width="45" height="170" fill="#2F4F4F"/>
+  <rect x="265" y="110" width="55" height="190" fill="#36454F"/>
+  <rect x="320" y="140" width="40" height="160" fill="#2F4F4F"/>
+  <rect x="360" y="120" width="40" height="180" fill="#36454F"/>
+  
+  <!-- Building windows (lit) -->
+  <rect x="10" y="160" width="8" height="8" fill="#FFD700"/>
+  <rect x="25" y="170" width="8" height="8" fill="#FFD700"/>
+  <rect x="40" y="180" width="8" height="8" fill="#FFD700"/>
+  
+  <rect x="70" y="140" width="8" height="8" fill="#FFD700"/>
+  <rect x="85" y="160" width="8" height="8" fill="#FFD700"/>
+  
+  <rect x="160" y="120" width="8" height="8" fill="#FFD700"/>
+  <rect x="175" y="140" width="8" height="8" fill="#FFD700"/>
+  <rect x="190" y="160" width="8" height="8" fill="#FFD700"/>
+  
+  <rect x="275" y="130" width="8" height="8" fill="#FFD700"/>
+  <rect x="290" y="150" width="8" height="8" fill="#FFD700"/>
+  
+  <rect x="370" y="140" width="8" height="8" fill="#FFD700"/>
+  <rect x="385" y="160" width="8" height="8" fill="#FFD700"/>
+  
+  <!-- Street lights -->
+  <rect x="80" y="280" width="2" height="20" fill="#696969"/>
+  <circle cx="81" cy="278" r="3" fill="#FFD700"/>
+  
+  <rect x="200" y="280" width="2" height="20" fill="#696969"/>
+  <circle cx="201" cy="278" r="3" fill="#FFD700"/>
+  
+  <rect x="300" y="280" width="2" height="20" fill="#696969"/>
+  <circle cx="301" cy="278" r="3" fill="#FFD700"/>
+  
+  <!-- Film frame border -->
+  <rect x="0" y="0" width="400" height="300" fill="none" stroke="#333" stroke-width="8"/>
+  
+  <!-- Film sprocket holes -->
+  <rect x="5" y="20" width="8" height="6" fill="#333"/>
+  <rect x="5" y="40" width="8" height="6" fill="#333"/>
+  <rect x="5" y="60" width="8" height="6" fill="#333"/>
+  <rect x="5" y="80" width="8" height="6" fill="#333"/>
+  <rect x="5" y="100" width="8" height="6" fill="#333"/>
+  
+  <rect x="387" y="20" width="8" height="6" fill="#333"/>
+  <rect x="387" y="40" width="8" height="6" fill="#333"/>
+  <rect x="387" y="60" width="8" height="6" fill="#333"/>
+  <rect x="387" y="80" width="8" height="6" fill="#333"/>
+  <rect x="387" y="100" width="8" height="6" fill="#333"/>
+  
+  <!-- Photo info -->
+  <text x="20" y="280" font-family="Arial, sans-serif" font-size="12" fill="white">Roll 002 - Photo 01</text>
+  <text x="20" y="295" font-family="Arial, sans-serif" font-size="10" fill="#ccc">Fuji Pro 400H</text>
+</svg>

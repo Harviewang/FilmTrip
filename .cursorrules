@@ -33,6 +33,11 @@
 - **专长**: 部署脚本、环境配置、日志监控、性能分析
 - **工作方式**: 配置部署环境、监控服务状态、优化性能
 
+### @reviewer - 代码评审专家
+- **职责**: 代码质量审查、功能完整性检查、跨模块一致性验证、遗漏检测
+- **专长**: 代码规范、设计模式、用户体验、性能优化、安全审计
+- **工作方式**: 交叉检查各模块开发、发现潜在问题、提供改进建议、确保质量标准
+
 ## 🚀 协作工作流
 
 ### 1. 功能开发流程
@@ -48,6 +53,7 @@
 
 ### 2. 代码审查流程
 ```
+@reviewer: 统筹代码质量审查和完整性检查
 @architect: 审查架构设计和代码结构
 @backend: 审查后端代码质量和性能
 @frontend: 审查前端代码和用户体验
@@ -58,6 +64,7 @@
 ### 3. 问题排查流程
 ```
 @tester: 发现并报告问题
+@reviewer: 交叉验证问题范围和影响
 @architect: 分析问题根因和影响范围
 @backend/@frontend: 定位和修复代码问题
 @database: 检查数据相关问题
@@ -82,7 +89,8 @@
 ### 3. 上下文共享
 ```
 @all 请查看这个功能的实现，有什么建议？
-@backend @frontend 这个API的响应格式需要调整
+@reviewer @backend @frontend 这个API的响应格式需要调整
+@reviewer 请检查这个模块是否有遗漏的功能点
 ```
 
 ## 🎯 项目特定配置
@@ -111,3 +119,34 @@
 ---
 
 **使用说明**: 在Cursor Chat中使用 @agent名称 来调用特定Agent，实现多Agent协作开发！
+
+---
+
+# 项目协作守则 Project Collaboration Rules
+
+1. **先确认任务范围，再动手执行**  
+   Always confirm the task scope before taking any action.  
+
+2. **遇到问题先给排查思路，不要盲目修改**  
+   Provide troubleshooting steps first, never change code based on assumptions.  
+
+3. **精准定位变更点，避免大面积修改或重构**  
+   Identify the exact change point, avoid large-scale modifications or unnecessary refactoring.  
+
+4. **只做最小且封闭的改动，逐步推进**  
+   Make minimal and isolated changes, proceed step by step.  
+
+5. **每次改动必须复查，保证逻辑正确**  
+   Review every change thoroughly to ensure correctness.  
+
+6. **严禁自作主张替换技术或服务**  
+   Never replace frameworks, libraries, or services without explicit approval.  
+
+7. **所有改动必须在本地日志中记录，交付时列清单**  
+   Record all changes in local logs, and provide a clear change list upon delivery.  
+
+8. **运行服务器或脚本时避免在主会话框执行，防止阻断**  
+   Avoid running servers or scripts in the main session to prevent blocking.  
+
+9. **按角色分工协作，各司其职**  
+   Work by roles: PM defines requirements, UI designs interface, Frontend handles interaction, Backend implements logic, DBA manages databases, Ops ensures deployment, QA tests and validates.

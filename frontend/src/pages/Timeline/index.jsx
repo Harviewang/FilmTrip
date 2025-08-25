@@ -160,7 +160,7 @@ const Timeline = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+              <div className="h-screen bg-white flex items-center justify-center overflow-hidden">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-gray-900 mx-auto mb-4"></div>
           <p className="text-gray-600 text-lg">正在加载...</p>
@@ -280,7 +280,7 @@ const Timeline = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="h-screen bg-white overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* 视图模式切换 */}
         <div className="mb-8 flex justify-center">

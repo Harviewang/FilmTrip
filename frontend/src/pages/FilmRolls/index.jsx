@@ -1,332 +1,471 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { XMarkIcon, InformationCircleIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-import PhotoPlaceholder from '../../components/PhotoPlaceholder';
+import InfiniteScroll from 'react-infinite-scroll-component';
+import LazyImage from '../../components/LazyImage';
 
 const FilmRolls = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [photos, setPhotos] = useState([]);
+  const [filmRolls, setFilmRolls] = useState([]);
+  const [filmStocks, setFilmStocks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [showUI, setShowUI] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [displayedRolls, setDisplayedRolls] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
-  
-  // 检查URL中是否有照片ID参数
+  const [showStocks, setShowStocks] = useState(false);
+  const ITEMS_PER_PAGE = 12;
+
   useEffect(() => {
-    const urlParams = new URLSearchParams(location.search);
-    const photoId = urlParams.get('photo');
-    if (photoId && photos.length > 0) {
-      const photo = photos.find(p => p.id.toString() === photoId);
-      if (photo) {
-        setSelectedPhoto(photo);
-        setShowModal(true);
-      }
-    }
-  }, [location.search, photos]);
-
-  // 控制页面滚动
-  useEffect(() => {
-    if (showModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [showModal]);
-
-  // 键盘快捷键支持
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (!showModal) return;
-      
-      switch (e.key) {
-        case 'Escape':
-          setShowModal(false);
-          navigate('/film-rolls', { replace: true });
-          break;
-        case 'h':
-        case 'H':
-          setShowUI(!showUI);
-          break;
-        case 'ArrowLeft':
-          if (photos.length > 1) {
-            const currentIndex = photos.findIndex(p => p.id === selectedPhoto?.id);
-            const prevIndex = currentIndex > 0 ? currentIndex - 1 : photos.length - 1;
-            setSelectedPhoto(photos[prevIndex]);
-            navigate(`/film-rolls?photo=${photos[prevIndex].id}`, { replace: true });
-          }
-          break;
-        case 'ArrowRight':
-          if (photos.length > 1) {
-            const currentIndex = photos.findIndex(p => p.id === selectedPhoto?.id);
-            const nextIndex = currentIndex < photos.length - 1 ? currentIndex + 1 : 0;
-            setSelectedPhoto(photos[nextIndex]);
-            navigate(`/film-rolls?photo=${photos[nextIndex].id}`, { replace: true });
-          }
-          break;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showModal, photos, selectedPhoto, navigate]);
-
-  // 获取照片数据
-  useEffect(() => {
-    const fetchPhotos = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch('http://localhost:3001/api/photos');
-        if (response.ok) {
-          const result = await response.json();
-          console.log('获取到的照片数据:', result);
-          if (result.success && result.data && Array.isArray(result.data)) {
-            setPhotos(result.data);
-            console.log('照片数据设置成功，数量:', result.data.length);
-          } else {
-            console.error('照片数据格式错误:', result);
-            setPhotos([]);
-          }
-        } else {
-          console.error('获取照片失败:', response.status);
-          setPhotos([]);
-        }
-      } catch (error) {
-        console.error('获取照片出错:', error);
-        setPhotos([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPhotos();
+    fetchFilmRolls();
+    fetchFilmStocks();
   }, []);
 
-  // 按日期分组的照片
-  const groupedPhotos = React.useMemo(() => {
-    if (!photos.length) return {};
-    
-    const groups = {};
-    photos.forEach(photo => {
-      // 使用 uploaded_at 作为日期，如果没有则使用当前日期
-      const date = photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : new Date().toISOString().split('T')[0];
-      if (!groups[date]) {
-        groups[date] = [];
+  useEffect(() => {
+    resetPagination();
+  }, [selectedYear]);
+
+  const fetchFilmRolls = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/film-rolls');
+      if (!response.ok) {
+        throw new Error('获取胶卷数据失败');
       }
-      groups[date].push(photo);
-    });
+      const data = await response.json();
+      setFilmRolls(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchFilmStocks = async () => {
+    try {
+      const response = await fetch('/api/film-stocks');
+      if (!response.ok) {
+        throw new Error('获取胶卷品类数据失败');
+      }
+      const data = await response.json();
+      setFilmStocks(data);
+    } catch (err) {
+      console.error('获取胶卷品类失败:', err);
+    }
+  };
+
+  const resetPagination = () => {
+    setCurrentPage(1);
+    setDisplayedRolls([]);
+    setHasMore(true);
+    setTimeout(() => {
+      loadMoreRolls(true);
+    }, 100);
+  };
+
+  const loadMoreRolls = (reset = false) => {
+    const filteredRolls = getFilteredRolls();
+    const startIndex = reset ? 0 : displayedRolls.length;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const newRolls = filteredRolls.slice(startIndex, endIndex);
     
-    // 按日期排序
-    return Object.fromEntries(
-      Object.entries(groups).sort(([a], [b]) => new Date(b) - new Date(a))
-    );
-  }, [photos]);
+    if (reset) {
+      setDisplayedRolls(newRolls);
+    } else {
+      setDisplayedRolls(prev => [...prev, ...newRolls]);
+    }
+    
+    setHasMore(endIndex < filteredRolls.length);
+    if (!reset) {
+      setCurrentPage(prev => prev + 1);
+    }
+  };
 
-  // 渲染照片卡片
-  const renderPhotoCard = (photo) => (
-    <div
-      key={photo.id} 
-      className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer group"
-      onClick={() => {
-        setSelectedPhoto(photo);
-        setShowModal(true);
-        navigate(`/film-rolls?photo=${photo.id}`, { replace: true });
-      }}
-    >
-      <div className="relative">
-        <img
-          src={photo.thumbnail ? `http://localhost:3001${photo.thumbnail}` : '/placeholder-image.jpg'}
-          alt={photo.title || photo.photo_serial_number || '照片'}
-          className="w-full h-auto object-contain group-hover:scale-105 transition-transform duration-300"
-          onError={(e) => {
-            console.error('缩略图加载失败:', photo.thumbnail);
-            // 使用简单的占位符
-            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiNmMGY5ZmYiLz48L3N2Zz4=';
-          }}
-          onLoad={() => {
-            console.log('缩略图加载成功:', photo.thumbnail);
-          }}
-        />
-        
-        {/* 照片信息覆盖层 */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3 text-white">
-          <div className="text-sm font-medium">
-            {photo.photo_serial_number || `${photo.photo_number || '?'}`}
-          </div>
-          <div className="text-xs opacity-80">
-            {photo.camera_name || photo.camera_brand || '未知相机'}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const getYears = () => {
+    const years = [...new Set(filmRolls.map(roll => {
+      const date = new Date(roll.opened_date || roll.created_at);
+      return date.getFullYear();
+    }))].sort((a, b) => b - a);
+    return years;
+  };
 
-  return (
-    <div className="min-h-screen bg-white">
-      {/* 时间轴模式：按时间分组显示 */}
-      {photos.length === 0 ? (
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="text-center">
-            <div className="text-gray-400 text-6xl mb-4">📸</div>
-            <h3 className="text-xl font-medium text-gray-900 mb-2">没有照片</h3>
-            <p className="text-gray-600">请检查控制台日志</p>
-          </div>
-        </div>
-      ) : (
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="space-y-8">
-            {Object.entries(groupedPhotos).map(([date, datePhotos]) => (
-              <div key={date} className="space-y-4">
-                {/* 简单的日期标题 */}
-                <div className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2">
-                  {new Date(date).toLocaleDateString('zh-CN', { 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric',
-                    weekday: 'long'
-                  })} · {datePhotos.length} 张照片
-                </div>
-                
-                {/* 照片网格 */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-6 sm:gap-8">
-                  {datePhotos.map((photo) => renderPhotoCard(photo))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+  const getFilteredRolls = () => {
+    return filmRolls.filter(roll => {
+      const date = new Date(roll.opened_date || roll.created_at);
+      return date.getFullYear() === selectedYear;
+    });
+  };
 
-      {/* 照片详情浮层 - 全屏原图预览 */}
-      {showModal && selectedPhoto && (
-        <div className="fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 backdrop-blur-md flex items-center justify-center z-50 overflow-hidden">
-          <div className="relative w-full h-full flex items-center justify-center">
-            {/* 关闭按钮 */}
-            <button
-              onClick={() => {
-                setShowModal(false);
-                navigate('/film-rolls', { replace: true });
-              }}
-              className={`absolute top-6 right-6 z-10 text-gray-600 hover:text-gray-800 transition-all duration-300 bg-white/80 hover:bg-white/90 rounded-full p-2 shadow-lg ${
-                showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
-            >
-              <XMarkIcon className="h-8 w-8" />
-            </button>
+  const getFilmStockById = (stockId) => {
+    return filmStocks.find(stock => stock.id === stockId);
+  };
 
-            {/* 左导航按钮 */}
-            {photos.length > 1 && (
-              <button
-                onClick={() => {
-                  const currentIndex = photos.findIndex(p => p.id === selectedPhoto?.id);
-                  const prevIndex = currentIndex > 0 ? currentIndex - 1 : photos.length - 1;
-                  setSelectedPhoto(photos[prevIndex]);
-                  navigate(`/film-rolls?photo=${photos[prevIndex].id}`, { replace: true });
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'unopened': return 'bg-gray-100 text-gray-800';
+      case 'shooting': return 'bg-blue-100 text-blue-800';
+      case 'exposed': return 'bg-yellow-100 text-yellow-800';
+      case 'developed': return 'bg-purple-100 text-purple-800';
+      case 'scanned': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'unopened': return '未拆封';
+      case 'shooting': return '拍摄中';
+      case 'exposed': return '已曝光';
+      case 'developed': return '已冲洗';
+      case 'scanned': return '已扫描';
+      default: return '未知';
+    }
+  };
+
+  const renderFilmRollCard = (filmRoll) => {
+    const filmStock = getFilmStockById(filmRoll.film_stock_id);
+    const stockImage = filmStock?.image_url;
+    
+    return (
+      <div
+        key={filmRoll.id}
+        className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200"
+      >
+        <div className="relative">
+          <div className="h-48 bg-gray-100 overflow-hidden">
+            {stockImage ? (
+              <LazyImage
+                src={stockImage}
+                alt={filmStock?.name || '胶卷'}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
                 }}
-                className={`absolute left-6 top-1/2 -translate-y-1/2 z-10 text-gray-600 hover:text-gray-800 transition-all duration-300 bg-white/80 hover:bg-white/90 rounded-full p-3 shadow-lg ${
-                  showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
-                title="上一张照片 (←)"
-              >
-                <ChevronLeftIcon className="h-8 w-8" />
-              </button>
-            )}
-
-            {/* 右导航按钮 */}
-            {photos.length > 1 && (
-              <button
-                onClick={() => {
-                  const currentIndex = photos.findIndex(p => p.id === selectedPhoto?.id);
-                  const nextIndex = currentIndex < photos.length - 1 ? currentIndex + 1 : 0;
-                  setSelectedPhoto(photos[nextIndex]);
-                  navigate(`/film-rolls?photo=${photos[nextIndex].id}`, { replace: true });
-                }}
-                className={`absolute right-6 top-1/2 -translate-y-1/2 z-10 text-gray-600 hover:text-gray-800 transition-all duration-300 bg-white/80 hover:bg-white/90 rounded-full p-3 shadow-lg ${
-                  showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
-                title="下一张照片 (→)"
-              >
-                <ChevronRightIcon className="h-8 w-8" />
-              </button>
-            )}
+              />
+            ) : null}
+            <div className="w-full h-full flex items-center justify-center text-4xl text-gray-400" style={{display: stockImage ? 'none' : 'flex'}}>
+              🎞️
+            </div>
+          </div>
           
-            {/* 照片大图 - 智能居中：有详情时向上偏移 */}
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="transition-all duration-500 ease-in-out">
-                {selectedPhoto.original ? (
-                  <img
-                    src={`http://localhost:3001${selectedPhoto.original}`}
-                    alt={selectedPhoto.title}
-                    className={`w-auto object-contain rounded-2xl shadow-2xl cursor-pointer transition-all duration-500 ${
-                      showUI ? 'h-[80vh] -translate-y-16' : 'h-[90vh] translate-y-0'
-                    }`}
-                    onClick={() => setShowUI(!showUI)}
-                    onError={(e) => {
-                      console.error('原图加载失败:', selectedPhoto.original, e);
-                      e.target.style.display = 'none';
-                    }}
-                    onLoad={() => {
-                      console.log('原图加载成功:', selectedPhoto.original);
-                    }}
-                  />
-                ) : (
-                  <PhotoPlaceholder 
-                    className={`w-auto max-w-[80vw] transition-all duration-500 ${
-                      showUI ? 'h-[80vh] -translate-y-16' : 'h-[90vh]'
-                    }`} 
-                    showIcon={true} 
-                    showText={true} 
-                    variant="loading"
-                  />
+          <div className="absolute top-3 right-3">
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+              getStatusColor(filmRoll.status)
+            }`}>
+              {getStatusText(filmRoll.status)}
+            </span>
+          </div>
+        </div>
+        
+        <div className="p-4">
+          <h3 className="font-medium text-gray-900 mb-1">{filmStock?.name || '未知胶卷'}</h3>
+          <div className="space-y-2">
+            <div className="text-sm text-gray-600">
+              {filmStock?.brand} {filmStock?.type} {filmStock?.iso}ISO
+            </div>
+            
+            {filmRoll.camera_name && (
+              <div className="text-sm text-gray-600">📷 {filmRoll.camera_name}</div>
+            )}
+            
+            <div className="text-xs text-gray-500 space-y-1">
+              <div>编号: {filmRoll.roll_number}</div>
+              {filmRoll.opened_date && (
+                <div>启封: {new Date(filmRoll.opened_date).toLocaleDateString()}</div>
+              )}
+              {filmRoll.location && (
+                <div>地点: {filmRoll.location}</div>
+              )}
+            </div>
+          </div>
+          
+          {filmRoll.photos && filmRoll.photos.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">照片预览</span>
+                <span className="text-xs text-gray-500">{filmRoll.photos.length} 张</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {filmRoll.photos.slice(0, 6).map((photo) => (
+                  <div key={photo.id} className="aspect-square bg-gray-100 rounded overflow-hidden">
+                    <LazyImage
+                      src={photo.thumbnail_url || photo.file_url}
+                      alt={`照片 ${photo.id}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs" style={{display: 'none'}}>
+                      📷
+                    </div>
+                  </div>
+                ))}
+                {filmRoll.photos.length > 6 && (
+                  <div className="aspect-square bg-gray-100 rounded flex items-center justify-center">
+                    <span className="text-xs text-gray-500">+{filmRoll.photos.length - 6}</span>
+                  </div>
                 )}
               </div>
             </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen bg-white overflow-hidden flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">加载胶卷数据中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-screen bg-white overflow-hidden flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto">
+          <div className="text-red-400 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">加载失败</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={fetchFilmRolls}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            重试
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const years = getYears();
+  const filteredRolls = getFilteredRolls();
+
+  return (
+    <div className="h-screen bg-gray-50 overflow-hidden">
+      <div className="h-full flex">
+        {/* 左侧时间轴 */}
+        <div className="w-64 bg-white shadow-sm border-r border-gray-200 flex flex-col">
+          <div className="p-6 border-b border-gray-200">
+            <h1 className="text-xl font-bold text-gray-900 mb-2">胶卷时光</h1>
+            <p className="text-sm text-gray-600">按年份浏览胶卷</p>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-4">
+              {years.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 text-3xl mb-2">📅</div>
+                  <p className="text-sm text-gray-500">暂无胶卷数据</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {years.map(year => {
+                    const yearRolls = filmRolls.filter(roll => {
+                      const date = new Date(roll.opened_date || roll.created_at);
+                      return date.getFullYear() === year;
+                    });
+                    
+                    return (
+                      <button
+                        key={year}
+                        onClick={() => setSelectedYear(year)}
+                        className={`w-full text-left p-3 rounded-lg transition-colors ${
+                          selectedYear === year
+                            ? 'bg-blue-50 border-blue-200 text-blue-900'
+                            : 'hover:bg-gray-50 border-transparent text-gray-700'
+                        } border`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{year}年</span>
+                          <span className={`text-sm ${
+                            selectedYear === year ? 'text-blue-600' : 'text-gray-500'
+                          }`}>
+                            {yearRolls.length}卷
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {yearRolls.filter(r => r.status === 'scanned').length} 已完成 · 
+                          {yearRolls.filter(r => r.status === 'shooting' || r.status === 'exposed').length} 进行中
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* 胶卷品类展示区域 */}
+          <div className="border-t border-gray-200">
+            <button
+              onClick={() => setShowStocks(!showStocks)}
+              className="w-full p-4 text-left hover:bg-gray-50 transition-colors flex items-center justify-between"
+            >
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">胶卷品类</span>
+                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                  {filmStocks.length}
+                </span>
+              </div>
+              <svg 
+                className={`w-4 h-4 text-gray-400 transition-transform ${showStocks ? 'rotate-180' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
             
-            {/* 照片信息 - 居中显示 */}
-            <div className={`absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-t border-gray-200 py-8 px-4 transition-all duration-500 ease-in-out ${
-              showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'
-            }`}>
-              <div className="flex flex-col items-center space-y-4 text-sm">
-                {/* 主要信息居中 */}
-                <div className="flex items-center space-x-4 text-gray-600">
-                  <span>{selectedPhoto.camera_name || selectedPhoto.camera || '未知相机'}</span>
-                  <span>•</span>
-                  <span>{selectedPhoto.film_roll_name || '无'}</span>
-                  <span>•</span>
-                  <span>{selectedPhoto.uploaded_at ? new Date(selectedPhoto.uploaded_at).toLocaleDateString('zh-CN') : '未知日期'}</span>
+            {showStocks && (
+              <div className="px-4 pb-4 max-h-64 overflow-y-auto">
+                <div className="space-y-2">
+                  {filmStocks.map(stock => {
+                    const stockRolls = filmRolls.filter(roll => roll.film_stock_id === stock.id);
+                    return (
+                      <div key={stock.id} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex items-start space-x-3">
+                          <div className="w-12 h-12 bg-white rounded border overflow-hidden flex-shrink-0">
+                            {stock.image_url ? (
+                              <LazyImage
+                                src={stock.image_url}
+                                alt={stock.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.nextSibling.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-lg" style={{display: stock.image_url ? 'none' : 'flex'}}>
+                              🎞️
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-medium text-gray-900 truncate">{stock.name}</h4>
+                            <p className="text-xs text-gray-600">{stock.brand} · {stock.type}</p>
+                            <p className="text-xs text-gray-500">ISO {stock.iso} · {stockRolls.length} 卷</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {filmStocks.length === 0 && (
+                  <div className="text-center py-4">
+                    <div className="text-gray-400 text-2xl mb-1">📦</div>
+                    <p className="text-xs text-gray-500">暂无胶卷品类</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 右侧胶卷展示区 */}
+        <div className="flex-1 flex flex-col">
+          {/* 顶部标题栏 */}
+          <div className="bg-white border-b border-gray-200">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{selectedYear}年胶卷</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    共 {filteredRolls.length} 卷胶卷
+                  </p>
                 </div>
                 
-                {/* 照片序号和导航提示 */}
-                <div className="flex items-center space-x-4 text-gray-500">
-                  <span>{selectedPhoto.photo_serial_number || `${selectedPhoto.photo_number || '?'}`}</span>
-                  {photos.length > 1 && (
-                    <span className="text-xs">
-                      {photos.findIndex(p => p.id === selectedPhoto?.id) + 1} / {photos.length}
-                    </span>
-                  )}
+                {/* 状态统计 */}
+                <div className="flex space-x-4 text-sm">
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-gray-600">
+                      {filteredRolls.filter(r => r.status === 'unopened').length}
+                    </div>
+                    <div className="text-xs text-gray-500">未拆封</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-blue-600">
+                      {filteredRolls.filter(r => r.status === 'shooting' || r.status === 'exposed').length}
+                    </div>
+                    <div className="text-xs text-gray-500">进行中</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-semibold text-green-600">
+                      {filteredRolls.filter(r => r.status === 'scanned').length}
+                    </div>
+                    <div className="text-xs text-gray-500">已完成</div>
+                  </div>
                 </div>
-                
-                {/* 分享按钮居中 */}
-                <button
-                  onClick={() => {
-                    const shareUrl = `${window.location.origin}/film-rolls?photo=${selectedPhoto.id}`;
-                    navigator.clipboard.writeText(shareUrl);
-                    alert('分享链接已复制到剪贴板');
-                  }}
-                  className="text-blue-600 hover:text-blue-800 font-medium px-3 py-1 rounded-md hover:bg-blue-50 transition-colors"
-                >
-                  分享
-                </button>
               </div>
             </div>
           </div>
+          
+          {/* 胶卷网格 */}
+          <div className="flex-1 overflow-y-auto" id="filmrolls-scrollable-div">
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              {filteredRolls.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-gray-400 text-6xl mb-4">🎞️</div>
+                    <h3 className="text-xl font-medium text-gray-900 mb-2">{selectedYear}年暂无胶卷</h3>
+                    <p className="text-gray-600">选择其他年份或添加新胶卷</p>
+                  </div>
+                </div>
+              ) : (
+                <InfiniteScroll
+                  dataLength={displayedRolls.length}
+                  next={loadMoreRolls}
+                  hasMore={hasMore}
+                  loader={
+                    <div className="flex justify-center items-center py-8">
+                      <div className="flex items-center space-x-2 text-gray-500">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                        <span>加载更多胶卷...</span>
+                      </div>
+                    </div>
+                  }
+                  endMessage={
+                    <div className="flex justify-center items-center py-4">
+                      <span className="text-gray-500 text-sm">已显示全部胶卷</span>
+                    </div>
+                  }
+                  refreshFunction={() => {
+                    resetPagination();
+                  }}
+                  pullDownToRefresh={false}
+                  pullDownToRefreshThreshold={50}
+                  pullDownToRefreshContent={
+                    <div className="flex justify-center items-center py-4">
+                      <div className="flex items-center space-x-2 text-gray-500">
+                        <span>下拉刷新</span>
+                      </div>
+                    </div>
+                  }
+                  releaseToRefreshContent={
+                    <div className="flex justify-center items-center py-4">
+                      <div className="flex items-center space-x-2 text-gray-500">
+                        <span>释放刷新</span>
+                      </div>
+                    </div>
+                  }
+                  scrollableTarget="filmrolls-scrollable-div"
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {displayedRolls.map((filmRoll) => renderFilmRollCard(filmRoll))}
+                  </div>
+                </InfiniteScroll>
+              )}
+            </div>
+          </div>
         </div>
-      )}
+      </div>
 
       {/* 调试信息 - 右下角不起眼位置，点击鼠标弹出 */}
       <div className="fixed bottom-4 right-4 z-40">
@@ -335,18 +474,22 @@ const FilmRolls = () => {
           className="p-2 bg-gray-800/20 hover:bg-gray-800/40 rounded-full transition-all duration-200"
           title="点击查看调试信息"
         >
-          <InformationCircleIcon className="h-5 w-5 text-gray-600" />
+          <div className="h-5 w-5 text-gray-600">ℹ️</div>
         </button>
         
         {showDebug && (
           <div className="absolute bottom-12 right-0 w-80 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-lg shadow-lg p-4 text-xs">
             <h3 className="font-medium text-gray-700 mb-2">调试信息</h3>
             <div className="space-y-1 text-gray-600">
-              <div>照片数量: {photos.length}</div>
-              <div>加载状态: {loading ? '加载中' : '加载完成'}</div>
-              {photos.length > 0 && (
-                <div>第一张照片数据: {JSON.stringify(photos[0], null, 2)}</div>
-              )}
+              <div>胶卷品类: {filmStocks.length}</div>
+              <div>胶卷实例: {filmRolls.length}</div>
+              <div>当前年份: {selectedYear}</div>
+              <div>筛选结果: {filteredRolls.length}</div>
+              <div>已显示: {displayedRolls.length}</div>
+              <div>当前页: {currentPage}</div>
+              <div>还有更多: {hasMore ? '是' : '否'}</div>
+              <div>加载状态: {loading ? '加载中' : '完成'}</div>
+              <div>错误状态: {error ? '有错误' : '正常'}</div>
             </div>
           </div>
         )}

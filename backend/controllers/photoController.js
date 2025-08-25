@@ -25,14 +25,13 @@ const getAllPhotos = (req, res) => {
     const photos = query(`
       SELECT 
         p.*,
-        fr.roll_number as film_roll_number,
+        fr.name as film_roll_number,
         fr.name as film_roll_name,
-        c.brand as camera_brand,
-        c.model as camera_model,
-        c.name as camera_name
+        fr.brand as film_roll_brand,
+        fr.iso as film_roll_iso,
+        fr.type as film_roll_type
       FROM photos p
       LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
-      LEFT JOIN cameras c ON fr.camera_id = c.id
       ORDER BY p.${sortField} ${sortOrder} 
       LIMIT ? OFFSET ?
     `, [parseInt(limit), parseInt(offset)]);
@@ -41,11 +40,15 @@ const getAllPhotos = (req, res) => {
     photos.forEach(photo => {
       photo.photo_serial_number = `${photo.film_roll_number}-${photo.photo_number.toString().padStart(3, '0')}`;
       
-      // 生成图片路径
-      if (photo.filename) {
-        photo.original = `/uploads/${photo.filename}`;
-        photo.thumbnail = `/uploads/thumbnails/${photo.id}_${photo.photo_number.toString().padStart(3, '0')}_thumb.jpg`;
-      }
+              // 生成图片路径 - 根据新的目录结构
+        if (photo.filename && photo.film_roll_id) {
+          // 从胶卷ID生成roll_XXX格式
+          const rollNumber = photo.film_roll_id.replace('roll-', 'roll_');
+          photo.original = `/uploads/Film_roll/${rollNumber}/photos/${photo.filename}`;
+          // 使用生成的缩略图，提高性能 - 基于文件名而不是ID
+          const baseName = photo.filename.replace('.jpg', '');
+          photo.thumbnail = `/uploads/Film_roll/${rollNumber}/thumbnails/${baseName}_thumb.jpg`;
+        }
     });
 
     res.json({

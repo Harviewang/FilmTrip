@@ -1,0 +1,576 @@
+/* 地图页面样式 */
+.map-page {
+  height: calc(100vh - 64px); /* 减去导航栏高度 */
+  background: #f8f9fa;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.map-page.fullscreen {
+  width: 100vw;
+  height: 100vh;
+  background: #ffffff;
+}
+
+/* 右上角统一布局 - Google Maps风格 */
+.top-right-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+/* Google Maps风格统一容器 */
+.map-control-container {
+  background: white;
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+/* 统一按钮样式 - 40x40px Google标准 */
+.control-btn {
+  width: 40px;
+  height: 40px;
+  background: white;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  position: relative;
+}
+
+.control-btn:last-child {
+  border-bottom: none;
+}
+
+.control-btn:hover {
+  background: #f8f9fa;
+}
+
+.control-btn:active {
+  background: #e8f0fe;
+}
+
+.control-btn .icon {
+  width: 18px;
+  height: 18px;
+  color: #5f6368;
+}
+
+/* 定位按钮 */
+.location-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 缩放控件组 - 整合到统一容器 */
+.zoom-control-group {
+  display: contents; /* 让子元素直接参与父容器布局 */
+}
+
+.zoom-buttons {
+  display: contents; /* 让缩放按钮直接参与父容器布局 */
+}
+
+.zoom-btn {
+  width: 40px;
+  height: 40px;
+  background: white;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-size: 18px;
+  font-weight: 400;
+  color: #5f6368;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+}
+
+.zoom-btn:hover {
+  background: #f8f9fa;
+}
+
+.zoom-btn:active {
+  background: #e8f0fe;
+}
+
+.zoom-display {
+  width: 40px;
+  height: 40px;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  padding: 4px 0;
+}
+
+.zoom-value {
+  font-size: 11px;
+  font-weight: 500;
+  color: #5f6368;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+}
+
+/* 地图信息级别显示 */
+.map-info-level {
+  font-size: 9px;
+  color: #9aa0a6;
+  margin-top: 1px;
+  font-weight: 400;
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+}
+
+/* 定位加载动画 */
+.location-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  border: 2px solid #e8eaed;
+  border-top: 2px solid #1a73e8;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* 地图源切换组 */
+.map-source-group {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.source-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.source-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.source-btn {
+  flex: 1;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #666;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.source-btn:hover {
+  background: #ffffff;
+  color: #333;
+  transform: scale(1.02);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.source-btn.active {
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  color: white;
+  font-weight: bold;
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+}
+
+.source-btn:active {
+  transform: scale(0.98);
+}
+
+/* 定位按钮 - 左上角 */
+.location-toggle {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 1001;
+  background: rgba(76, 175, 80, 0.9);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.location-toggle:hover {
+  background: rgba(56, 142, 60, 0.95);
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.location-toggle:disabled {
+  background: rgba(158, 158, 158, 0.9);
+  cursor: not-allowed;
+  transform: none;
+}
+
+  .location-toggle .icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* 缩放等级显示组件 */
+  .zoom-level-display {
+    position: absolute;
+    top: 90px;
+    left: 20px;
+    z-index: 1001;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 80px;
+  }
+
+  .zoom-label {
+    font-size: 12px;
+    color: #666;
+    font-weight: 500;
+  }
+
+  .zoom-value {
+    font-size: 16px;
+    color: #333;
+    font-weight: bold;
+    text-align: center;
+  }
+
+.location-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* 用户位置标记样式 */
+.user-location-marker {
+  background: transparent;
+  border: none;
+}
+
+.user-location-dot {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  background: #4caf50;
+  border: 3px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.user-location-pulse {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 30px;
+  height: 30px;
+  border: 2px solid #4caf50;
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* 浮动全屏切换按钮 - 左下角 */
+.floating-fullscreen-toggle {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  z-index: 1001;
+  background: rgba(0, 123, 255, 0.9);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.floating-fullscreen-toggle:hover {
+  background: rgba(0, 98, 204, 0.95);
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.floating-fullscreen-toggle .icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* 地图容器 */
+.map-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.map-page.fullscreen .map-container {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Leaflet地图容器 */
+.leaflet-map {
+  width: 100%;
+  height: 100%;
+  background: #f8f9fa;
+}
+
+/* 加载状态 */
+.map-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.map-loading p {
+  color: #666;
+  font-size: 1rem;
+}
+
+/* 地图照片标记样式 - 区别于相册标记 */
+.map-photo-marker {
+  background: transparent;
+  border: none;
+}
+
+/* 新的简单点样式 */
+.photo-dot {
+  width: 8px;
+  height: 8px;
+  background: #1976d2;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.map-photo-marker:hover .photo-dot {
+  transform: scale(1.2);
+  background: #1565c0;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+.map-photo-marker.selected .photo-dot {
+  background: #f44336;
+  transform: scale(1.3);
+  box-shadow: 0 4px 12px rgba(244, 67, 54, 0.5);
+}
+
+/* 自定义地图控件样式 - 统一设计 */
+.custom-map-controls {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.zoom-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.zoom-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.zoom-btn:hover {
+  background: #ffffff;
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.zoom-btn:active {
+  transform: scale(0.95);
+}
+
+.zoom-in {
+  color: #4caf50;
+}
+
+.zoom-out {
+  color: #f44336;
+}
+
+/* 照片详情模态框样式已移至JSX中使用Tailwind CSS */
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .location-toggle {
+    top: 15px;
+    left: 15px;
+    padding: 10px 12px;
+  }
+  
+  .floating-fullscreen-toggle {
+    bottom: 15px;
+    left: 15px;
+    padding: 10px 12px;
+  }
+  
+  .zoom-controls {
+    padding: 6px;
+  }
+  
+  .zoom-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+  
+  .map-container {
+    height: 100vh;
+  }
+  
+  .map-page.fullscreen .map-container {
+    height: 100vh;
+  }
+  
+  .modal-content {
+    grid-template-columns: 1fr;
+  }
+  
+  .photo-details {
+    border-left: none;
+    border-top: 1px solid #e9ecef;
+  }
+}
+
+@media (max-width: 480px) {
+  .location-toggle {
+    top: 10px;
+    left: 10px;
+    padding: 8px 10px;
+  }
+  
+  .location-toggle .icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .floating-fullscreen-toggle {
+    bottom: 10px;
+    left: 10px;
+    padding: 8px 10px;
+  }
+  
+  .floating-fullscreen-toggle .icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .zoom-controls {
+    padding: 4px;
+  }
+  
+  .zoom-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+  
+  .photo-modal {
+    max-width: 95vw;
+    max-height: 95vh;
+  }
+}

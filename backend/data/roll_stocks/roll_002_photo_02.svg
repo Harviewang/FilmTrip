@@ -1,0 +1,78 @@
+<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="cafeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#8B4513;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#D2691E;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Cafe interior background -->
+  <rect width="400" height="300" fill="url(#cafeGradient)"/>
+  
+  <!-- Window -->
+  <rect x="50" y="50" width="100" height="80" fill="#87CEEB"/>
+  <rect x="50" y="50" width="100" height="80" fill="none" stroke="#8B4513" stroke-width="4"/>
+  <line x1="100" y1="50" x2="100" y2="130" stroke="#8B4513" stroke-width="2"/>
+  <line x1="50" y1="90" x2="150" y2="90" stroke="#8B4513" stroke-width="2"/>
+  
+  <!-- Table -->
+  <ellipse cx="250" cy="200" rx="60" ry="30" fill="#DEB887"/>
+  <rect x="240" y="200" width="8" height="40" fill="#8B4513"/>
+  <rect x="252" y="200" width="8" height="40" fill="#8B4513"/>
+  
+  <!-- Coffee cup -->
+  <ellipse cx="230" cy="190" rx="12" ry="8" fill="#FFFFFF"/>
+  <ellipse cx="230" cy="188" rx="10" ry="6" fill="#8B4513"/>
+  <rect x="242" y="185" width="8" height="4" rx="2" fill="#FFFFFF"/>
+  
+  <!-- Book -->
+  <rect x="260" y="185" width="25" height="18" fill="#4169E1"/>
+  <rect x="262" y="187" width="21" height="14" fill="#FFFFFF"/>
+  <line x1="265" y1="189" x2="280" y2="189" stroke="#333" stroke-width="1"/>
+  <line x1="265" y1="192" x2="280" y2="192" stroke="#333" stroke-width="1"/>
+  <line x1="265" y1="195" x2="275" y2="195" stroke="#333" stroke-width="1"/>
+  
+  <!-- Chair -->
+  <rect x="200" y="220" width="30" height="40" fill="#8B4513"/>
+  <rect x="195" y="215" width="40" height="8" fill="#D2691E"/>
+  <rect x="195" y="260" width="8" height="20" fill="#8B4513"/>
+  <rect x="227" y="260" width="8" height="20" fill="#8B4513"/>
+  
+  <!-- Plant in corner -->
+  <rect x="320" y="240" width="15" height="30" fill="#8B4513"/>
+  <ellipse cx="327" cy="235" rx="20" ry="25" fill="#228B22"/>
+  <ellipse cx="335" cy="225" rx="15" ry="20" fill="#32CD32"/>
+  <ellipse cx="320" cy="230" rx="12" ry="18" fill="#228B22"/>
+  
+  <!-- Wall art -->
+  <rect x="300" y="80" width="60" height="40" fill="#F5DEB3"/>
+  <rect x="305" y="85" width="50" height="30" fill="#87CEEB"/>
+  <circle cx="330" cy="100" r="8" fill="#FFD700"/>
+  <polygon points="315,110 325,95 335,110" fill="#228B22"/>
+  
+  <!-- Floor tiles -->
+  <line x1="0" y1="280" x2="400" y2="280" stroke="#A0522D" stroke-width="2"/>
+  <line x1="100" y1="280" x2="100" y2="300" stroke="#A0522D" stroke-width="1"/>
+  <line x1="200" y1="280" x2="200" y2="300" stroke="#A0522D" stroke-width="1"/>
+  <line x1="300" y1="280" x2="300" y2="300" stroke="#A0522D" stroke-width="1"/>
+  
+  <!-- Film frame border -->
+  <rect x="0" y="0" width="400" height="300" fill="none" stroke="#333" stroke-width="8"/>
+  
+  <!-- Film sprocket holes -->
+  <rect x="5" y="20" width="8" height="6" fill="#333"/>
+  <rect x="5" y="40" width="8" height="6" fill="#333"/>
+  <rect x="5" y="60" width="8" height="6" fill="#333"/>
+  <rect x="5" y="80" width="8" height="6" fill="#333"/>
+  <rect x="5" y="100" width="8" height="6" fill="#333"/>
+  
+  <rect x="387" y="20" width="8" height="6" fill="#333"/>
+  <rect x="387" y="40" width="8" height="6" fill="#333"/>
+  <rect x="387" y="60" width="8" height="6" fill="#333"/>
+  <rect x="387" y="80" width="8" height="6" fill="#333"/>
+  <rect x="387" y="100" width="8" height="6" fill="#333"/>
+  
+  <!-- Photo info -->
+  <text x="20" y="280" font-family="Arial, sans-serif" font-size="12" fill="white">Roll 002 - Photo 02</text>
+  <text x="20" y="295" font-family="Arial, sans-serif" font-size="10" fill="#ccc">Fuji Pro 400H</text>
+</svg>
