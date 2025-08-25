@@ -1,5 +1,5 @@
 {
-  "name": "film-management-backend",
+  "name": "filmtrip-backend",
   "version": "1.0.0",
   "description": "胶片摄影管理系统后端",
   "main": "index.js",
