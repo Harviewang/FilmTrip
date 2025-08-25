@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import API_CONFIG from '../../config/api.js';
 import AdaptiveLayout, { AdaptiveGrid, AdaptiveCard } from '../../components/AdaptiveLayout';
 import PhotoPreview from '../../components/PhotoPreview';
 import LazyImage from '../../components/LazyImage';
@@ -365,7 +366,7 @@ const Photos = () => {
       >
         <div className={viewMode === 'gallery' ? 'rounded-lg' : 'aspect-[4/3] overflow-hidden rounded-lg'}>
           <LazyImage
-            src={photo.thumbnail ? `http://localhost:3001${photo.thumbnail}` : null}
+            src={photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}` : null}
             alt={photo.title || '照片'}
             className={`transition-transform duration-300 group-hover:scale-110 ${
               viewMode === 'gallery' ? 'gallery-photo' : 'w-full h-full object-cover'

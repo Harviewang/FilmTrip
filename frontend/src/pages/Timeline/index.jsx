@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import API_CONFIG from '../../config/api.js';
 
 const Timeline = () => {
   const navigate = useNavigate();
@@ -101,7 +102,7 @@ const Timeline = () => {
   const fetchPhotos = async () => {
     try {
       console.log('开始获取照片...');
-      const response = await fetch('http://localhost:3001/api/photos');
+      const response = await fetch(`${API_CONFIG.API_BASE}/photos`);
       console.log('API响应状态:', response.status);
       
       if (!response.ok) {
@@ -116,8 +117,8 @@ const Timeline = () => {
         
         // 转换后端数据格式为前端需要的格式
         const formattedPhotos = result.data.map(photo => {
-          const thumbnailPath = `http://localhost:3001/uploads/thumbnails/${photo.filename.split('.')[0]}_thumb.jpg`;
-          const originalPath = `http://localhost:3001/uploads/${photo.filename}`;
+          const thumbnailPath = `${API_CONFIG.BASE_URL}/uploads/thumbnails/${photo.filename.split('.')[0]}_thumb.jpg`;
+          const originalPath = `${API_CONFIG.BASE_URL}/uploads/${photo.filename}`;
           console.log('照片数据:', photo);
           console.log('缩略图路径:', thumbnailPath);
           console.log('原图路径:', originalPath);

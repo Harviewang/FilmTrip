@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowsPointingOutIcon, ArrowsPointingInIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import API_CONFIG from '../../config/api.js';
 import LazyImage from '../../components/LazyImage';
 import './Map.css';
 
@@ -53,7 +54,7 @@ const Map = () => {
       setLoading(true);
       console.log('开始获取地图照片数据...');
       
-      const response = await fetch('http://localhost:3001/api/photos');
+      const response = await fetch(`${API_CONFIG.API_BASE}/photos`);
       console.log('API响应状态:', response.status);
       
       if (response.ok) {
@@ -679,7 +680,7 @@ const Map = () => {
               }`}>
                 {selectedPhoto.original ? (
                   <LazyImage
-                    src={`http://localhost:3001${selectedPhoto.original}`}
+                    src={`${API_CONFIG.BASE_URL}${selectedPhoto.original}`}
                     alt={selectedPhoto.title || '照片'}
                     className="h-[80vh] w-auto object-contain rounded-2xl shadow-2xl cursor-pointer"
                     onClick={() => setShowUI(!showUI)}
