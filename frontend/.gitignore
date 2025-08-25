@@ -1,1 +1,34 @@
 .vercel
+
+# Test files and data
+test/
+tests/
+__tests__/
+*.test.js
+*.test.jsx
+*.spec.js
+*.spec.jsx
+coverage/
+
+# Build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.test
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencies
+node_modules/
+
+# Editor files
+.vscode/
+.idea/
