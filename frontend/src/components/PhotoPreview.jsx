@@ -26,6 +26,14 @@ const PhotoPreview = ({
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
   const [viewMode, setViewMode] = useState('standard'); // 'standard' (80%) 或 'immersive' (95%)
   const [rotateDeg, setRotateDeg] = useState(0);
+  const [photoRotations, setPhotoRotations] = useState(() => {
+    try {
+      const saved = localStorage.getItem('photoRotations');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [isPortrait, setIsPortrait] = useState(false);
   const [baseIsPortrait, setBaseIsPortrait] = useState(false);
   const infoRef = useRef(null);
@@ -39,7 +47,13 @@ const PhotoPreview = ({
     return 0;
   }, []);
 
-  // 监听并测量信息面板高度，标准模式下用于为图片预留空间
+  // 当照片变化时，加载该照片的旋转状态
+  useEffect(() => {
+    if (photo && photo.id) {
+      const savedRotation = photoRotations[photo.id] || 0;
+      setRotateDeg(savedRotation);
+    }
+  }, [photo, photoRotations]);
   useEffect(() => {
     const measure = () => {
       if (uiVisible && infoRef.current) {
@@ -69,6 +83,8 @@ const PhotoPreview = ({
       setIsClosing(false);
     } else {
       setIsClosing(true);
+      // 关闭时重置旋转状态
+      setRotateDeg(0);
       const timer = setTimeout(() => {
         setIsVisible(false);
         setIsClosing(false);
@@ -223,10 +239,21 @@ const PhotoPreview = ({
         <button
           onClick={() => {
             setRotateDeg((d) => {
-              const next = (d + 90) % 360;
+              const next = d + 90; // 连续旋转，不限制在360度内
               // 根据旋转角度动态更新isPortrait
-              const rotated = next === 90 || next === 270 ? !baseIsPortrait : baseIsPortrait;
+              const rotated = next % 180 === 90 ? !baseIsPortrait : baseIsPortrait;
               setIsPortrait(rotated);
+              
+              // 保存旋转状态到localStorage
+              if (photo && photo.id) {
+                const newRotations = {
+                  ...photoRotations,
+                  [photo.id]: next
+                };
+                setPhotoRotations(newRotations);
+                localStorage.setItem('photoRotations', JSON.stringify(newRotations));
+              }
+              
               return next;
             });
           }}
@@ -308,13 +335,82 @@ const PhotoPreview = ({
               return next;
             });
           }}
-          style={{
-            maxWidth: '95vw',
-            maxHeight: viewMode === 'immersive' ? '95vh' : '80vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
+          style={(() => {
+            // 计算旋转后的实际宽高比
+            const rotatedAspect = rotateDeg % 180 === 90 ? 1 / imgAspect : imgAspect;
+            const rotatedIsPortrait = rotatedAspect < 1;
+            
+            // 沉浸模式：最长边占100%
+            if (viewMode === 'immersive') {
+              return rotatedIsPortrait ? {
+                // 旋转后是竖图：限制高度为100vh
+                maxHeight: '100vh',
+                maxWidth: `${100 * rotatedAspect}vh`,
+                width: 'auto',
+                height: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              } : {
+                // 旋转后是横图：限制宽度为100vw
+                maxWidth: '100vw',
+                maxHeight: `${100 / rotatedAspect}vw`,
+                width: 'auto',
+                height: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              };
+            } else {
+              // 标准模式：根据原始图片方向决定限制策略
+              // 原始竖图旋转90度后变成横图，应该以原生横图的占比为参考（限制宽度80vw）
+              // 原始横图旋转90度后变成竖图，应该以原生竖图的占比为参考（限制高度80vh）
+              const originalIsPortrait = imgAspect < 1;
+              
+              if (originalIsPortrait && rotateDeg % 180 === 90) {
+                // 原始竖图旋转90度后：限制宽度80vw（以原生横图为参考）
+                return {
+                  maxWidth: '80vw',
+                  maxHeight: `${80 / rotatedAspect}vw`,
+                  width: 'auto',
+                  height: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                };
+              } else if (!originalIsPortrait && rotateDeg % 180 === 90) {
+                // 原始横图旋转90度后：限制高度80vh（以原生竖图为参考）
+                return {
+                  maxHeight: '80vh',
+                  maxWidth: `${80 * rotatedAspect}vh`,
+                  width: 'auto',
+                  height: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                };
+              } else {
+                // 没有旋转或旋转180度：按原始方向限制
+                return originalIsPortrait ? {
+                  maxHeight: '80vh',
+                  maxWidth: `${80 * imgAspect}vh`,
+                  width: 'auto',
+                  height: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                } : {
+                  maxWidth: '80vw',
+                  maxHeight: `${80 / imgAspect}vw`,
+                  width: 'auto',
+                  height: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                };
+              }
+            }
+          })()}
         >
           {/* 加载指示器 */}
           {!imageLoaded && (
@@ -328,14 +424,12 @@ const PhotoPreview = ({
             alt={photo.title || '照片'}
             className="rounded-lg shadow-2xl transition-all duration-700 ease-in-out"
             style={{
-              maxWidth: '100%',
-              maxHeight: '100%',
               width: 'auto',
               height: 'auto',
               objectFit: 'contain',
               opacity: imageLoaded ? 1 : 0,
-              imageOrientation: 'from-image',
-              transform: `rotate(${rotateDeg}deg)`
+              transform: `rotate(${rotateDeg}deg)`,
+              transition: 'transform 0.2s ease-out'
             }}
             ref={imgRef}
             onLoad={(e) => {

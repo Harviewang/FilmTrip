@@ -6,8 +6,8 @@ import AdaptiveLayout, { AdaptiveGrid, AdaptiveCard } from '../../components/Ada
 import PhotoPreview from '../../components/PhotoPreview';
 import LazyImage from '../../components/LazyImage';
  
-import useStablePullToRefresh from '../../hooks/useStablePullToRefresh';
-import PullToRefreshIndicator from '../../components/PullToRefreshIndicator';
+// import useStablePullToRefresh from '../../hooks/useStablePullToRefresh';
+// import PullToRefreshIndicator from '../../components/PullToRefreshIndicator';
 
 const Photos = () => {
   const navigate = useNavigate();
@@ -36,25 +36,15 @@ const Photos = () => {
   const [masonrySpans, setMasonrySpans] = useState({});
 
   // 下拉刷新功能
-  const {
-    pullDistance,
-    isRefreshing: isPullRefreshing,
-    isPulling,
-    containerRef,
-    handleTouchStart,
-    handleTouchMove,
-    handleTouchEnd,
-    triggerRefresh
-  } = useStablePullToRefresh(
-    async () => {
-      await fetchPhotos(1, false, true); // isRefresh = true
-    },
-    {
-      threshold: 80,
-      maxPullDistance: 120,
-      disabled: false
-    }
-  );
+  // 暂时注释掉下拉刷新功能，定义默认值
+  const pullDistance = 0;
+  const isPullRefreshing = false;
+  const isPulling = false;
+  const containerRef = useRef(null);
+  const handleTouchStart = () => {};
+  const handleTouchMove = () => {};
+  const handleTouchEnd = () => {};
+  const triggerRefresh = () => {};
 
   // 先定义fetchPhotos函数
   const fetchPhotos = async (page = 1, append = false, isRefresh = false) => {
@@ -431,16 +421,18 @@ const Photos = () => {
     <div 
       ref={containerRef}
       className="w-full h-full min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      // 暂时注释掉触摸事件
+      // onTouchStart={handleTouchStart}
+      // onTouchMove={handleTouchMove}
+      // onTouchEnd={handleTouchEnd}
     >
-      <PullToRefreshIndicator
+      {/* 暂时注释掉下拉刷新指示器 */}
+      {/* <PullToRefreshIndicator
         pullDistance={pullDistance}
         isRefreshing={isPullRefreshing}
         isPulling={isPulling}
         threshold={80}
-      />
+      /> */}
 
       <div className="w-full h-full flex flex-col">
         <div className="w-full flex-shrink-0 py-1 bg-white/80 backdrop-blur-sm border-b border-gray-200">
@@ -497,71 +489,93 @@ const Photos = () => {
                     {photos.map((photo) => renderPhotoCard(photo))}
                   </div>
                 ) : (
-                  // 瀑布流（Masonry）：CSS Grid + row-span，避免新项目堆到最右列
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" style={{ gridAutoRows: '1px', gridAutoFlow: 'dense' }}>
-                    {photos.map((photo) => {
-                      const isAdmin = (() => {
-                        try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; } catch (e) { return false; }
-                      })();
-                      const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
-                      const isPrivateForViewer = effectivePrivate && !isAdmin;
-                      const rw = photo?.thumbnail_width || photo?._raw?.thumbnail_width || photo?._raw?.width;
-                      const rh = photo?.thumbnail_height || photo?._raw?.thumbnail_height || photo?._raw?.height;
-                      let spanFromMeta = 300;
-                      if (rw && rh) {
-                        const approxW = 300; // 估算列宽
-                        const approxH = Math.max(1, Math.round((approxW * rh) / rw));
-                        spanFromMeta = Math.max(200, approxH); // 行高1px，直接用像素高度
-                      }
-                      const span = masonrySpans[photo.id] || spanFromMeta;
-                      return (
-                        <div key={photo.id} className="masonry-item" style={{ gridRowEnd: `span ${span}` }}>
-                          <div className={`masonry-content relative w-full overflow-hidden rounded-lg bg-white shadow-sm ${isPrivateForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e)=>{ if (isPrivateForViewer) return; handlePhotoClick(photo, e); }}>
-                            {isPrivateForViewer ? (
-                              <div className="w-full bg-gray-100 text-gray-500 flex items-center justify-center text-center px-3 py-16">
-                                <div>
-                                  <div className="text-3xl mb-2">🔒</div>
-                                  <div className="text-xs">该照片涉及隐私或他人肖像，已被管理员加密</div>
+                  // 瀑布流（Masonry）：同一宽度等比缩放高度，按累积高度补位
+                  <div className="relative">
+                    {(() => {
+                      // 计算瀑布流布局
+                      const columnCount = window.innerWidth >= 1280 ? 4 : window.innerWidth >= 1024 ? 3 : window.innerWidth >= 640 ? 2 : 1;
+                      const gap = 24; // 24px gap
+                      const containerWidth = window.innerWidth - 48; // 减去左右padding
+                      const columnWidth = (containerWidth - gap * (columnCount - 1)) / columnCount;
+                      
+                      // 计算每张图片的位置
+                      const columnHeights = Array(columnCount).fill(0);
+                      const photoPositions = photos.map((photo, index) => {
+                        const photoNum = photo.photo_number || 1;
+                        let aspectRatio;
+                        if (photoNum % 3 === 0) {
+                          aspectRatio = 1.5; // 竖图：1200x1800
+                        } else if (photoNum % 2 === 0) {
+                          aspectRatio = 0.67; // 横图：1800x1200
+                        } else {
+                          aspectRatio = 1; // 正方形：1200x1200
+                        }
+                        
+                        const imageHeight = columnWidth / aspectRatio;
+                        
+                        // 找到最短的列
+                        const shortestColumn = columnHeights.indexOf(Math.min(...columnHeights));
+                        const left = shortestColumn * (columnWidth + gap);
+                        const top = columnHeights[shortestColumn];
+                        
+                        // 更新该列的高度
+                        columnHeights[shortestColumn] += imageHeight + gap;
+                        
+                        return {
+                          photo,
+                          left,
+                          top,
+                          width: columnWidth,
+                          height: imageHeight
+                        };
+                      });
+                      
+                      return photoPositions.map(({ photo, left, top, width, height }) => {
+                        const isAdmin = (() => {
+                          try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; }
+                          catch (e) { return false; }
+                        })();
+                        const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
+                        const isPrivateForViewer = effectivePrivate && !isAdmin;
+                        
+                        return (
+                          <div 
+                            key={photo.id} 
+                            className="absolute"
+                            style={{
+                              left: `${left}px`,
+                              top: `${top}px`,
+                              width: `${width}px`,
+                              height: `${height}px`
+                            }}
+                          >
+                            <div className={`masonry-content relative w-full h-full overflow-hidden rounded-lg bg-gray-100 shadow-sm hover:shadow-lg transition-shadow ${isPrivateForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e)=>{ if (isPrivateForViewer) return; handlePhotoClick(photo, e); }}>
+                              {isPrivateForViewer ? (
+                                <div className="w-full h-full bg-gray-100 text-gray-500 flex items-center justify-center text-center px-3">
+                                  <div>
+                                    <div className="text-3xl mb-2">🔒</div>
+                                    <div className="text-xs">该照片涉及隐私或他人肖像，已被管理员加密</div>
+                                  </div>
                                 </div>
-                              </div>
-                            ) : (
-                              <img
-                                src={(photo.size1024 || photo.thumbnail) ? `${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}` : ''}
-                                alt={photo.title || '照片'}
-                                className="w-full block select-none"
-                                style={{ 
-                                  imageOrientation: 'from-image', 
-                                  display: 'block',
-                                  height: 'auto'
-                                }}
-                                loading="lazy"
-                                onLoad={(e) => {
-                                  try {
-                                    const img = e.currentTarget;
-                                    if (img && img.naturalWidth && img.naturalHeight) {
-                                      // 等待图片实际渲染完成
-                                      setTimeout(() => {
-                                        const actualH = img.offsetHeight;
-                                        if (actualH > 0) {
-                                          const newSpan = Math.ceil(actualH) + 24; // 加上gap
-                                          setMasonrySpans(prev => (prev[photo.id] === newSpan ? prev : { ...prev, [photo.id]: newSpan }));
-                                        }
-                                      }, 50);
-                                    }
-                                  } catch {}
-                                }}
-                                onMouseDown={(e) => handlePhotoMouseDown(photo, e)}
-                                onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
-                                draggable={false}
-                              />
-                            )}
-                            {!isPrivateForViewer && effectivePrivate && (
-                              <div className="pointer-events-none absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">🔒</div>
-                            )}
+                              ) : (
+                                <img
+                                  src={(photo.size1024 || photo.thumbnail) ? `${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}` : ''}
+                                  alt={photo.title || '照片'}
+                                  className="w-full h-full object-cover select-none hover:opacity-95 transition-opacity"
+                                  loading="lazy"
+                                  onMouseDown={(e) => handlePhotoMouseDown(photo, e)}
+                                  onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
+                                  draggable={false}
+                                />
+                              )}
+                              {!isPrivateForViewer && effectivePrivate && (
+                                <div className="pointer-events-none absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">🔒</div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 )}
 
