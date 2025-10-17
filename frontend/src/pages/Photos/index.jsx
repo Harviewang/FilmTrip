@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import API_CONFIG from '../../config/api.js';
 import AdaptiveLayout, { AdaptiveGrid, AdaptiveCard } from '../../components/AdaptiveLayout';
+// 使用原生 CSS Grid Masonry
 import PhotoPreview from '../../components/PhotoPreview';
 import LazyImage from '../../components/LazyImage';
+ 
+import useStablePullToRefresh from '../../hooks/useStablePullToRefresh';
+import PullToRefreshIndicator from '../../components/PullToRefreshIndicator';
 
 const Photos = () => {
   const navigate = useNavigate();
@@ -20,8 +24,37 @@ const Photos = () => {
   const [hasMore, setHasMore] = useState(true);
   const pageSize = 20; // 每页加载20张照片
   
-  // 视图模式状态 - 画廊模式已禁用
-  const [viewMode, setViewMode] = useState('waterfall'); // 只支持 'waterfall'
+  // 视图模式状态
+  const WATERFALL_ENABLED = true; // 启用瀑布流
+  const [viewMode, setViewMode] = useState('list');
+  const [galleryCurrentIndex, setGalleryCurrentIndex] = useState(0);
+  
+  // 使用稳定的时间戳，避免每次渲染都刷新图片
+  const stableTimestamp = useRef(Date.now()).current;
+  const ROW_HEIGHT = 1; // px for masonry grid-auto-rows (1px for fine control)
+  const GAP_PX = 24; // gap-6 in Tailwind
+  const [masonrySpans, setMasonrySpans] = useState({});
+
+  // 下拉刷新功能
+  const {
+    pullDistance,
+    isRefreshing: isPullRefreshing,
+    isPulling,
+    containerRef,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    triggerRefresh
+  } = useStablePullToRefresh(
+    async () => {
+      await fetchPhotos(1, false, true); // isRefresh = true
+    },
+    {
+      threshold: 80,
+      maxPullDistance: 120,
+      disabled: false
+    }
+  );
 
   // 先定义fetchPhotos函数
   const fetchPhotos = async (page = 1, append = false, isRefresh = false) => {
@@ -43,7 +76,10 @@ const Photos = () => {
       
       // 添加分页参数
       const url = `/api/photos?page=${page}&limit=${pageSize}`;
-      const response = await fetch(url);
+      const token = localStorage.getItem('token');
+      const response = await fetch(url, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+      });
       if (response.ok) {
         const result = await response.json();
         console.log('获取到的照片数据:', result);
@@ -75,36 +111,7 @@ const Photos = () => {
         
         console.log('处理后的照片数组:', photoArray);
         
-        // 如果没有真实数据，使用模拟数据进行测试
-        if (photoArray.length === 0 && process.env.NODE_ENV === 'development') {
-          console.log(`使用模拟数据进行测试 - 第${page}页`);
-          // 生成模拟数据，模拟分页效果
-          const startId = (page - 1) * pageSize + 1;
-          const mockData = [];
-          const maxPhotos = 100; // 模拟总共100张照片
-          for (let i = 0; i < pageSize; i++) {
-            const id = startId + i;
-            // 模拟总共100张照片，超过100张就没有更多数据
-            if (id > maxPhotos) break;
-            // 随机生成横向或竖向图片
-            const isLandscape = Math.random() > 0.5;
-            mockData.push({
-              id: `photo-${id}`, // 使用稳定的ID
-              title: `测试照片${id}`,
-              filename: `test${id}.jpg`,
-              thumbnail: `/uploads/thumbnails/test${id}_thumb.jpg`,
-              original: `/uploads/test${id}.jpg`,
-              camera_name: `测试相机${Math.ceil(id / 5)}`,
-              film_roll_name: `测试胶卷${Math.ceil(id / 3)}`,
-              taken_date: '2025-01-21',
-              rating: Math.floor(Math.random() * 5) + 1,
-              width: isLandscape ? 1920 : 1080,
-              height: isLandscape ? 1080 : 1920
-            });
-          }
-          photoArray = mockData;
-          console.log(`生成模拟数据: ${mockData.length} 张照片，起始ID: ${startId}, 最大ID: ${maxPhotos}`);
-        }
+        // 不再在开发环境注入模拟数据；数据为空时直接呈现空态
         
         // 数据映射：将后端字段映射到前端期望的字段
         const mappedPhotos = photoArray.map((photo, index) => ({
@@ -143,14 +150,7 @@ const Photos = () => {
         // 如果返回的数据少于请求的页面大小，说明没有更多数据了
         const hasMoreData = mappedPhotos.length === pageSize && mappedPhotos.length > 0;
         
-        // 在开发环境下，如果使用模拟数据，需要特殊处理
-        if (process.env.NODE_ENV === 'development' && photoArray.length > 0) {
-          const maxPhotos = 100; // 模拟总共100张照片
-          const totalLoadedPhotos = append ? photos.length + mappedPhotos.length : mappedPhotos.length;
-          setHasMore(totalLoadedPhotos < maxPhotos && mappedPhotos.length === pageSize);
-        } else {
-          setHasMore(hasMoreData);
-        }
+        setHasMore(hasMoreData);
         
         if (mappedPhotos.length === 0 && !append) {
           setError('没有找到照片数据');
@@ -163,60 +163,7 @@ const Photos = () => {
       console.error('获取照片出错:', error);
       setError(`网络错误: ${error.message}`);
       
-      // 开发环境下使用模拟数据
-      if (process.env.NODE_ENV === 'development') {
-        console.log('网络错误，使用模拟数据进行测试');
-        const mockPhotos = [
-          {
-            id: 1,
-            title: '模拟照片1',
-            filename: 'mock1.jpg',
-            thumbnail: '/uploads/thumbnails/mock1_thumb.jpg',
-            original: '/uploads/mock1.jpg',
-            camera_name: '模拟相机',
-            film_roll_name: '模拟胶卷',
-            taken_date: '2025-01-21',
-            rating: 5
-          },
-          {
-            id: 2,
-            title: '模拟照片2',
-            filename: 'mock2.jpg',
-            thumbnail: '/uploads/thumbnails/mock2_thumb.jpg',
-            original: '/uploads/mock2.jpg',
-            camera_name: '模拟相机',
-            film_roll_name: '模拟胶卷',
-            taken_date: '2025-01-21',
-            rating: 4
-          }
-        ];
-        
-        const mappedMockPhotos = mockPhotos.map(photo => ({
-          id: photo.id,
-          title: photo.title || photo.filename || '无标题',
-          description: photo.description || '',
-          thumbnail: photo.thumbnail || photo.original,
-          original: photo.original,
-          camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
-          film: photo.film_roll_name || photo.film_roll_number || '无',
-          date: photo.taken_date || photo.uploaded_at || '未知日期',
-          rating: photo.rating || 0,
-          _raw: photo
-        }));
-        
-        if (append) {
-          setPhotos(prevPhotos => [...prevPhotos, ...mappedMockPhotos]);
-          setCurrentPage(page);
-        } else {
-          setPhotos(mappedMockPhotos);
-          setCurrentPage(page);
-        }
-        
-        // 模拟数据情况下设置hasMore状态
-        const maxPhotos = 100;
-        const totalLoadedPhotos = append ? photos.length + mappedMockPhotos.length : mappedMockPhotos.length;
-        setHasMore(totalLoadedPhotos < maxPhotos && mappedMockPhotos.length === pageSize);
-      }
+      // 不再注入任何模拟数据；网络错误时保持空列表并显示错误信息
     } finally {
       if (append) {
         setLoadingMore(false);
@@ -241,13 +188,29 @@ const Photos = () => {
     }
   };
 
-  // 移除刷新处理函数
+  // 滚动懒加载
+  useEffect(() => {
+    const handleScroll = () => {
+      // 检查是否接近页面底部
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // 当滚动到距离底部200px时触发加载更多
+      if (scrollTop + windowHeight >= documentHeight - 200) {
+        if (hasMore && !loadingMore && !isPullRefreshing) {
+          loadMorePhotos();
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [hasMore, loadingMore, isPullRefreshing]);
 
   useEffect(() => {
     fetchPhotos();
   }, []);
-  
-  // 移除自动滚动懒加载，改为仅通过拖拽交互触发
 
 
 
@@ -352,34 +315,80 @@ const Photos = () => {
     navigate(`/gallery?photo=${photo.id}`, { replace: true });
   };
 
+  // 清理过期的拖拽状态
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      setDragState(prev => {
+        const newState = { ...prev };
+        let hasChanges = false;
+        
+        Object.keys(newState).forEach(photoId => {
+          const state = newState[photoId];
+          // 清理超过5秒的拖拽状态
+          if (state && now - state.startTime > 5000) {
+            delete newState[photoId];
+            hasChanges = true;
+          }
+        });
+        
+        return hasChanges ? newState : prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(cleanupInterval);
+  }, []);
+
 
 
   const renderPhotoCard = (photo) => {
+    const isAdmin = (() => {
+      try {
+        const u = JSON.parse(localStorage.getItem('user'));
+        return u && u.username === 'admin';
+      } catch (e) { return false; }
+    })();
+    const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
+    const isPrivateForViewer = effectivePrivate && !isAdmin;
     return (
       <AdaptiveCard 
         key={photo.id} 
-        className={`cursor-pointer h-full group photo-card ${
-          viewMode === 'gallery' ? 'gallery-photo-container' : ''
-        }`}
-        hover={viewMode !== 'gallery'}
-        shadow={viewMode === 'gallery' ? 'none' : 'default'}
+        className={`h-full group photo-card ${isPrivateForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+        hover={true}
+        shadow={'default'}
       >
-        <div className={viewMode === 'gallery' ? 'rounded-lg' : 'aspect-[4/3] overflow-hidden rounded-lg'}>
-          <LazyImage
-            src={photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}` : null}
-            alt={photo.title || '照片'}
-            className={`transition-transform duration-300 group-hover:scale-110 ${
-              viewMode === 'gallery' ? 'gallery-photo' : 'w-full h-full object-cover'
-            }`}
-            onClick={(e) => handlePhotoClick(photo, e)}
-            onMouseDown={(e) => handlePhotoMouseDown(photo, e)}
-            onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
-            autoOrientation={true}
-            lazyOptions={{
-              rootMargin: '200px', // 增加预加载距离，提升滚动体验
-              threshold: 0.05 // 降低阈值，更早触发加载
-            }}
-          />
+        <div className={'aspect-[4/3] overflow-hidden rounded-lg relative'}>
+          {isPrivateForViewer ? (
+            <div
+              className={`w-full h-full flex items-center justify-center bg-gray-100 text-gray-500 relative`}
+              title="已加密：未登录用户不可查看详情"
+            >
+              <div className="flex flex-col items-center">
+                <div className="text-3xl mb-2">🔒</div>
+                <div className="text-xs">该照片涉及隐私或他人肖像，已被管理员加密</div>
+              </div>
+            </div>
+          ) : (
+            <LazyImage
+              src={(photo.size1024 || photo.thumbnail) ? `${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}` : null}
+              alt={photo.title || '照片'}
+              className={`transition-transform duration-300 group-hover:scale-110 w-full h-full object-cover`}
+              onClick={(e) => handlePhotoClick(photo, e)}
+              onMouseDown={(e) => handlePhotoMouseDown(photo, e)}
+              onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
+              autoOrientation={true}
+              lazyOptions={{
+                rootMargin: '200px',
+                threshold: 0.05
+              }}
+            />
+          )}
+          {/* 管理员视图：加密则常显锁图标（无文案） */}
+          {!isPrivateForViewer && effectivePrivate && (
+            <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">
+              🔒
+            </div>
+          )}
         </div>
       </AdaptiveCard>
     );
@@ -419,42 +428,59 @@ const Photos = () => {
   }
 
   return (
-    <div className="w-full h-full min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
+    <div 
+      ref={containerRef}
+      className="w-full h-full min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <PullToRefreshIndicator
+        pullDistance={pullDistance}
+        isRefreshing={isPullRefreshing}
+        isPulling={isPulling}
+        threshold={80}
+      />
+
       <div className="w-full h-full flex flex-col">
-        {/* 顶部工具栏 */}
         <div className="w-full flex-shrink-0 py-1 bg-white/80 backdrop-blur-sm border-b border-gray-200">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center">
-              {/* 左侧：视图模式切换 */}
               <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => setViewMode('waterfall')}
+                  onClick={() => setViewMode('list')}
                   className={`px-3 py-1 text-sm rounded-md transition-colors flex items-center space-x-1 ${
-                    viewMode === 'waterfall'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    viewMode === 'list' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                   }`}
-                  title="瀑布模式"
+                  title="平铺"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  {/* 平铺图标：四宫格 */}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="4" y="4" width="6" height="6" rx="1" strokeWidth="2"></rect>
+                    <rect x="14" y="4" width="6" height="6" rx="1" strokeWidth="2"></rect>
+                    <rect x="4" y="14" width="6" height="6" rx="1" strokeWidth="2"></rect>
+                    <rect x="14" y="14" width="6" height="6" rx="1" strokeWidth="2"></rect>
                   </svg>
                 </button>
                 <button
-                  disabled
-                  className="px-3 py-1 text-sm rounded-md transition-colors flex items-center space-x-1 text-gray-400 cursor-not-allowed bg-gray-50"
-                  title="画廊模式（暂时禁用）"
+                  onClick={() => setViewMode('waterfall')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors flex items-center space-x-1 ${
+                    viewMode === 'waterfall' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                  title="瀑布流"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                  {/* 瀑布流图标：三列高低错落 */}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="4" width="5" height="8" rx="1"></rect>
+                    <rect x="10" y="4" width="5" height="14" rx="1"></rect>
+                    <rect x="17" y="4" width="4" height="10" rx="1"></rect>
                   </svg>
                 </button>
               </div>
             </div>
           </div>
         </div>
-        
-        {/* 照片网格区域 - 与header footer对齐 */}
+
         <div className="w-full flex-1 py-2">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             {photos.length === 0 && !loading ? (
@@ -465,21 +491,85 @@ const Photos = () => {
               </div>
             ) : (
               <>
-                <div className={viewMode === 'gallery' 
-                  ? 'gallery-mode grid gap-4 grid-cols-1 justify-items-center'
-                  : 'grid gap-6 sm:gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-                }>
-                  {photos.map((photo) => renderPhotoCard(photo))}
-                </div>
-                
-                {/* 加载更多文字区域 */}
+                {(viewMode === 'list' || !WATERFALL_ENABLED) ? (
+                  // 固定网格：一行4个，统一宽高
+                  <div className="grid gap-6 sm:gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {photos.map((photo) => renderPhotoCard(photo))}
+                  </div>
+                ) : (
+                  // 瀑布流（Masonry）：CSS Grid + row-span，避免新项目堆到最右列
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" style={{ gridAutoRows: '1px', gridAutoFlow: 'dense' }}>
+                    {photos.map((photo) => {
+                      const isAdmin = (() => {
+                        try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; } catch (e) { return false; }
+                      })();
+                      const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
+                      const isPrivateForViewer = effectivePrivate && !isAdmin;
+                      const rw = photo?.thumbnail_width || photo?._raw?.thumbnail_width || photo?._raw?.width;
+                      const rh = photo?.thumbnail_height || photo?._raw?.thumbnail_height || photo?._raw?.height;
+                      let spanFromMeta = 300;
+                      if (rw && rh) {
+                        const approxW = 300; // 估算列宽
+                        const approxH = Math.max(1, Math.round((approxW * rh) / rw));
+                        spanFromMeta = Math.max(200, approxH); // 行高1px，直接用像素高度
+                      }
+                      const span = masonrySpans[photo.id] || spanFromMeta;
+                      return (
+                        <div key={photo.id} className="masonry-item" style={{ gridRowEnd: `span ${span}` }}>
+                          <div className={`masonry-content relative w-full overflow-hidden rounded-lg bg-white shadow-sm ${isPrivateForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e)=>{ if (isPrivateForViewer) return; handlePhotoClick(photo, e); }}>
+                            {isPrivateForViewer ? (
+                              <div className="w-full bg-gray-100 text-gray-500 flex items-center justify-center text-center px-3 py-16">
+                                <div>
+                                  <div className="text-3xl mb-2">🔒</div>
+                                  <div className="text-xs">该照片涉及隐私或他人肖像，已被管理员加密</div>
+                                </div>
+                              </div>
+                            ) : (
+                              <img
+                                src={(photo.size1024 || photo.thumbnail) ? `${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}` : ''}
+                                alt={photo.title || '照片'}
+                                className="w-full block select-none"
+                                style={{ 
+                                  imageOrientation: 'from-image', 
+                                  display: 'block',
+                                  height: 'auto'
+                                }}
+                                loading="lazy"
+                                onLoad={(e) => {
+                                  try {
+                                    const img = e.currentTarget;
+                                    if (img && img.naturalWidth && img.naturalHeight) {
+                                      // 等待图片实际渲染完成
+                                      setTimeout(() => {
+                                        const actualH = img.offsetHeight;
+                                        if (actualH > 0) {
+                                          const newSpan = Math.ceil(actualH) + 24; // 加上gap
+                                          setMasonrySpans(prev => (prev[photo.id] === newSpan ? prev : { ...prev, [photo.id]: newSpan }));
+                                        }
+                                      }, 50);
+                                    }
+                                  } catch {}
+                                }}
+                                onMouseDown={(e) => handlePhotoMouseDown(photo, e)}
+                                onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
+                                draggable={false}
+                              />
+                            )}
+                            {!isPrivateForViewer && effectivePrivate && (
+                              <div className="pointer-events-none absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">🔒</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <div className="flex justify-center items-center py-1">
                   {hasMore ? (
                     <span
                       onClick={loadMorePhotos}
-                      className={`text-blue-600 hover:text-blue-700 cursor-pointer transition-colors ${
-                        loadingMore ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      className={`text-blue-600 hover:text-blue-700 cursor-pointer transition-colors ${loadingMore ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {loadingMore ? '加载中...' : '加载更多'}
                     </span>
@@ -491,74 +581,20 @@ const Photos = () => {
             )}
           </div>
         </div>
-      </div>
 
-      {/* 使用全局PhotoPreview组件 */}
-      <PhotoPreview
-        photo={selectedPhoto}
-        photos={photos}
-        isOpen={showModal}
-        onClose={closeModal}
-        currentPath="/gallery"
-        showNavigation={true}
-        onPhotoChange={handlePhotoChange}
-        compact={true} // 启用紧凑模式，减少底部信息高度
-      />
+        <PhotoPreview
+          photo={selectedPhoto}
+          photos={photos}
+          isOpen={showModal}
+          onClose={closeModal}
+          currentPath="/gallery"
+          showNavigation={true}
+          onPhotoChange={handlePhotoChange}
+          compact={true}
+        />
+      </div>
     </div>
   );
 };
-
-// 添加样式处理画廊模式
-const styles = `
-  .gallery-mode {
-    justify-items: center;
-    max-width: 1200px; /* 与header对齐的最大宽度 */
-    margin: 0 auto;
-  }
-  
-  .gallery-mode .photo-card {
-    height: auto !important;
-    width: auto;
-    display: inline-block;
-    background: transparent !important;
-    box-shadow: none !important;
-    border: none !important;
-  }
-  
-  .gallery-mode .photo-card > div {
-    aspect-ratio: unset !important;
-    height: auto !important;
-    width: auto;
-    overflow: visible !important;
-  }
-  
-  .gallery-mode .gallery-photo {
-    width: auto !important;
-    height: auto !important;
-    max-width: 100vw;
-    max-height: 80vh;
-    object-fit: contain !important;
-    display: block;
-  }
-  
-  .gallery-mode .gallery-photo-container {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: transparent !important;
-  }
-`;
-
-// 将样式注入到页面
-if (typeof document !== 'undefined') {
-  const styleSheet = document.createElement('style');
-  styleSheet.type = 'text/css';
-  styleSheet.innerText = styles;
-  if (!document.head.querySelector('style[data-gallery-styles]')) {
-    styleSheet.setAttribute('data-gallery-styles', 'true');
-    document.head.appendChild(styleSheet);
-  }
-}
 
 export default Photos;
