@@ -5,13 +5,15 @@ const { v4: uuidv4 } = require('uuid');
 
 // 生成JWT token
 const generateToken = (user) => {
+  const secret = process.env.JWT_SECRET || 'dev-secret';
+  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
   return jwt.sign(
-    { 
-      id: user.id, 
-      username: user.username 
+    {
+      id: user.id,
+      username: user.username
     },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN }
+    secret,
+    { expiresIn }
   );
 };
 

@@ -74,13 +74,16 @@ const initialize = () => {
                 roll_number TEXT NOT NULL UNIQUE,
                 name TEXT NOT NULL,
                 opened_date TEXT,
+                finished_date TEXT,
                 location TEXT,
                 camera_id TEXT,
+                camera_name TEXT,
                 developed_date TEXT,
                 developer TEXT,
                 development_method TEXT,
                 scanner_id TEXT,
                 is_encrypted BOOLEAN DEFAULT 0,
+                is_private BOOLEAN DEFAULT 0,
                 status TEXT DEFAULT '未启封',
                 notes TEXT,
                 package_image TEXT,
@@ -114,6 +117,7 @@ const initialize = () => {
         location_name TEXT,
         rating INTEGER DEFAULT 0,
         is_encrypted BOOLEAN DEFAULT 0,
+        is_private BOOLEAN DEFAULT 0,
         tags TEXT,
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -149,6 +153,52 @@ const initialize = () => {
     } catch (error) {
       console.error('创建默认管理员用户失败:', error.message);
     }
+
+    // 数据库迁移：添加缺失的字段
+    try {
+      // 检查并添加 camera_name 字段
+      const cameraNameExists = db.prepare("PRAGMA table_info(film_rolls)").all()
+        .some(column => column.name === 'camera_name');
+      if (!cameraNameExists) {
+        db.exec('ALTER TABLE film_rolls ADD COLUMN camera_name TEXT');
+        console.log('已添加 camera_name 字段到 film_rolls 表');
+      }
+
+      // 检查并添加 finished_date 字段
+      const finishedDateExists = db.prepare("PRAGMA table_info(film_rolls)").all()
+        .some(column => column.name === 'finished_date');
+      if (!finishedDateExists) {
+        db.exec('ALTER TABLE film_rolls ADD COLUMN finished_date TEXT');
+        console.log('已添加 finished_date 字段到 film_rolls 表');
+      }
+
+      const nameExists = db.prepare("PRAGMA table_info(film_rolls)").all()
+        .some(column => column.name === 'name');
+      if (!nameExists) {
+        db.exec("ALTER TABLE film_rolls ADD COLUMN name TEXT DEFAULT ''");
+        db.exec("UPDATE film_rolls SET name = roll_number WHERE name = '' OR name IS NULL");
+        console.log('已添加 name 字段到 film_rolls 表并回填');
+      }
+
+      // 添加 is_private 到 film_rolls（若不存在）
+      const rollPrivateExists = db.prepare("PRAGMA table_info(film_rolls)").all()
+        .some(column => column.name === 'is_private');
+      if (!rollPrivateExists) {
+        db.exec('ALTER TABLE film_rolls ADD COLUMN is_private BOOLEAN DEFAULT 0');
+        console.log('已添加 is_private 字段到 film_rolls 表');
+      }
+
+      // 添加 is_private 到 photos（若不存在）
+      const photoPrivateExists = db.prepare("PRAGMA table_info(photos)").all()
+        .some(column => column.name === 'is_private');
+      if (!photoPrivateExists) {
+        db.exec('ALTER TABLE photos ADD COLUMN is_private BOOLEAN DEFAULT 0');
+        console.log('已添加 is_private 字段到 photos 表');
+      }
+    } catch (migrationError) {
+      console.error('数据库迁移失败:', migrationError);
+    }
+
   } catch (error) {
     console.error('数据库初始化失败:', error.message);
   }

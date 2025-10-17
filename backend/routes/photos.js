@@ -28,11 +28,15 @@ router.get('/:id', photoController.getPhotoById);
 
 // 上传照片 (需要认证，使用multer处理文件)
 router.post('/', auth, upload.single('file'), photoController.uploadPhoto);
+router.post('/batch', auth, upload.array('files', 50), photoController.uploadPhotosBatch);
 
 // 更新照片信息 (需要认证)
 router.put('/:id', auth, photoController.updatePhoto);
 
 // 删除照片 (需要管理员权限)
 router.delete('/:id', adminAuth, photoController.deletePhoto);
+
+// 管理员获取原图
+router.get('/:id/original', adminAuth, photoController.getOriginalPhoto);
 
 module.exports = router;

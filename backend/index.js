@@ -15,23 +15,36 @@ const PORT = process.env.PORT || 3001;
 // 中间件配置
 app.use(cors());
 app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // 注意：express.json() 和 express.urlencoded() 会干扰文件上传
 // 只在需要的地方使用，避免影响 multer 中间件
 
-// 静态文件服务 - 添加CORS头
+// 静态文件服务 - 添加CORS头和正确的Content-Type
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-  setHeaders: (res, path) => {
+  setHeaders: (res, filePath) => {
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'GET');
     res.set('Access-Control-Allow-Headers', 'Content-Type');
-  }
-}));
-app.use('/uploads/thumbnails', express.static(path.join(__dirname, 'uploads/thumbnails'), {
-  setHeaders: (res, path) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // 检查文件内容来确定正确的Content-Type
+    const fs = require('fs');
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+      if (content.includes('<svg')) {
+        res.set('Content-Type', 'image/svg+xml');
+      } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+        res.set('Content-Type', 'image/jpeg');
+      } else if (filePath.endsWith('.png')) {
+        res.set('Content-Type', 'image/png');
+      }
+    } catch (error) {
+      // 如果读取失败，使用默认类型
+      if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+        res.set('Content-Type', 'image/jpeg');
+      }
+    }
   }
 }));
 

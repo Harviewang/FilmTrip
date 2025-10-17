@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
+const sizeOf = require('image-size');
 const { query } = require('../models/db');
 
 /**
@@ -16,12 +17,16 @@ const ensureThumbnails = async () => {
     
     const uploadsDir = path.join(__dirname, '../uploads');
     const thumbnailsDir = path.join(uploadsDir, 'thumbnails');
+    const size1024Dir = path.join(uploadsDir, 'size1024');
+    const size2048Dir = path.join(uploadsDir, 'size2048');
     
     // 确保目录存在
-    if (!fs.existsSync(thumbnailsDir)) {
-      fs.mkdirSync(thumbnailsDir, { recursive: true });
-      console.log('📁 创建 thumbnails 目录');
-    }
+    [thumbnailsDir, size1024Dir, size2048Dir].forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        console.log(`📁 创建 ${path.basename(dir)} 目录`);
+      }
+    });
     
     let generatedCount = 0;
     let updatedCount = 0;
@@ -35,7 +40,10 @@ const ensureThumbnails = async () => {
       }
       
       const originalPath = path.join(uploadsDir, photo.filename);
-      const thumbnailPath = path.join(thumbnailsDir, `${photo.id}_${photo.photo_number.toString().padStart(3, '0')}_thumb.jpg`);
+      const baseName = photo.filename.replace(/\.[^.]+$/, '');
+      const thumbnailPath = path.join(thumbnailsDir, `${baseName}_thumb.jpg`);
+      const size1024Path = path.join(size1024Dir, `${baseName}_1024.jpg`);
+      const size2048Path = path.join(size2048Dir, `${baseName}_2048.jpg`);
       
       // 检查原图是否存在
       if (!fs.existsSync(originalPath)) {
@@ -44,46 +52,46 @@ const ensureThumbnails = async () => {
         continue;
       }
       
-      // 检查缩略图是否存在且是否需要更新
-      let needsUpdate = false;
-      if (fs.existsSync(thumbnailPath)) {
-        // 检查缩略图文件大小，如果太小说明质量不够
-        const stats = fs.statSync(thumbnailPath);
-        if (stats.size < 5000) { // 小于5KB的缩略图质量可能不够
-          needsUpdate = true;
-          console.log(`🔄 缩略图质量不足，需要更新: ${path.basename(thumbnailPath)}`);
-        } else {
-          console.log(`⏭️  缩略图已存在且质量良好: ${path.basename(thumbnailPath)}`);
-          skippedCount++;
-          continue;
-        }
-      } else {
-        needsUpdate = true;
-        console.log(`🔄 生成新缩略图: ${path.basename(thumbnailPath)}`);
+      // 检查是否需要重新生成（如果任一派生图缺失则全部重建）
+      const needsUpdate = !fs.existsSync(thumbnailPath) || !fs.existsSync(size1024Path) || !fs.existsSync(size2048Path);
+      
+      if (!needsUpdate) {
+        console.log(`⏭️  所有派生图已存在: ${baseName}`);
+        skippedCount++;
+        continue;
       }
       
-      if (needsUpdate) {
-        try {
-          // 生成高质量缩略图
-          await sharp(originalPath)
-            .resize(400, 400, {
-              fit: 'cover',
-              position: 'center'
-            })
-            .jpeg({ 
-              quality: 85,
-              progressive: true,
-              mozjpeg: true
-            })
-            .toFile(thumbnailPath);
-          
-          console.log(`✅ 缩略图${needsUpdate ? '更新' : '生成'}成功: ${path.basename(thumbnailPath)}`);
-          generatedCount++;
-          
-        } catch (error) {
-          console.error(`❌ 缩略图${needsUpdate ? '更新' : '生成'}失败: ${path.basename(thumbnailPath)}`, error.message);
-          errorCount++;
-        }
+      console.log(`🔄 重新生成派生图: ${baseName}`);
+      
+      try {
+        // 生成三个派生图：rotate()应用EXIF方向，withMetadata(false)移除EXIF防止前端二次旋转
+        await sharp(originalPath)
+          .rotate()
+          .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .withMetadata(false)
+          .toFile(thumbnailPath);
+        
+        await sharp(originalPath)
+          .rotate()
+          .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .withMetadata(false)
+          .toFile(size1024Path);
+        
+        await sharp(originalPath)
+          .rotate()
+          .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 90 })
+          .withMetadata(false)
+          .toFile(size2048Path);
+        
+        console.log(`✅ 派生图生成成功: ${baseName} (thumb, 1024, 2048)`);
+        generatedCount++;
+        
+      } catch (error) {
+        console.error(`❌ 派生图生成失败: ${baseName}`, error.message);
+        errorCount++;
       }
     }
     

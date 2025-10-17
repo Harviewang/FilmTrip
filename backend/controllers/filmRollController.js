@@ -282,6 +282,7 @@ const updateFilmRoll = async (req, res) => {
       development_method,
       scanner_id,
       status,
+      is_private,
       notes
     } = req.body;
     
@@ -349,12 +350,12 @@ const updateFilmRoll = async (req, res) => {
       UPDATE film_rolls SET 
         film_stock_id = ?, roll_number = ?, name = ?, opened_date = ?, location = ?,
         camera_id = ?, developed_date = ?, developer = ?, development_method = ?,
-        scanner_id = ?, status = ?, notes = ?, updated_at = ?
+        scanner_id = ?, status = ?, is_private = COALESCE(?, is_private), notes = ?, updated_at = ?
       WHERE id = ?
     `, [
       film_stock_id, roll_number, name, opened_date || null, location || null,
       camera_id || null, developed_date || null, developer || null, development_method || null,
-      scanner_id || null, status || '未启封', notes || '', now, id
+      scanner_id || null, status || '未启封', (is_private === undefined ? null : (is_private ? 1 : 0)), notes || '', now, id
     ]);
     
     if (result.changes === 0) {

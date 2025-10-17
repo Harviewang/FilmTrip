@@ -19,7 +19,7 @@ router.get('/photos', async (req, res) => {
         p.rating,
         c.name as camera_name,
         c.brand as camera_brand,
-        fr.name as film_roll_name
+        fr.roll_number as film_roll_name
       FROM photos p
       LEFT JOIN cameras c ON p.camera_id = c.id
       LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
@@ -133,7 +133,7 @@ router.get('/search', async (req, res) => {
         p.rating,
         c.name as camera_name,
         c.brand as camera_brand,
-        fr.name as film_roll_name
+        fr.roll_number as film_roll_name
       FROM photos p
       LEFT JOIN cameras c ON p.camera_id = c.id
       LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id

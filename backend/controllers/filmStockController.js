@@ -41,12 +41,27 @@ const getAllFilmStocks = async (req, res) => {
     }
     
     // 获取总数
-    const countResult = query(`SELECT COUNT(*) as total FROM film_stocks ${whereClause}`, params);
+    const countResult = await query(`SELECT COUNT(*) as total FROM film_stocks ${whereClause}`, params);
     const total = countResult[0].total;
     
     // 获取分页数据
-    const filmStocks = query(
-      `SELECT * FROM film_stocks ${whereClause} ORDER BY brand, series, iso LIMIT ? OFFSET ?`,
+    const filmStocks = await query(
+      `SELECT 
+        id,
+        stock_serial_number,
+        brand,
+        series,
+        iso,
+        format,
+        type,
+        description,
+        package_image as image_url,
+        cartridge_image,
+        created_at,
+        updated_at
+      FROM film_stocks ${whereClause} 
+      ORDER BY brand, series, iso 
+      LIMIT ? OFFSET ?`,
       [...params, parseInt(limit), offset]
     );
     
@@ -54,14 +69,12 @@ const getAllFilmStocks = async (req, res) => {
     
     res.json({
       success: true,
-      data: {
-        filmStocks,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / limit)
-        }
+      data: filmStocks,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {
@@ -82,7 +95,7 @@ const getFilmStockById = async (req, res) => {
     console.log('=== 获取胶卷品类详情 ===');
     const { id } = req.params;
     
-    const filmStock = query('SELECT * FROM film_stocks WHERE id = ?', [id]);
+    const filmStock = await query('SELECT * FROM film_stocks WHERE id = ?', [id]);
     
     if (filmStock.length === 0) {
       return res.status(404).json({
