@@ -94,6 +94,8 @@ temp/
 # Editor directories and files
 .vscode/
 .idea/
+.codebuddy/
+.cursorrules
 *.swp
 *.swo
 *~
@@ -110,6 +112,10 @@ Thumbs.db
 # Uploads and generated content
 uploads/
 thumbnails/
+backend/uploads/
+backend/uploads/thumbnails/
+backend/uploads/size1024/
+backend/uploads/size2048/
 
 # PID files
 *.pid
