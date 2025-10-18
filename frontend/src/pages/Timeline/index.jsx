@@ -102,7 +102,7 @@ const Timeline = () => {
   const fetchPhotos = async () => {
     try {
       console.log('开始获取照片...');
-      const response = await fetch(`${API_CONFIG.API_BASE}/photos`);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/photos`);
       console.log('API响应状态:', response.status);
       
       if (!response.ok) {
@@ -117,8 +117,9 @@ const Timeline = () => {
         
         // 转换后端数据格式为前端需要的格式
         const formattedPhotos = result.data.map(photo => {
-          const thumbnailPath = `${API_CONFIG.BASE_URL}/uploads/thumbnails/${photo.filename.split('.')[0]}_thumb.jpg`;
-          const originalPath = `${API_CONFIG.BASE_URL}/uploads/${photo.filename}`;
+          // 使用后端返回的图片路径，如果没有则使用默认路径
+          const thumbnailPath = photo.thumbnail || `${API_CONFIG.BASE_URL}/uploads/thumbnails/${photo.filename.split('.')[0]}_thumb.jpg`;
+          const originalPath = photo.original || `${API_CONFIG.BASE_URL}/uploads/${photo.filename}`;
           console.log('照片数据:', photo);
           console.log('缩略图路径:', thumbnailPath);
           console.log('原图路径:', originalPath);
@@ -137,7 +138,9 @@ const Timeline = () => {
             time: photo.taken_date ? '拍摄时间' : '上传时间',
             taken_date: photo.taken_date,
             photo_number: photo.photo_number,
-            uploaded_at: photo.uploaded_at
+            uploaded_at: photo.uploaded_at,
+            // 保留原始数据用于加密检查
+            _raw: photo
           };
         });
         
@@ -170,6 +173,49 @@ const Timeline = () => {
     );
   }
 
+  // 渲染照片内容（处理加密照片）
+  const renderPhotoContent = (photo, className = "w-full h-64 object-cover hover:scale-105 transition-transform duration-300") => {
+    const isAdmin = (() => {
+      try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; }
+      catch (e) { return false; }
+    })();
+    const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
+    const isPrivateForViewer = effectivePrivate && !isAdmin;
+
+    if (isPrivateForViewer) {
+      return (
+        <div className={`${className} bg-gray-100 text-gray-500 flex items-center justify-center`}>
+          <div className="text-center">
+            <div className="text-3xl mb-2">🔒</div>
+            <div className="text-xs">该照片涉及隐私或他人肖像，已被管理员加密</div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <img
+          src={photo.thumbnail}
+          alt={photo.title}
+          className={className}
+          onError={(e) => {
+            console.error('图片加载失败:', photo.thumbnail, e);
+            e.target.src = '/placeholder-photo.svg';
+          }}
+          onLoad={() => {
+            console.log('图片加载成功:', photo.thumbnail);
+          }}
+        />
+        {effectivePrivate && (
+          <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">
+            🔒
+          </div>
+        )}
+      </>
+    );
+  };
+
   const renderPhotoCard = (photo) => {
     console.log('渲染照片:', photo);
     
@@ -185,18 +231,9 @@ const Timeline = () => {
             navigate(`/timeline?photo=${photo.id}`, { replace: true });
           }}
         >
-          <img
-            src={photo.thumbnail}
-            alt={photo.title}
-            className="w-full h-64 object-cover hover:scale-105 transition-transform duration-300"
-            onError={(e) => {
-              console.error('图片加载失败:', photo.thumbnail, e);
-              e.target.src = '/placeholder-photo.svg';
-            }}
-            onLoad={() => {
-              console.log('图片加载成功:', photo.thumbnail);
-            }}
-          />
+          <div className="relative">
+            {renderPhotoContent(photo, "w-full h-64 object-cover hover:scale-105 transition-transform duration-300")}
+          </div>
         </div>
       );
     } else if (viewMode === 'list') {
@@ -223,14 +260,9 @@ const Timeline = () => {
           <div className="flex-1">
             <div className="md:flex">
               <div className="md:flex-shrink-0">
-                <img
-                  src={photo.thumbnail}
-                  alt={photo.title}
-                  className="h-48 w-full object-cover md:w-48 rounded-lg"
-                  onError={(e) => {
-                    e.target.src = '/placeholder-photo.svg';
-                  }}
-                />
+                <div className="relative">
+                  {renderPhotoContent(photo, "h-48 w-full object-cover md:w-48 rounded-lg")}
+                </div>
               </div>
               <div className="p-4">
                 <h3 className="text-lg font-medium text-gray-900">
@@ -254,14 +286,9 @@ const Timeline = () => {
             }}
           >
             <div className="relative overflow-hidden">
-              <img
-                src={photo.thumbnail}
-                alt={photo.title}
-                className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-300"
-                onError={(e) => {
-                  e.target.src = '/placeholder-photo.svg';
-                }}
-              />
+              <div className="relative">
+                {renderPhotoContent(photo, "w-full h-auto object-cover group-hover:scale-105 transition-transform duration-300")}
+              </div>
               {/* 悬停时的信息覆盖层 */}
               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-end">
                 <div className="w-full p-3 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">

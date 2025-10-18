@@ -2,7 +2,7 @@ const { query, insert, update, delete: deleteRecord } = require('../models/db');
 const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
-const sizeOf = require('image-size');
+const sizeOf = require('image-size').default || require('image-size');
 const crypto = require('crypto');
 const ExifParser = require('exif-parser');
 const jwt = require('jsonwebtoken');
@@ -106,16 +106,25 @@ const getAllPhotos = (req, res) => {
             photo.size2048 = has2048 ? size2048Rel : null;
             photo.thumbnail = hasThumb ? thumbRel : (has1024 ? size1024Rel : photo.original);
             // 返回缩略图尺寸与 EXIF 方向（若存在）
-            try {
-              const dimTarget = hasThumb ? thumbPathAbs : origPathAbs;
-              const dim = sizeOf(dimTarget);
-              if (dim && dim.width && dim.height) {
-                photo.thumbnail_width = dim.width;
-                photo.thumbnail_height = dim.height;
-                photo._raw.thumbnail_width = dim.width;
-                photo._raw.thumbnail_height = dim.height;
-              }
-            } catch (e) {}
+            // 暂时注释掉图片尺寸获取，先让瀑布流正常工作
+            // try {
+            //   const dimTarget = hasThumb ? thumbPathAbs : origPathAbs;
+            //   console.log('尝试获取图片尺寸:', dimTarget);
+              
+            //   // 使用 sharp 获取图片尺寸
+            //   const metadata = await sharp(dimTarget).metadata();
+            //   console.log('图片尺寸结果:', metadata);
+              
+            //   if (metadata && metadata.width && metadata.height) {
+            //     photo.thumbnail_width = metadata.width;
+            //     photo.thumbnail_height = metadata.height;
+            //     photo._raw.thumbnail_width = metadata.width;
+            //     photo._raw.thumbnail_height = metadata.height;
+            //     console.log('设置图片尺寸:', metadata.width, 'x', metadata.height);
+            //   }
+            // } catch (e) {
+            //   console.error('获取图片尺寸失败:', e.message);
+            // }
             try {
               const buf = fs.readFileSync(origPathAbs);
               const exif = ExifParser.create(buf).parse();

@@ -118,7 +118,7 @@ else
     echo "❌ 后端 vercel.json 配置缺失"
 fi
 
-if [ -f ".env.production.example" ]; then
+if [ -f "project/config/.env.production.example" ]; then
     echo "✅ 环境变量模板存在"
 else
     echo "❌ 环境变量模板缺失"
@@ -132,7 +132,7 @@ fi
 
 echo ""
 echo "📋 下一步操作："
-echo "1. 复制 .env.production.example 为 .env.production 并配置环境变量"
+echo "1. 复制 project/config/.env.production.example 为 .env.production 并配置环境变量"
 echo "2. 提交代码到 GitHub:"
 echo "   git add ."
 echo "   git commit -m 'Prepare for Vercel deployment'"

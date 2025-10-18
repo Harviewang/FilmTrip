@@ -54,7 +54,7 @@ const Map = () => {
       setLoading(true);
       console.log('开始获取地图照片数据...');
       
-      const response = await fetch(`${API_CONFIG.API_BASE}/photos`);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/photos`);
       console.log('API响应状态:', response.status);
       
       if (response.ok) {

@@ -9,6 +9,7 @@ import CameraManagement from './views/CameraManagement';
 import ScannerManagement from './views/ScannerManagement';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 // 用户端页面
 import Photos from './pages/Photos';
 import FilmRolls from './pages/FilmRolls';
@@ -37,37 +38,39 @@ function App() {
   }, []);
 
   return (
-    <Router>
-      <div className={`App ${isFullscreen ? 'fullscreen' : ''}`}>
-        <Routes>
-          {/* 公开路由 - 用户端 */}
-          <Route path="/" element={<UserLayout isFullscreen={isFullscreen} />}>
-            <Route index element={<Navigate to="/gallery" replace />} />
-            <Route path="gallery" element={<Photos />} />
-            <Route path="film-rolls" element={<FilmRolls />} />
-            <Route path="map" element={<Map />} />
-            <Route path="random" element={<Random />} />
-            <Route path="more" element={<More />} />
-            <Route path="photo/:id" element={<PhotoDetail />} />
-          </Route>
-          
-          {/* 管理后台路由 */}
-          <Route path="/admin/login" element={<Login />} />
-          <Route path="/admin" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-            <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="photos" element={<PhotoManagement />} />
-            <Route path="film-stocks" element={<FilmStockManagement />} />
-            <Route path="film-rolls" element={<FilmRollManagement />} />
-            <Route path="cameras" element={<CameraManagement />} />
-            <Route path="scanners" element={<ScannerManagement />} />
-          </Route>
-          
-          {/* 404 页面 - 捕获所有不匹配的路由 */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </div>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <div className={`App ${isFullscreen ? 'fullscreen' : ''}`}>
+          <Routes>
+            {/* 公开路由 - 用户端 */}
+            <Route path="/" element={<UserLayout isFullscreen={isFullscreen} />}>
+              <Route index element={<Navigate to="/gallery" replace />} />
+              <Route path="gallery" element={<Photos />} />
+              <Route path="film-rolls" element={<FilmRolls />} />
+              <Route path="map" element={<Map />} />
+              <Route path="random" element={<Random />} />
+              <Route path="more" element={<More />} />
+              <Route path="photo/:id" element={<PhotoDetail />} />
+            </Route>
+            
+            {/* 管理后台路由 */}
+            <Route path="/admin/login" element={<Login />} />
+            <Route path="/admin" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+              <Route index element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="photos" element={<PhotoManagement />} />
+              <Route path="film-stocks" element={<FilmStockManagement />} />
+              <Route path="film-rolls" element={<FilmRollManagement />} />
+              <Route path="cameras" element={<CameraManagement />} />
+              <Route path="scanners" element={<ScannerManagement />} />
+            </Route>
+            
+            {/* 404 页面 - 捕获所有不匹配的路由 */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

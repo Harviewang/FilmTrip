@@ -38,8 +38,8 @@ const LazyImage = ({
     setImageLoaded(true);
     onLoad(e);
     
-    // 检测图片方向
-    if (autoOrientation && imageSrc) {
+    // 简化图片方向处理：SVG图片不需要旋转
+    if (autoOrientation && imageSrc && !imageSrc.includes('.svg') && !imageSrc.includes('image/svg')) {
       simpleDetectImageNeedsRotation(imageSrc).then((needs) => {
         setNeedsRotation(needs);
         if (needs) {
@@ -53,6 +53,10 @@ const LazyImage = ({
         setNeedsRotation(false);
         setImageRotation(0);
       });
+    } else {
+      // SVG或检测失败时不旋转
+      setNeedsRotation(false);
+      setImageRotation(0);
     }
   }, [onLoad, autoOrientation, imageSrc]);
 

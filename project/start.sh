@@ -25,9 +25,10 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # 获取脚本所在目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_DIR="$SCRIPT_DIR/backend"
-FRONTEND_DIR="$SCRIPT_DIR/frontend"
-LOGS_DIR="$SCRIPT_DIR/logs"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+BACKEND_DIR="$PROJECT_ROOT/backend"
+FRONTEND_DIR="$PROJECT_ROOT/frontend"
+LOGS_DIR="$PROJECT_ROOT/logs"
 
 # 创建日志目录
 mkdir -p "$LOGS_DIR"

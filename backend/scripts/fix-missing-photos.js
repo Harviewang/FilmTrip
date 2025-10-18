@@ -114,3 +114,4 @@ db.close();
 console.log(`\n🎉 完成！共创建 ${created} 张测试图片`);
 console.log(`📁 存储位置: ${uploadsDir}`);
 
+
