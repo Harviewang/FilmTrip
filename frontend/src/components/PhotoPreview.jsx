@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import API_CONFIG from '../config/api';
-import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, ShareIcon, LinkIcon, ArrowUturnRightIcon } from '@heroicons/react/24/outline';
+import { getFittedSizeAfterRotate } from '../utils/imageFit';
+import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, ShareIcon, LinkIcon, ArrowUturnRightIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 
 /**
  * 全局通用照片预览组件
@@ -26,54 +27,103 @@ const PhotoPreview = ({
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
   const [viewMode, setViewMode] = useState('standard'); // 'standard' (80%) 或 'immersive' (95%)
   const [rotateDeg, setRotateDeg] = useState(0);
-  const [photoRotations, setPhotoRotations] = useState(() => {
-    try {
-      const saved = localStorage.getItem('photoRotations');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-  const [isPortrait, setIsPortrait] = useState(false);
-  const [baseIsPortrait, setBaseIsPortrait] = useState(false);
+  const [fittedSize, setFittedSize] = useState({ width: 0, height: 0 });
+  const [shouldAnimateRotation, setShouldAnimateRotation] = useState(false);
+  const toolbarRef = useRef(null);
   const infoRef = useRef(null);
   const imgRef = useRef(null);
-  const [infoHeight, setInfoHeight] = useState(0);
-  const [viewportH, setViewportH] = useState(() => (typeof window !== 'undefined' ? window.innerHeight : 800));
-  const [imgAspect, setImgAspect] = useState(null); // w/h
+  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [chromePadding, setChromePadding] = useState({ top: 0, bottom: 0 });
+  const showChrome = viewMode === 'standard' && uiVisible;
 
-  const getExifInitialRotation = useCallback(() => {
-    // 后端派生图已应用EXIF旋转且strip元数据，前端不再自动旋转，仅响应用户点击
-    return 0;
-  }, []);
-
-  // 当照片变化时，加载该照片的旋转状态
-  useEffect(() => {
-    if (photo && photo.id) {
-      const savedRotation = photoRotations[photo.id] || 0;
-      setRotateDeg(savedRotation);
+  // 计算适配尺寸
+  const recomputeFittedSize = useCallback(() => {
+    if (!photo || !imageDimensions.width || !imageDimensions.height) {
+      setFittedSize({ width: 0, height: 0 });
+      return;
     }
-  }, [photo, photoRotations]);
+
+    const baseWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+    const baseHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
+    const symmetricPadding = showChrome
+      ? Math.max(chromePadding.top, chromePadding.bottom)
+      : 0;
+
+    let { width, height } = getFittedSizeAfterRotate(
+      imageDimensions.width,
+      imageDimensions.height,
+      rotateDeg,
+      viewMode
+    );
+
+    setFittedSize({
+      width: Math.max(1, Math.round(width)),
+      height: Math.max(1, Math.round(height))
+    });
+  }, [
+    photo,
+    imageDimensions.width,
+    imageDimensions.height,
+    rotateDeg,
+    viewMode,
+    showChrome,
+    chromePadding.top,
+    chromePadding.bottom
+  ]);
+
   useEffect(() => {
+    recomputeFittedSize();
+  }, [recomputeFittedSize]);
+
+  // 监听窗口大小变化
+  useEffect(() => {
+    const handleResize = () => {
+      recomputeFittedSize();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [recomputeFittedSize]);
+
+  // 计算顶部和底部控制区域的占位，让图片在视觉上居中
+  useEffect(() => {
+    if (!showChrome) {
+      setChromePadding((prev) =>
+        prev.top === 0 && prev.bottom === 0 ? prev : { top: 0, bottom: 0 }
+      );
+      return;
+    }
+
     const measure = () => {
-      if (uiVisible && infoRef.current) {
-        setInfoHeight(infoRef.current.clientHeight || 0);
-      } else {
-        setInfoHeight(0);
+      let top = 0;
+      let bottom = 0;
+
+      if (toolbarRef.current) {
+        const rect = toolbarRef.current.getBoundingClientRect();
+        const styles = window.getComputedStyle(toolbarRef.current);
+        const offset = parseFloat(styles.top || '0') || 0;
+        top = rect.height + offset;
       }
-      if (typeof window !== 'undefined') {
-        setViewportH(window.innerHeight || 800);
+
+      if (infoRef.current) {
+        const rect = infoRef.current.getBoundingClientRect();
+        const styles = window.getComputedStyle(infoRef.current);
+        const offset = parseFloat(styles.bottom || '0') || 0;
+        bottom = rect.height + offset;
+      }
+
+      if (top !== chromePadding.top || bottom !== chromePadding.bottom) {
+        setChromePadding({ top, bottom });
       }
     };
+
     measure();
-    const onResize = () => measure();
-    window.addEventListener('resize', onResize);
-    const t = setTimeout(measure, 0);
+    window.addEventListener('resize', measure);
+
     return () => {
-      window.removeEventListener('resize', onResize);
-      clearTimeout(t);
+      window.removeEventListener('resize', measure);
     };
-  }, [uiVisible, photo, viewMode]);
+  }, [showChrome, imageLoaded, viewMode, photo, chromePadding]);
 
   // 控制组件显示动画
   useEffect(() => {
@@ -81,10 +131,15 @@ const PhotoPreview = ({
       setIsVisible(true);
       setImageLoaded(false);
       setIsClosing(false);
+      setShouldAnimateRotation(false);
+      setRotateDeg(0);
+      setFittedSize({ width: 0, height: 0 });
     } else {
       setIsClosing(true);
       // 关闭时重置旋转状态
+      setShouldAnimateRotation(false);
       setRotateDeg(0);
+      setFittedSize({ width: 0, height: 0 });
       const timer = setTimeout(() => {
         setIsVisible(false);
         setIsClosing(false);
@@ -97,19 +152,17 @@ const PhotoPreview = ({
   useEffect(() => {
     setImageLoaded(false);
     setIsZoomed(false);
+    setShouldAnimateRotation(false);
     setRotateDeg(0);
+    setFittedSize({ width: 0, height: 0 });
     // 不再应用EXIF初始方向（派生图已校正），初始为0，仅响应用户旋转按钮
-    setRotateDeg(0);
     // 预估纵横：若有尺寸（派生图已校正，直接基于宽高判断）
     const w = photo?.thumbnail_width || photo?._raw?.thumbnail_width || photo?._raw?.width;
     const h = photo?.thumbnail_height || photo?._raw?.thumbnail_height || photo?._raw?.height;
     if (w && h) {
-      const base = h > w;
-      setBaseIsPortrait(base);
-      setIsPortrait(base);
+      setImageDimensions({ width: w, height: h });
     } else {
-      setBaseIsPortrait(false);
-      setIsPortrait(false);
+      setImageDimensions({ width: 0, height: 0 });
     }
   }, [photo]);
 
@@ -227,69 +280,78 @@ const PhotoPreview = ({
 
   if (!isVisible || !photo) return null;
 
+  const symmetricPadding = showChrome
+    ? Math.max(chromePadding.top, chromePadding.bottom)
+    : 0;
+
+  const imageWidth = Math.max(1, Math.round(fittedSize.width));
+  const imageHeight = Math.max(1, Math.round(fittedSize.height));
+
   return (
-    <div className={`fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 backdrop-blur-md z-[9999] flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${
+    <div className={`fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 backdrop-blur-md z-[9999] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${
       isClosing ? 'opacity-0 scale-90 translate-y-8' : 'opacity-100 scale-100 translate-y-0'
     }`}>
       {/* 顶部工具栏 */}
-      <div className={`absolute top-4 right-4 z-10 flex items-center space-x-2 transition-all duration-300 ease-out ${
-        uiVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-      }`}>
-        {/* 旋转按钮（放在分享前面） */}
-        <button
+      {showChrome && (
+        <div
+          ref={toolbarRef}
+          className="absolute top-4 right-4 z-10 flex items-center space-x-2 transition-all duration-300 ease-out opacity-100 translate-y-0"
+        >
+          {/* 旋转按钮（放在分享前面） */}
+          <button
           onClick={() => {
+            setShouldAnimateRotation(true);
             setRotateDeg((d) => {
-              const next = d + 90; // 连续旋转，不限制在360度内
-              // 根据旋转角度动态更新isPortrait
-              const rotated = next % 180 === 90 ? !baseIsPortrait : baseIsPortrait;
-              setIsPortrait(rotated);
-              
-              // 保存旋转状态到localStorage
-              if (photo && photo.id) {
-                const newRotations = {
-                  ...photoRotations,
-                  [photo.id]: next
-                };
-                setPhotoRotations(newRotations);
-                localStorage.setItem('photoRotations', JSON.stringify(newRotations));
-              }
-              
+              const next = d - 90;
               return next;
             });
           }}
-          className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
-        >
-          <ArrowUturnRightIcon className="w-5 h-5 text-gray-700" />
-        </button>
-        {/* 分享按钮 */}
-        <button
-          onClick={sharePhoto}
-          className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl relative"
-        >
-          <ShareIcon className="w-5 h-5 text-gray-700" />
-          {copyLinkSuccess && (
-            <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-              链接已复制
-            </div>
-          )}
-        </button>
-        
-        {/* 复制链接按钮 */}
-        <button
-          onClick={copyPhotoLink}
-          className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
-        >
-          <LinkIcon className="w-5 h-5 text-gray-700" />
-        </button>
-        
-        {/* 关闭按钮 */}
-        <button
-          onClick={onClose}
-          className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
-        >
-          <XMarkIcon className="w-6 h-6 text-gray-700" />
-        </button>
-      </div>
+            className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
+          >
+            <ArrowUturnLeftIcon className="w-5 h-5 text-gray-700" />
+          </button>
+          <button
+          onClick={() => {
+            setShouldAnimateRotation(true);
+            setRotateDeg((d) => {
+              const next = d + 90; // 连续旋转，不限制在360度内
+              return next;
+            });
+          }}
+            className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
+          >
+            <ArrowUturnRightIcon className="w-5 h-5 text-gray-700" />
+          </button>
+          {/* 分享按钮 */}
+          <button
+            onClick={sharePhoto}
+            className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl relative"
+          >
+            <ShareIcon className="w-5 h-5 text-gray-700" />
+            {copyLinkSuccess && (
+              <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                链接已复制
+              </div>
+            )}
+          </button>
+          
+          {/* 复制链接按钮 */}
+          <button
+            onClick={copyPhotoLink}
+            className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
+          >
+            <LinkIcon className="w-5 h-5 text-gray-700" />
+          </button>
+          
+          {/* 关闭按钮 */}
+          <button
+            onClick={onClose}
+            className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
+          >
+            <XMarkIcon className="w-6 h-6 text-gray-700" />
+          </button>
+        </div>
+      )}
 
 
 
@@ -297,7 +359,7 @@ const PhotoPreview = ({
       {showNavigation && photos.length > 1 && (
         <>
           <div className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 transition-all duration-300 ease-out ${
-            uiVisible && !isZoomed ? 'opacity-100 -translate-x-0' : 'opacity-0 -translate-x-4'
+            viewMode === 'immersive' || (uiVisible && !isZoomed) ? 'opacity-100 -translate-x-0' : 'opacity-0 -translate-x-4'
           }`}>
             <button
               onClick={() => navigateToPhoto('prev')}
@@ -307,7 +369,7 @@ const PhotoPreview = ({
             </button>
           </div>
           <div className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 transition-all duration-300 ease-out ${
-            uiVisible && !isZoomed ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
+            viewMode === 'immersive' || (uiVisible && !isZoomed) ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
           }`}>
             <button
               onClick={() => navigateToPhoto('next')}
@@ -320,146 +382,69 @@ const PhotoPreview = ({
       )}
 
       {/* 照片显示区域 */}
-      <div className="relative w-full h-full flex items-center justify-center">
-        {/* 照片容器 */}
-        <div 
-          className={`relative flex items-center justify-center transition-all duration-500 ease-out ${
+      <div
+        className="relative flex-1 grid place-items-center"
+        style={{
+          paddingTop: symmetricPadding,
+          paddingBottom: symmetricPadding
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setViewMode(prev => {
+            const next = prev === 'standard' ? 'immersive' : 'standard';
+            // 切换到沉浸：隐藏所有 UI（包含 EXIF 信息）；切回标准：显示 UI
+            setUiVisible(next === 'standard');
+            return next;
+          });
+        }}
+      >
+        {/* 加载指示器 */}
+        {!imageLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        )}
+        
+        <img
+          src={photo.size2048 ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${Date.now()}` : (photo.size1024 ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${Date.now()}` : (photo.original ? `${API_CONFIG.BASE_URL}${photo.original}?v=${Date.now()}` : (photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${Date.now()}` : '')))}
+          alt={photo.title || '照片'}
+          className={`transition-all duration-500 ease-out ${
             imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
           }`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setViewMode(prev => {
-              const next = prev === 'standard' ? 'immersive' : 'standard';
-              // 切换到沉浸：隐藏所有 UI（包含 EXIF 信息）；切回标准：显示 UI
-              setUiVisible(next === 'standard');
-              return next;
-            });
+          style={{
+            width: `${imageWidth}px`,
+            height: `${imageHeight}px`,
+            objectFit: 'contain',
+            transform: `rotate(${rotateDeg}deg)`,
+            transformOrigin: 'center center',
+            transition: shouldAnimateRotation ? 'transform 0.2s ease-out' : 'none',
+            display: 'block'
           }}
-          style={(() => {
-            // 计算旋转后的实际宽高比
-            const rotatedAspect = rotateDeg % 180 === 90 ? 1 / imgAspect : imgAspect;
-            const rotatedIsPortrait = rotatedAspect < 1;
-            
-            // 沉浸模式：最长边占100%
-            if (viewMode === 'immersive') {
-              return rotatedIsPortrait ? {
-                // 旋转后是竖图：限制高度为100vh
-                maxHeight: '100vh',
-                maxWidth: `${100 * rotatedAspect}vh`,
-                width: 'auto',
-                height: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              } : {
-                // 旋转后是横图：限制宽度为100vw
-                maxWidth: '100vw',
-                maxHeight: `${100 / rotatedAspect}vw`,
-                width: 'auto',
-                height: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              };
-            } else {
-              // 标准模式：根据原始图片方向决定限制策略
-              // 原始竖图旋转90度后变成横图，应该以原生横图的占比为参考（限制宽度80vw）
-              // 原始横图旋转90度后变成竖图，应该以原生竖图的占比为参考（限制高度80vh）
-              const originalIsPortrait = imgAspect < 1;
-              
-              if (originalIsPortrait && rotateDeg % 180 === 90) {
-                // 原始竖图旋转90度后：限制宽度80vw（以原生横图为参考）
-                return {
-                  maxWidth: '80vw',
-                  maxHeight: `${80 / rotatedAspect}vw`,
-                  width: 'auto',
-                  height: 'auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                };
-              } else if (!originalIsPortrait && rotateDeg % 180 === 90) {
-                // 原始横图旋转90度后：限制高度80vh（以原生竖图为参考）
-                return {
-                  maxHeight: '80vh',
-                  maxWidth: `${80 * rotatedAspect}vh`,
-                  width: 'auto',
-                  height: 'auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                };
-              } else {
-                // 没有旋转或旋转180度：按原始方向限制
-                return originalIsPortrait ? {
-                  maxHeight: '80vh',
-                  maxWidth: `${80 * imgAspect}vh`,
-                  width: 'auto',
-                  height: 'auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                } : {
-                  maxWidth: '80vw',
-                  maxHeight: `${80 / imgAspect}vw`,
-                  width: 'auto',
-                  height: 'auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                };
-              }
+          ref={imgRef}
+          onTransitionEnd={(e) => {
+            if (e.propertyName === 'transform') {
+              setShouldAnimateRotation(false);
             }
-          })()}
-        >
-          {/* 加载指示器 */}
-          {!imageLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          )}
-          
-          <img
-            src={photo.size2048 ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${Date.now()}` : (photo.size1024 ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${Date.now()}` : (photo.original ? `${API_CONFIG.BASE_URL}${photo.original}?v=${Date.now()}` : (photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${Date.now()}` : '')))}
-            alt={photo.title || '照片'}
-            className="rounded-lg shadow-2xl transition-all duration-700 ease-in-out"
-            style={{
-              width: 'auto',
-              height: 'auto',
-              objectFit: 'contain',
-              opacity: imageLoaded ? 1 : 0,
-              transform: `rotate(${rotateDeg}deg)`,
-              transition: 'transform 0.2s ease-out'
-            }}
-            ref={imgRef}
-            onLoad={(e) => {
-              setImageLoaded(true);
-              try {
-                const img = e.currentTarget;
-                if (img && img.naturalWidth && img.naturalHeight) {
-                  setImgAspect(img.naturalWidth / img.naturalHeight);
-                  // 记录图像自然方向（派生图已校正）
-                  const portrait = img.naturalHeight > img.naturalWidth;
-                  setBaseIsPortrait(portrait);
-                  // 根据当前旋转角度计算实际方向
-                  const rotated = rotateDeg === 90 || rotateDeg === 270 ? !portrait : portrait;
-                  setIsPortrait(rotated);
-                }
-              } catch {}
-            }}
-            onError={(e) => {
-              console.error('照片加载失败:', e.target.src);
-              e.target.style.display = 'none';
-              setImageLoaded(true);
-            }}
-          />
-        </div>
+          }}
+          onLoad={(e) => {
+            setImageLoaded(true);
+            try {
+              const img = e.currentTarget;
+              if (img && img.naturalWidth && img.naturalHeight) {
+                setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+              }
+            } catch {}
+          }}
+          onError={(e) => {
+            console.error('照片加载失败:', e.target.src);
+            e.target.style.display = 'none';
+            setImageLoaded(true);
+          }}
+        />
 
         {/* 照片信息区域 - 绝对定位在底部，不会与图片重叠 */}
-        {uiVisible && (
-        <div ref={infoRef} className={`absolute bottom-4 left-0 right-0 flex justify-center transition-all duration-300 ease-out ${
-          uiVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-        }`}>
+        {showChrome && (
+        <div ref={infoRef} className="absolute bottom-4 left-0 right-0 flex justify-center transition-all duration-300 ease-out opacity-100 translate-y-0">
             {/* 照片信息 - 上下布局，参考 camarts.cn 设计 */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 text-sm max-w-6xl">
               {/* 评分 */}
