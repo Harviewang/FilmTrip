@@ -35,6 +35,8 @@ const PhotoPreview = ({
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [chromePadding, setChromePadding] = useState({ top: 0, bottom: 0 });
   const showChrome = viewMode === 'standard' && uiVisible;
+  // 使用稳定时间戳避免每次渲染都破坏缓存
+  const stableVRef = useRef(Date.now());
 
   // 计算适配尺寸
   const recomputeFittedSize = useCallback(() => {
@@ -53,7 +55,11 @@ const PhotoPreview = ({
       imageDimensions.width,
       imageDimensions.height,
       rotateDeg,
-      viewMode
+      viewMode,
+      {
+        width: baseWidth,
+        height: Math.max(0, baseHeight - symmetricPadding * 2)
+      }
     );
 
     setFittedSize({
@@ -406,7 +412,7 @@ const PhotoPreview = ({
         )}
         
         <img
-          src={photo.size2048 ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${Date.now()}` : (photo.size1024 ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${Date.now()}` : (photo.original ? `${API_CONFIG.BASE_URL}${photo.original}?v=${Date.now()}` : (photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${Date.now()}` : '')))}
+          src={photo.size2048 ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${stableVRef.current}` : (photo.size1024 ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${stableVRef.current}` : (photo.original ? `${API_CONFIG.BASE_URL}${photo.original}?v=${stableVRef.current}` : (photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${stableVRef.current}` : '')))}
           alt={photo.title || '照片'}
           className={`transition-all duration-500 ease-out ${
             imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
