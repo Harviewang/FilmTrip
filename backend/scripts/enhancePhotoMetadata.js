@@ -91,7 +91,7 @@ async function enhancePhotoMetadata() {
       const updateData = {
         country: selectedCity.country,
         province: selectedCity.province,
-        city: selectedCity.city,
+        city: selectedCity.name,  // 修复：使用name属性作为城市名称
         categories: JSON.stringify(selectedCategories),
         trip_name: randomTrip,
         trip_start_date: startDate.toISOString().split('T')[0],
@@ -123,7 +123,7 @@ async function enhancePhotoMetadata() {
 
       if (result.changes > 0) {
         updatedCount++;
-        console.log(`更新照片 ${photo.id}: ${selectedCity.city} - ${selectedCategories.join(',')} - ${randomTrip}`);
+        console.log(`更新照片 ${photo.id}: ${selectedCity.name} - ${selectedCategories.join(',')} - ${randomTrip}`);
       }
     }
 

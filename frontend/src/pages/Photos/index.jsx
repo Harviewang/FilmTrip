@@ -110,10 +110,27 @@ const Photos = () => {
           description: photo.description || '',
           thumbnail: photo.thumbnail || photo.original,
           original: photo.original,
+          size1024: photo.size1024,
+          size2048: photo.size2048,
           camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
           film: photo.film_roll_name || photo.film_roll_number || '无',
-          date: photo.taken_date || photo.uploaded_at || '未知日期',
+          date: photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'), // taken_date已经是日期格式
           rating: photo.rating || 0,
+          location_name: photo.location_name,
+          photo_serial_number: photo.photo_serial_number,
+          country: photo.country,
+          province: photo.province,
+          city: photo.city,
+          categories: photo.categories,
+          trip_name: photo.trip_name,
+          trip_start_date: photo.trip_start_date,
+          trip_end_date: photo.trip_end_date,
+          aperture: photo.aperture,
+          shutter_speed: photo.shutter_speed,
+          focal_length: photo.focal_length,
+          iso: photo.iso,
+          camera_model: photo.camera_model,
+          lens_model: photo.lens_model,
           // 保留原始数据用于调试
           _raw: photo
         }));

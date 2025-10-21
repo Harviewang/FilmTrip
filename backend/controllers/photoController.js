@@ -45,6 +45,9 @@ const getAllPhotos = (req, res) => {
     const photos = film_roll_id ? query(`
       SELECT 
         p.*,
+        c.name AS camera_name,
+        c.model AS camera_model,
+        c.brand AS camera_brand,
         fr.roll_number AS film_roll_number,
         fr.roll_number AS film_roll_name,
         fr.is_private AS roll_is_private,
@@ -52,6 +55,7 @@ const getAllPhotos = (req, res) => {
         fs.iso AS film_roll_iso,
         fs.type AS film_roll_type
       FROM photos p
+      LEFT JOIN cameras c ON p.camera_id = c.id
       LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
       LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
       WHERE p.film_roll_id = ?
@@ -60,6 +64,9 @@ const getAllPhotos = (req, res) => {
     `, [film_roll_id, parseInt(limit), parseInt(offset)]) : query(`
       SELECT 
         p.*,
+        c.name AS camera_name,
+        c.model AS camera_model,
+        c.brand AS camera_brand,
         fr.roll_number AS film_roll_number,
         fr.roll_number AS film_roll_name,
         fr.is_private AS roll_is_private,
@@ -67,6 +74,7 @@ const getAllPhotos = (req, res) => {
         fs.iso AS film_roll_iso,
         fs.type AS film_roll_type
       FROM photos p
+      LEFT JOIN cameras c ON p.camera_id = c.id
       LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
       LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
       ORDER BY p.${sortField} ${sortOrder} 
@@ -75,12 +83,15 @@ const getAllPhotos = (req, res) => {
     
     // 在JavaScript中生成照片流水号和图片路径，并根据隐私策略处理URL
     photos.forEach(photo => {
+      // 在修改前保存原始数据副本
+      const originalPhoto = { ...photo };
+      
       photo.photo_serial_number = `${photo.film_roll_number}-${photo.photo_number.toString().padStart(3, '0')}`;
       const photoIsPrivate = !!photo.is_private;
       const rollIsPrivate = !!photo.roll_is_private;
       const effectivePrivate = photoIsPrivate || rollIsPrivate;
       photo.effective_private = effectivePrivate;
-      photo._raw = photo._raw || {};
+      photo._raw = originalPhoto; // 保存原始数据副本
       photo._raw.effective_private = effectivePrivate;
       if (photo.filename) {
         const uploadsDir = path.join(__dirname, '../uploads');
@@ -91,65 +102,70 @@ const getAllPhotos = (req, res) => {
         const size1024Rel = `/uploads/size1024/${baseName}_1024.jpg`;
         const size2048Rel = `/uploads/size2048/${baseName}_2048.jpg`;
         const size1024Abs = path.join(uploadsDir, 'size1024', `${baseName}_1024.jpg`);
-        const size2048Abs = path.join(uploadsDir, 'size2048', `${baseName}_2048.jpg`);
-        const hasOriginal = fs.existsSync(origPathAbs);
-        const hasThumb = fs.existsSync(thumbPathAbs);
-        const has1024 = fs.existsSync(size1024Abs);
-        const has2048 = fs.existsSync(size2048Abs);
-        if (hasOriginal) {
-          // 非管理员且为加密内容：不返回任何图片URL
-          if (effectivePrivate && !isAdmin) {
-            photo.original = null;
-            photo.thumbnail = null;
-          } else {
-            photo.original = `/uploads/${photo.filename}`;
-            photo.size1024 = has1024 ? size1024Rel : null;
-            photo.size2048 = has2048 ? size2048Rel : null;
-            photo.thumbnail = hasThumb ? thumbRel : (has1024 ? size1024Rel : photo.original);
-            // 返回缩略图尺寸与 EXIF 方向（若存在）
-            // 暂时注释掉图片尺寸获取，先让瀑布流正常工作
-            // try {
-            //   const dimTarget = hasThumb ? thumbPathAbs : origPathAbs;
-            //   console.log('尝试获取图片尺寸:', dimTarget);
-              
-            //   // 使用 sharp 获取图片尺寸
-            //   const metadata = await sharp(dimTarget).metadata();
-            //   console.log('图片尺寸结果:', metadata);
-              
-            //   if (metadata && metadata.width && metadata.height) {
-            //     photo.thumbnail_width = metadata.width;
-            //     photo.thumbnail_height = metadata.height;
-            //     photo._raw.thumbnail_width = metadata.width;
-            //     photo._raw.thumbnail_height = metadata.height;
-            //     console.log('设置图片尺寸:', metadata.width, 'x', metadata.height);
-            //   }
-            // } catch (e) {
-            //   console.error('获取图片尺寸失败:', e.message);
-            // }
-            try {
-              const buf = fs.readFileSync(origPathAbs);
-              const exif = ExifParser.create(buf).parse();
-              if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
-                photo.exif = photo.exif || {};
-                photo.exif.Orientation = exif.tags.Orientation;
-                photo._raw.exif = photo._raw.exif || {};
-                photo._raw.exif.Orientation = exif.tags.Orientation;
-              }
-            } catch (e) {}
+        // 检查文件是否存在，设置URL
+        photo.original = `/uploads/${photo.filename}`;
+        photo.thumbnail = thumbRel;
+        photo.size1024 = size1024Rel;
+        photo.size2048 = size2048Rel;
+        try {
+          const buf = fs.readFileSync(origPathAbs);
+          const exif = ExifParser.create(buf).parse();
+          if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
+            photo.exif = photo.exif || {};
+            photo.exif.Orientation = exif.tags.Orientation;
+            photo._raw.exif = photo._raw.exif || {};
+            photo._raw.exif.Orientation = exif.tags.Orientation;
           }
-        } else {
-          photo.original = null;
-          photo.thumbnail = null;
-        }
+        } catch (e) {}
       } else {
         photo.original = null;
         photo.thumbnail = null;
       }
     });
 
+    // 调试：检查photo对象的状态
+    console.log('forEach后photos[0]:', photos[0] ? { id: photos[0].id, filename: photos[0].filename, thumbnail: photos[0].thumbnail, original: photos[0].original } : 'no photos');
+
+    // 数据映射：将后端字段映射到前端期望的字段
+    const mappedPhotos = photos.map((photo, index) => {
+      console.log(`映射照片 ${index}:`, { id: photo.id, filename: photo.filename, hasFilename: !!photo.filename });
+      return {
+        id: photo.id || `photo-${page}-${index}`, // 使用稳定的ID，避免刷新时位置错乱
+        title: photo.title || photo.filename || '无标题',
+        description: photo.description || '',
+        thumbnail: photo.thumbnail,
+        original: photo.original,
+        size1024: photo.size1024,
+        size2048: photo.size2048,
+        filename: photo.filename || photo._raw?.filename, // 从_raw获取filename作为fallback
+        camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
+        film: photo.film_roll_name || photo.film_roll_number || '无',
+        date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'), // taken_date已经是日期格式
+        rating: photo.rating || 0,
+        location_name: photo.location_name,
+        photo_serial_number: photo.photo_serial_number,
+        // 新增的元数据字段
+        country: photo.country,
+        province: photo.province,
+        city: photo.city,
+        categories: photo.categories,
+        trip_name: photo.trip_name,
+        trip_start_date: photo.trip_start_date,
+        trip_end_date: photo.trip_end_date,
+        aperture: photo.aperture,
+        shutter_speed: photo.shutter_speed,
+        focal_length: photo.focal_length,
+        iso: photo.iso,
+        camera_model: photo.camera_model,
+        lens_model: photo.lens_model,
+        // 保留原始数据用于调试
+        _raw: photo
+      };
+    });
+
     res.json({
       success: true,
-      data: photos,
+      data: mappedPhotos,
       pagination: {
         total,
         page,
