@@ -4,7 +4,7 @@ const fs = require('fs');
 const router = express.Router();
 
 // 获取胶卷照片列表
-router.get('/api/rollPhotos/:rollId', (req, res) => {
+router.get('/:rollId', (req, res) => {
   try {
     const rollId = req.params.rollId;
     
@@ -62,7 +62,7 @@ router.get('/api/rollPhotos/:rollId', (req, res) => {
 });
 
 // 获取胶卷照片图片
-router.get('/api/rollPhotos/image/:rollId/:filename', (req, res) => {
+router.get('/image/:rollId/:filename', (req, res) => {
   try {
     const { rollId, filename } = req.params;
     const rollPhotosDir = path.join(__dirname, '../uploads/Film_roll', `roll_${rollId.padStart(3, '0')}`, 'photos');

@@ -32,7 +32,7 @@ api.interceptors.response.use(
       // token过期或无效，清除本地存储并跳转到登录页
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      window.location.href = '/admin/login';
     }
     return Promise.reject(error);
   }

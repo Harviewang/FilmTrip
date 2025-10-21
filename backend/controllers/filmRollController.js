@@ -1,4 +1,4 @@
-const { query, insert, update, delete: deleteRecord } = require('../models/db');
+const { query, insert, update, delete: deleteRecord, db } = require('../models/db');
 const crypto = require('crypto');
 
 /**
@@ -457,7 +457,7 @@ const updateFilmRollStatus = async (req, res) => {
     console.log('更新状态:', { id, status });
     
     // 验证状态值
-    const validStatuses = ['未启封', '拍摄中', '已拍摄', '已冲洗', '已扫描'];
+    const validStatuses = ['unopened', 'shooting', 'exposed', 'developed', 'scanned', 'archived'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -477,19 +477,9 @@ const updateFilmRollStatus = async (req, res) => {
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     
     // 更新状态
-    const result = insert(
-      'UPDATE film_rolls SET status = ?, updated_at = ? WHERE id = ?',
-      [status, now, id]
-    );
+    const result = db.prepare('UPDATE film_rolls SET status = ?, updated_at = ? WHERE id = ?').run(status, now, id);
     
-    if (result.changes === 0) {
-      return res.status(500).json({
-        success: false,
-        message: '状态更新失败'
-      });
-    }
-    
-    console.log('状态更新成功:', { id, status, result });
+    console.log('状态更新结果:', result);
     
     res.json({
       success: true,

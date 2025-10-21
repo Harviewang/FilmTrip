@@ -108,14 +108,27 @@ const initialize = () => {
         description TEXT,
         taken_date TEXT,
         camera_id TEXT,
+        camera_model TEXT,
+        lens_model TEXT,
+        lens_focal_length TEXT,
         aperture TEXT,
         shutter_speed TEXT,
         focal_length TEXT,
         iso INTEGER,
+        exposure_compensation TEXT,
+        metering_mode TEXT,
+        focus_mode TEXT,
         latitude REAL,
         longitude REAL,
         location_name TEXT,
+        country TEXT,
+        province TEXT,
+        city TEXT,
         rating INTEGER DEFAULT 0,
+        categories TEXT,
+        trip_name TEXT,
+        trip_start_date TEXT,
+        trip_end_date TEXT,
         is_encrypted BOOLEAN DEFAULT 0,
         is_private BOOLEAN DEFAULT 0,
         tags TEXT,
@@ -195,6 +208,33 @@ const initialize = () => {
         db.exec('ALTER TABLE photos ADD COLUMN is_private BOOLEAN DEFAULT 0');
         console.log('已添加 is_private 字段到 photos 表');
       }
+
+      // 添加增强的元数据字段
+      const metadataFields = [
+        { name: 'camera_model', type: 'TEXT' },
+        { name: 'lens_model', type: 'TEXT' },
+        { name: 'lens_focal_length', type: 'TEXT' },
+        { name: 'exposure_compensation', type: 'TEXT' },
+        { name: 'metering_mode', type: 'TEXT' },
+        { name: 'focus_mode', type: 'TEXT' },
+        { name: 'country', type: 'TEXT' },
+        { name: 'province', type: 'TEXT' },
+        { name: 'city', type: 'TEXT' },
+        { name: 'categories', type: 'TEXT' },
+        { name: 'trip_name', type: 'TEXT' },
+        { name: 'trip_start_date', type: 'TEXT' },
+        { name: 'trip_end_date', type: 'TEXT' }
+      ];
+
+      const existingColumns = db.prepare("PRAGMA table_info(photos)").all()
+        .map(column => column.name);
+
+      metadataFields.forEach(field => {
+        if (!existingColumns.includes(field.name)) {
+          db.exec(`ALTER TABLE photos ADD COLUMN ${field.name} ${field.type}`);
+          console.log(`已添加 ${field.name} 字段到 photos 表`);
+        }
+      });
     } catch (migrationError) {
       console.error('数据库迁移失败:', migrationError);
     }

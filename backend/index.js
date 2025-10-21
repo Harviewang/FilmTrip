@@ -90,7 +90,7 @@ app.use('/api/scanners', scannerRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/filmStocks', filmStockRoutes);
 app.use('/api/filmRolls', filmRollRoutes);
-app.use('/', rollPhotosRoutes);
+app.use('/api/rollPhotos', rollPhotosRoutes);
 app.use('/api/map', mapRoutes);
 
 // 错误处理中间件

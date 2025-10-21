@@ -34,8 +34,9 @@ const getAllPhotos = (req, res) => {
     let isAdmin = false;
     try {
       const token = req.header('Authorization')?.replace('Bearer ', '');
+      const secret = process.env.JWT_SECRET || 'dev-secret';
       if (token) {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, secret);
         if (decoded && decoded.username === 'admin') isAdmin = true;
       }
     } catch (e) {}
@@ -189,7 +190,19 @@ const getOriginalPhoto = (req, res) => {
 
 const uploadPhotosBatch = async (req, res) => {
   try {
-    const { film_roll_id, camera_id, location_name, tags } = req.body;
+    const { 
+      film_roll_id, 
+      camera_id, 
+      location_name, 
+      tags,
+      country,
+      province,
+      city,
+      categories,
+      trip_name,
+      trip_start_date,
+      trip_end_date
+    } = req.body;
     if (!film_roll_id) {
       return res.status(400).json({ success: false, message: '胶卷实例为必填字段' });
     }
@@ -266,8 +279,9 @@ const uploadPhotosBatch = async (req, res) => {
         `INSERT INTO photos (
           id, film_roll_id, photo_number, filename, original_name, title, description,
           camera_id, taken_date, location_name, tags, uploaded_at,
-          aperture, shutter_speed, focal_length, iso, latitude, longitude
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          aperture, shutter_speed, focal_length, iso, latitude, longitude,
+          country, province, city, categories, trip_name, trip_start_date, trip_end_date
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           film_roll_id,
@@ -286,7 +300,14 @@ const uploadPhotosBatch = async (req, res) => {
           exifFocal2,
           exifIso2 || null,
           exifLat2 || null,
-          exifLon2 || null
+          exifLon2 || null,
+          country || null,
+          province || null,
+          city || null,
+          categories || null,
+          trip_name || null,
+          trip_start_date || null,
+          trip_end_date || null
         ]
       );
       if (result.changes > 0) {
@@ -361,7 +382,10 @@ const updatePhoto = (req, res) => {
       const allowedFields = [
         'title', 'description', 'film_type', 'camera_model', 'iso',
         'aperture', 'shutter_speed', 'focal_length', 'latitude',
-        'longitude', 'location_name', 'taken_date', 'album_id', 'is_private'
+        'longitude', 'location_name', 'taken_date', 'album_id', 'is_private',
+        'camera_model', 'lens_model', 'lens_focal_length', 'exposure_compensation',
+        'metering_mode', 'focus_mode', 'country', 'province', 'city',
+        'categories', 'trip_name', 'trip_start_date', 'trip_end_date'
       ];
 
       if (allowedFields.includes(key)) {
@@ -474,7 +498,14 @@ const uploadPhoto = async (req, res) => {
       camera_id,
       taken_date,
       location_name,
-      tags
+      tags,
+      country,
+      province,
+      city,
+      categories,
+      trip_name,
+      trip_start_date,
+      trip_end_date
     } = req.body;
 
     // 验证必填字段
@@ -627,8 +658,9 @@ const uploadPhoto = async (req, res) => {
       `INSERT INTO photos (
         id, film_roll_id, photo_number, filename, original_name, title, description,
         camera_id, taken_date, location_name, tags, uploaded_at,
-        aperture, shutter_speed, focal_length, iso, latitude, longitude
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        aperture, shutter_speed, focal_length, iso, latitude, longitude,
+        country, province, city, categories, trip_name, trip_start_date, trip_end_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         film_roll_id,
@@ -647,7 +679,14 @@ const uploadPhoto = async (req, res) => {
         exifFocal,
         exifIso || null,
         exifLat || null,
-        exifLon || null
+        exifLon || null,
+        country || null,
+        province || null,
+        city || null,
+        categories || null,
+        trip_name || null,
+        trip_start_date || null,
+        trip_end_date || null
       ]
     );
 

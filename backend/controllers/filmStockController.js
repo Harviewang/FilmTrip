@@ -4,7 +4,7 @@ const crypto = require('crypto');
 /**
  * 获取所有胶卷品类
  */
-const getAllFilmStocks = async (req, res) => {
+const getAllFilmStocks = (req, res) => {
   try {
     console.log('=== 获取所有胶卷品类 ===');
     
@@ -41,11 +41,11 @@ const getAllFilmStocks = async (req, res) => {
     }
     
     // 获取总数
-    const countResult = await query(`SELECT COUNT(*) as total FROM film_stocks ${whereClause}`, params);
+    const countResult = query(`SELECT COUNT(*) as total FROM film_stocks ${whereClause}`, params);
     const total = countResult[0].total;
     
     // 获取分页数据
-    const filmStocks = await query(
+    const filmStocks = query(
       `SELECT 
         id,
         stock_serial_number,
@@ -90,12 +90,12 @@ const getAllFilmStocks = async (req, res) => {
 /**
  * 根据ID获取胶卷品类
  */
-const getFilmStockById = async (req, res) => {
+const getFilmStockById = (req, res) => {
   try {
     console.log('=== 获取胶卷品类详情 ===');
     const { id } = req.params;
     
-    const filmStock = await query('SELECT * FROM film_stocks WHERE id = ?', [id]);
+    const filmStock = query('SELECT * FROM film_stocks WHERE id = ?', [id]);
     
     if (filmStock.length === 0) {
       return res.status(404).json({
@@ -123,7 +123,7 @@ const getFilmStockById = async (req, res) => {
 /**
  * 创建胶卷品类
  */
-const createFilmStock = async (req, res) => {
+const createFilmStock = (req, res) => {
   try {
     console.log('=== 创建胶卷品类 ===');
     console.log('请求体:', req.body);
@@ -226,7 +226,7 @@ const createFilmStock = async (req, res) => {
 /**
  * 更新胶卷品类
  */
-const updateFilmStock = async (req, res) => {
+const updateFilmStock = (req, res) => {
   try {
     console.log('=== 更新胶卷品类 ===');
     const { id } = req.params;
@@ -355,7 +355,7 @@ const updateFilmStock = async (req, res) => {
 /**
  * 删除胶卷品类
  */
-const deleteFilmStock = async (req, res) => {
+const deleteFilmStock = (req, res) => {
   try {
     console.log('=== 删除胶卷品类 ===');
     const { id } = req.params;
@@ -408,7 +408,7 @@ const deleteFilmStock = async (req, res) => {
 /**
  * 获取胶卷品类统计信息
  */
-const getFilmStockStats = async (req, res) => {
+const getFilmStockStats = (req, res) => {
   try {
     console.log('=== 获取胶卷品类统计 ===');
     

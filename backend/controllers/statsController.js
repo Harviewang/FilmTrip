@@ -201,3 +201,34 @@ module.exports = {
   getPhotoTrends,
   getStorageStats
 };
+
+const getActivityHeatmap = (req, res) => {
+  try {
+    const days = 365;
+    const uploads = query(`
+      SELECT DATE(uploaded_at) as d, COUNT(*) as c
+      FROM photos
+      WHERE uploaded_at IS NOT NULL AND DATE(uploaded_at) >= DATE('now', ?)
+      GROUP BY DATE(uploaded_at)
+    `, [`-${days} days`]);
+    const rolls = query(`
+      SELECT DATE(created_at) as d, COUNT(*) as c
+      FROM film_rolls
+      WHERE created_at IS NOT NULL AND DATE(created_at) >= DATE('now', ?)
+      GROUP BY DATE(created_at)
+    `, [`-${days} days`]);
+    const map = new Map();
+    uploads.forEach(r => map.set(r.d, (map.get(r.d) || 0) + r.c));
+    rolls.forEach(r => map.set(r.d, (map.get(r.d) || 0) + r.c));
+    const result = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = query(`SELECT DATE('now', ?) as d`, [`-${i} days`])[0].d;
+      result.push({ date: d, count: map.get(d) || 0 });
+    }
+    res.json({ success: true, data: result });
+  } catch (error) {
+    res.status(500).json({ success: false, message: '获取热度图失败', error: error.message });
+  }
+};
+
+module.exports.getActivityHeatmap = getActivityHeatmap;

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../models/db');
+const { adminAuth } = require('../middleware/auth');
 
 // 获取地图上的所有照片位置
 router.get('/photos', async (req, res) => {
@@ -61,7 +62,6 @@ router.get('/photos', async (req, res) => {
     });
   }
 });
-
 // 获取地图聚合数据（按区域分组）
 router.get('/aggregate', async (req, res) => {
   try {
@@ -275,6 +275,79 @@ router.put('/photos/:id/location', async (req, res) => {
       message: '更新照片位置失败',
       error: error.message
     });
+  }
+});
+
+/**
+ * 批量为测试数据打上地理位置（仅管理员）
+ * POST /api/map/seed/locations
+ * body: { scope: 'all'|'missing', region: 'china'|'world', jitterMeters?: number }
+ */
+router.post('/seed/locations', adminAuth, (req, res) => {
+  try {
+    const { scope = 'missing', region = 'china', jitterMeters = 5000 } = req.body || {};
+
+    // 城市坐标集（简化版）
+    const citiesChina = [
+      { name: '北京', lat: 39.9042, lng: 116.4074 },
+      { name: '上海', lat: 31.2304, lng: 121.4737 },
+      { name: '深圳', lat: 22.5431, lng: 114.0579 },
+      { name: '广州', lat: 23.1291, lng: 113.2644 },
+      { name: '成都', lat: 30.5728, lng: 104.0668 },
+      { name: '杭州', lat: 30.2741, lng: 120.1551 },
+      { name: '西安', lat: 34.3416, lng: 108.9398 },
+      { name: '武汉', lat: 30.5928, lng: 114.3055 },
+      { name: '重庆', lat: 29.5630, lng: 106.5516 },
+      { name: '青岛', lat: 36.0671, lng: 120.3826 }
+    ];
+    const citiesWorld = [
+      { name: 'Tokyo', lat: 35.6895, lng: 139.6917 },
+      { name: 'Seoul', lat: 37.5665, lng: 126.9780 },
+      { name: 'Bangkok', lat: 13.7563, lng: 100.5018 },
+      { name: 'Singapore', lat: 1.3521, lng: 103.8198 },
+      { name: 'Sydney', lat: -33.8688, lng: 151.2093 },
+      { name: 'London', lat: 51.5074, lng: -0.1278 },
+      { name: 'Paris', lat: 48.8566, lng: 2.3522 },
+      { name: 'New York', lat: 40.7128, lng: -74.0060 },
+      { name: 'San Francisco', lat: 37.7749, lng: -122.4194 },
+      { name: 'Vancouver', lat: 49.2827, lng: -123.1207 }
+    ];
+    const pool = region === 'world' ? citiesWorld : citiesChina;
+
+    const pickCity = (seed) => pool[seed % pool.length];
+    const jitter = (meters, lat) => {
+      const r = meters / 111320; // deg latitude per meter
+      const jlat = (Math.random() - 0.5) * 2 * r;
+      const jlng = (Math.random() - 0.5) * 2 * (meters / (111320 * Math.cos((lat || 0) * Math.PI / 180)));
+      return { jlat, jlng };
+    };
+
+    const selectSql = scope === 'all'
+      ? `SELECT id FROM photos`
+      : `SELECT id FROM photos WHERE latitude IS NULL OR longitude IS NULL`;
+
+    const rows = db.prepare(selectSql).all();
+    if (!rows || rows.length === 0) {
+      return res.json({ success: true, updated: 0, message: '没有需要更新的记录' });
+    }
+
+    const update = db.prepare(`UPDATE photos SET latitude = ?, longitude = ?, location_name = COALESCE(location_name, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?`);
+    const tx = db.transaction((ids) => {
+      ids.forEach((r, idx) => {
+        const c = pickCity(idx);
+        const { jlat, jlng } = jitter(jitterMeters, c.lat);
+        const lat = c.lat + jlat;
+        const lng = c.lng + jlng;
+        update.run(lat, lng, c.name, r.id);
+      });
+    });
+
+    tx(rows);
+
+    return res.json({ success: true, updated: rows.length, region, scope, jitterMeters });
+  } catch (error) {
+    console.error('批量定位失败:', error);
+    res.status(500).json({ success: false, message: '批量定位失败', error: error.message });
   }
 });
 

@@ -12,4 +12,7 @@ router.get('/trends', adminAuth, statsController.getPhotoTrends);
 // 获取存储统计 (需要管理员权限)
 router.get('/storage', adminAuth, statsController.getStorageStats);
 
+// 近365天活跃热度图
+router.get('/activity/heatmap', adminAuth, statsController.getActivityHeatmap);
+
 module.exports = router;

@@ -6,8 +6,8 @@ const ProtectedRoute = ({ children }) => {
   const user = localStorage.getItem('user');
 
   if (!token || !user) {
-    // 没有token或用户信息，重定向到登录页
-    return <Navigate to="/login" replace />;
+    // 没有token或用户信息，重定向到管理员登录页
+    return <Navigate to="/admin/login" replace />;
   }
 
   try {
@@ -19,13 +19,13 @@ const ProtectedRoute = ({ children }) => {
       // token已过期，清除本地存储并重定向
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      return <Navigate to="/login" replace />;
+      return <Navigate to="/admin/login" replace />;
     }
   } catch (error) {
     // token格式错误，清除本地存储并重定向
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/admin/login" replace />;
   }
 
   return children;

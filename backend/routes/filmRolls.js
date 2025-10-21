@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { query, insert } = require('../models/db');
+const { query, insert, update } = require('../models/db');
 
 // 获取所有胶卷实例，包含胶卷品类信息和照片信息
-router.get('/', async (req, res) => {
+router.get('/', (req, res) => {
   try {
-    const result = await query(`
+    const result = query(`
       SELECT 
         fr.id,
         fr.roll_number,
@@ -27,6 +27,8 @@ router.get('/', async (req, res) => {
         fs.type as film_roll_type,
         fs.format as film_roll_format,
         fs.description as film_roll_description,
+        fs.package_image as package_image,
+        fs.cartridge_image as canister_image,
         -- 照片统计
         COUNT(p.id) as photo_count
       FROM film_rolls fr
@@ -52,16 +54,16 @@ router.get('/', async (req, res) => {
 });
 
 // 更新胶卷实例（支持用 id 或 roll_number 定位）
-router.put('/:id', async (req, res) => {
+router.put('/:id', (req, res) => {
   try {
     const param = req.params.id;
     const body = req.body || {};
 
     // 先按 id 查找
-    let row = await query('SELECT * FROM film_rolls WHERE id = ?', [param]);
+    let row = query('SELECT * FROM film_rolls WHERE id = ?', [param]);
     if (row.length === 0) {
       // 再按 roll_number 查找
-      row = await query('SELECT * FROM film_rolls WHERE roll_number = ?', [param]);
+      row = query('SELECT * FROM film_rolls WHERE roll_number = ?', [param]);
       if (row.length === 0) {
         return res.status(404).json({ success: false, message: '胶卷不存在' });
       }
@@ -92,12 +94,12 @@ router.put('/:id', async (req, res) => {
     const sql = `UPDATE film_rolls SET ${sets.join(', ')} WHERE id = ?`;
     params.push(id);
 
-    const result = await insert(sql, params);
+    const result = insert(sql, params);
     if (result.changes === 0) {
       return res.status(500).json({ success: false, message: '更新失败' });
     }
 
-    const updated = await query('SELECT * FROM film_rolls WHERE id = ?', [id]);
+    const updated = query('SELECT * FROM film_rolls WHERE id = ?', [id]);
     return res.json({ success: true, data: updated[0], message: '更新成功' });
   } catch (error) {
     console.error('更新胶卷失败:', error);
@@ -106,12 +108,12 @@ router.put('/:id', async (req, res) => {
 });
 
 // 获取单个胶卷详情，包含照片列表
-router.get('/:id', async (req, res) => {
+router.get('/:id', (req, res) => {
   try {
     const { id } = req.params;
     
     // 获取胶卷基本信息
-    const rollResult = await query(`
+    const rollResult = query(`
       SELECT 
         fr.*,
         fr.is_private,
@@ -120,7 +122,9 @@ router.get('/:id', async (req, res) => {
         fs.iso as film_roll_iso,
         fs.type as film_roll_type,
         fs.format as film_roll_format,
-        fs.description as film_roll_description
+        fs.description as film_roll_description,
+        fs.package_image as package_image,
+        fs.cartridge_image as canister_image
       FROM film_rolls fr
       LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
       WHERE fr.id = ?
@@ -134,7 +138,7 @@ router.get('/:id', async (req, res) => {
     }
     
     // 获取胶卷的照片
-    const photosResult = await query(`
+    const photosResult = query(`
       SELECT 
         p.id,
         p.photo_number,
@@ -184,7 +188,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // 创建新胶卷实例
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
   try {
     const {
       roll_number,
@@ -205,7 +209,7 @@ router.post('/', async (req, res) => {
       });
     }
     
-    const result = await insert(`
+    const result = insert(`
       INSERT INTO film_rolls (
         roll_number, film_stock_id, name, is_private, status, opened_date, 
         location, camera_name, notes
@@ -228,7 +232,7 @@ router.post('/', async (req, res) => {
 });
 
 // 更新胶卷状态
-router.patch('/:id/status', async (req, res) => {
+router.patch('/:id/status', (req, res) => {
   try {
     const { id } = req.params;
     const { status, finished_date } = req.body;
@@ -248,7 +252,7 @@ router.patch('/:id/status', async (req, res) => {
       });
     }
     
-    const result = await query(`
+    const result = update(`
       UPDATE film_rolls 
       SET status = ?, finished_date = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
@@ -276,11 +280,11 @@ router.patch('/:id/status', async (req, res) => {
 });
 
 // 删除胶卷（软删除）
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', (req, res) => {
   try {
     const param = req.params.id;
     // 先按 id 更新
-    let result = await query(`
+    let result = query(`
       UPDATE film_rolls 
       SET status = 'archived', updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
@@ -288,7 +292,7 @@ router.delete('/:id', async (req, res) => {
 
     if (result.changes === 0) {
       // 再按 roll_number 更新
-      result = await query(`
+      result = query(`
         UPDATE film_rolls 
         SET status = 'archived', updated_at = CURRENT_TIMESTAMP
         WHERE roll_number = ?
