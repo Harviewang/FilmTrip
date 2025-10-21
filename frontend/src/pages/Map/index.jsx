@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ArrowsPointingOutIcon, ArrowsPointingInIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -28,7 +28,12 @@ const Map = () => {
     try { const u = JSON.parse(localStorage.getItem('user')||'{}'); return u && u.username === 'admin'; } catch { return false; }
   })();
   // 将当前底图状态提前声明，供后续 useEffect 使用
-  const [currentTileLayer, setCurrentTileLayer] = useState('amap');
+  const [currentTileLayer, setCurrentTileLayer] = useState('');
+  const currentTileLayerRef = useRef('');
+  const updateCurrentTileLayer = useCallback((source) => {
+    setCurrentTileLayer(source);
+    currentTileLayerRef.current = source;
+  }, []);
   const mapTilerStyles = ['backdrop','streets-v2','basic-v2','outdoor','dataviz','bright-v2'];
   const [mapTilerStyle, setMapTilerStyle] = useState(
     localStorage.getItem('maptiler_style') || import.meta.env.VITE_MAPTILER_STYLE || 'backdrop'
@@ -256,10 +261,11 @@ const Map = () => {
     }, 300);
   };
 
-  // 缩放等级映射函数：3->1, 4->2, 5->3, 默认5->3
+  // 缩放等级映射函数：扩展支持MapTiler的22级完整范围
   const getZoomLevelDisplay = (zoom) => {
     const zoomMap = {
-      3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9: 7, 10: 8, 11: 9, 12: 10, 13: 11, 14: 12
+      3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9: 7, 10: 8, 11: 9, 12: 10, 13: 11, 14: 12,
+      15: 13, 16: 14, 17: 15, 18: 16, 19: 17, 20: 18, 21: 19, 22: 20
     };
     return zoomMap[zoom] || zoom;
   };
@@ -472,7 +478,7 @@ const Map = () => {
         }
         if (base) {
           base.addTo(map);
-          setCurrentTileLayer(source);
+          updateCurrentTileLayer(source);
           // 重新绑定性能监控
           if (source === 'carto' || source === 'maptiler') attachPerfMonitor(base);
         }
@@ -518,7 +524,7 @@ const Map = () => {
           const language = getOptimalLanguage(region);
         }
         
-        setCurrentTileLayer(mapSource);
+        updateCurrentTileLayer(mapSource);
         setMapInfoLevel(''); // 极简风格，不显示文字
       };
 
@@ -601,11 +607,11 @@ const Map = () => {
         const base = buildMapTilerLayer(mapTilerStyle);
         tileLayers.maptiler.base = base;
         base.addTo(map);
-        setCurrentTileLayer('maptiler');
+        updateCurrentTileLayer('maptiler');
         attachPerfMonitor(base);
       } else {
         tileLayers.osm.base.addTo(map);
-        setCurrentTileLayer('osm');
+        updateCurrentTileLayer('osm');
       }
       
       // 禁用地图加载失败时的自动切换
@@ -614,22 +620,32 @@ const Map = () => {
       // 监听缩放变化，动态切换地图源和图层
       map.on('zoomend', () => {
         const zoom = map.getZoom();
-        const center = map.getCenter();
-        
-        // 只在缩放级别足够高时添加详细图层，不切换地图源
-        if (zoom >= 7) {
-          const currentSource = currentTileLayer;
-          if (tileLayers[currentSource]?.detailed && !map.hasLayer(tileLayers[currentSource].detailed)) {
-            tileLayers[currentSource].detailed.addTo(map);
+
+        // 清理所有非当前地图源的详细图层，确保不会被其他图层的maxZoom限制
+        const currentSource = currentTileLayerRef.current;
+        Object.keys(tileLayers).forEach(sourceKey => {
+          if (sourceKey !== currentSource && tileLayers[sourceKey]?.detailed) {
+            const layer = tileLayers[sourceKey].detailed;
+            if (layer && map.hasLayer(layer)) {
+              map.removeLayer(layer);
+            }
+          }
+        });
+
+        // 只管理当前地图源的详细图层
+        const detailLayer = currentSource ? tileLayers[currentSource]?.detailed : null;
+
+        if (detailLayer && zoom >= 7) {
+          if (!map.hasLayer(detailLayer)) {
+            detailLayer.addTo(map);
           }
         } else {
           // 缩放级别较低时移除详细图层
-          const currentSource = currentTileLayer;
-          if (tileLayers[currentSource]?.detailed && map.hasLayer(tileLayers[currentSource].detailed)) {
-            map.removeLayer(tileLayers[currentSource].detailed);
+          if (detailLayer && map.hasLayer(detailLayer)) {
+            map.removeLayer(detailLayer);
           }
         }
-        
+
         // 更新缩放状态
         setCurrentZoom(zoom);
       });
