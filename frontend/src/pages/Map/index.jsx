@@ -4,6 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import API_CONFIG from '../../config/api.js';
 import LazyImage from '../../components/LazyImage';
+import PhotoPreview from '../../components/PhotoPreview';
 import './Map.css';
 
 // 修复Leaflet默认图标问题
@@ -22,7 +23,45 @@ const Map = () => {
   const [userLocation, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(2);
-  const [showUI, setShowUI] = useState(true); // 控制UI显示状态
+  const [photoIndex, setPhotoIndex] = useState(0); // 当前照片索引
+  const isAdmin = (() => {
+    try { const u = JSON.parse(localStorage.getItem('user')||'{}'); return u && u.username === 'admin'; } catch { return false; }
+  })();
+  // 将当前底图状态提前声明，供后续 useEffect 使用
+  const [currentTileLayer, setCurrentTileLayer] = useState('amap');
+  const mapTilerStyles = ['backdrop','streets-v2','basic-v2','outdoor','dataviz','bright-v2'];
+  const [mapTilerStyle, setMapTilerStyle] = useState(
+    localStorage.getItem('maptiler_style') || import.meta.env.VITE_MAPTILER_STYLE || 'backdrop'
+  );
+
+  // 当样式变化时，如果当前底图为 maptiler，动态重建底图
+  useEffect(() => {
+    try {
+      localStorage.setItem('maptiler_style', mapTilerStyle);
+      if (mapInstanceRef.current && currentTileLayer === 'maptiler') {
+        // 触发重建
+        const map = mapInstanceRef.current;
+        // 移除现有 maptiler 层
+        const layers = [];
+        map.eachLayer(l => layers.push(l));
+        layers.forEach(l => {
+          if (l && l._url && String(l._url).includes('api.maptiler.com')) {
+            map.removeLayer(l);
+          }
+        });
+        // 重建并添加
+        const key = import.meta.env.VITE_MAPTILER_KEY;
+        if (key) {
+          const newLayer = L.tileLayer(`https://api.maptiler.com/maps/${mapTilerStyle}/256/{z}/{x}/{y}.png?key=${key}`, {
+            maxZoom: 22,
+            minZoom: 2,
+            attribution: '&copy; OpenMapTiles &copy; OpenStreetMap contributors &copy; MapTiler',
+          });
+          newLayer.addTo(map);
+        }
+      }
+    } catch {}
+  }, [mapTilerStyle, currentTileLayer]);
 
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -37,16 +76,12 @@ const Map = () => {
         case 'Escape':
           setSelectedPhoto(null);
           break;
-        case 'h':
-        case 'H':
-          setShowUI(!showUI);
-          break;
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [selectedPhoto, showUI]);
+  }, [selectedPhoto]);
 
   // 获取地图照片数据
   const fetchMapPhotos = async () => {
@@ -54,24 +89,72 @@ const Map = () => {
       setLoading(true);
       console.log('开始获取地图照片数据...');
       
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/photos`);
+      const response = await fetch('/api/photos');
       console.log('API响应状态:', response.status);
       
       if (response.ok) {
         const result = await response.json();
         console.log('API响应数据:', result);
         
-        if (result.success) {
-          setPhotos(result.data);
-          console.log(`成功获取 ${result.data.length} 张照片`);
-        } else {
-          console.error('获取地图照片失败:', result.message);
+        // 处理后端API的标准响应格式
+        let photoArray = [];
+        if (result.success && result.data && Array.isArray(result.data)) {
+          // 标准格式：{ success: true, data: [...] }
+          photoArray = result.data;
+        } else if (Array.isArray(result)) {
+          // 直接是数组
+          photoArray = result;
+        } else if (result && result.data && Array.isArray(result.data)) {
+          // 包装在data字段中的数组
+          photoArray = result.data;
+        } else if (result && result.photos && Array.isArray(result.photos)) {
+          // 包装在photos字段中的数组
+          photoArray = result.photos;
+        } else if (result && typeof result === 'object') {
+          // 如果是对象，尝试提取数组
+          const keys = Object.keys(result);
+          if (keys.length > 0) {
+            const firstKey = keys[0];
+            if (Array.isArray(result[firstKey])) {
+              photoArray = result[firstKey];
+            }
+          }
         }
+        
+        console.log('处理后的照片数组:', photoArray);
+        
+        // 数据映射：将后端字段映射到前端期望的字段
+        const mappedPhotos = photoArray.map((photo, index) => ({
+          id: photo.id || `photo-${index}`,
+          title: photo.title || photo.filename || '无标题',
+          description: photo.description || '',
+          thumbnail: photo.thumbnail || photo.original,
+          original: photo.original,
+          camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
+          film: photo.film_roll_name || photo.film_roll_number || '无',
+          date: photo.taken_date || photo.uploaded_at || '未知日期',
+          rating: photo.rating || 0,
+          latitude: photo.latitude,
+          longitude: photo.longitude,
+          location_name: photo.location_name,
+          // 保留原始数据用于调试
+          _raw: photo
+        }));
+        
+        console.log('映射后的照片数据:', mappedPhotos);
+        
+        // 设置照片数据
+        setPhotos(mappedPhotos);
+        
+        console.log(`成功获取 ${mappedPhotos.length} 张照片`);
       } else {
         console.error('获取地图照片失败:', response.status);
+        throw new Error(`获取照片失败: ${response.status}`);
       }
     } catch (error) {
       console.error('获取地图照片出错:', error);
+      // 显示错误信息给用户
+      alert(`获取照片数据失败: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -128,7 +211,15 @@ const Map = () => {
   // 处理照片点击
   const handlePhotoClick = (photo) => {
     setSelectedPhoto(photo);
-    // 移除自动定位和缩放，让用户自主控制地图
+    // 找到当前照片在数组中的索引，用于导航
+    const photoIndex = photos.findIndex(p => p.id === photo.id);
+    setPhotoIndex(photoIndex);
+  };
+
+  // 处理照片切换
+  const handlePhotoChange = (newPhoto, newIndex) => {
+    setSelectedPhoto(newPhoto);
+    setPhotoIndex(newIndex);
   };
 
   // 控制页面滚动 - 与其他页面保持一致
@@ -173,33 +264,13 @@ const Map = () => {
     return zoomMap[zoom] || zoom;
   };
 
-  // 智能缩放限制，根据地理位置动态调整
-  const getMaxZoomForLocation = (lat, lng) => {
-    // 更精确的中国大陆范围判断
-    // 排除日本、韩国、蒙古等周边国家
-    const isInChina = lat >= 18 && lat <= 54 && lng >= 73 && lng <= 135 &&
-                     !(lat >= 24 && lat <= 46 && lng >= 123 && lng <= 146) && // 排除日本
-                     !(lat >= 33 && lat <= 43 && lng >= 124 && lng <= 132) && // 排除韩国
-                     !(lat >= 41 && lat <= 52 && lng >= 87 && lng <= 120);    // 排除蒙古
-    
-    if (isInChina) {
-      console.log('检测到中国大陆位置，最大缩放14');
-      return 14; // 中国大陆支持zoom 3-14
-    } else {
-      console.log('检测到海外位置，最大缩放9');
-      return 9;  // 海外地区zoom 3-9
-    }
-  };
-
-  // 安全缩放函数 - 检查限制后再执行
+  // 安全缩放函数 - 使用地图配置的最大缩放级别
   const handleZoomIn = () => {
     if (!mapInstanceRef.current) return;
     
     const currentZoom = mapInstanceRef.current.getZoom();
-    const center = mapInstanceRef.current.getCenter();
-    const maxZoom = getMaxZoomForLocation(center.lat, center.lng);
     
-    if (currentZoom < maxZoom) {
+    if (currentZoom < 22) { // MapTiler支持的最大缩放级别
       mapInstanceRef.current.zoomIn();
     }
   };
@@ -215,8 +286,8 @@ const Map = () => {
   };
 
   // 渐进式信息展示的地图系统
-  const [currentTileLayer, setCurrentTileLayer] = useState('amap');
   const [mapInfoLevel, setMapInfoLevel] = useState('基础');
+  const tilePerfRef = useRef({ samples: [], avg: 0, starts: new globalThis.Map(), switchLocked: false });
 
   // 初始化地图
   useEffect(() => {
@@ -225,7 +296,7 @@ const Map = () => {
       const map = L.map(mapRef.current, {
         center: [22.5, 113.9],       // 深圳南山区坐标
         zoom: 3,                      // 默认缩放3.0，映射显示为1
-        maxZoom: 14,                  // 支持到zoom 14
+        maxZoom: 22,                  // 放开缩放限制
         minZoom: 3,                   // 限制最小缩放为3
         zoomControl: false,           // 隐藏默认缩放控件
         attributionControl: false,    // 隐藏归属信息
@@ -257,7 +328,46 @@ const Map = () => {
       });
 
       // 定义渐进式地图源
+      const buildMapTilerLayer = (style) => {
+        const key = import.meta.env.VITE_MAPTILER_KEY;
+        if (!key) return null;
+        return L.tileLayer(`https://api.maptiler.com/maps/${style}/256/{z}/{x}/{y}.png?key=${key}`, {
+          maxZoom: 22,
+          minZoom: 2,
+          attribution: '&copy; OpenMapTiles &copy; OpenStreetMap contributors &copy; MapTiler',
+          updateWhenIdle: true,
+          updateWhenZooming: true,
+          keepBuffer: 8,
+          tileSize: 256,
+          maxNativeZoom: 22,
+          opacity: 1.0,
+          zIndex: 1,
+          crossOrigin: true,
+        });
+      };
+
       const tileLayers = {
+        // MapTiler: 稳定CDN，需密钥，支持高缩放，选择极简黑白线框(Toner)
+        maptiler: {
+          base: buildMapTilerLayer(mapTilerStyle)
+        },
+        // Carto Positron: 极简线框风格（无标签），高可用
+        carto: {
+          base: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+            maxZoom: 18,
+            minZoom: 2,
+            subdomains: 'abcd',
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            updateWhenIdle: true,
+            updateWhenZooming: true,
+            keepBuffer: 8,
+            tileSize: 256,
+            maxNativeZoom: 18,
+            opacity: 1.0,
+            zIndex: 1,
+            crossOrigin: true,
+          })
+        },
         // 高德地图 - 国内使用，支持渐进式信息
         amap: {
           // 基础版 - 显示国家、省份、城市 (zoom 3-6)
@@ -306,14 +416,14 @@ const Map = () => {
         osm: {
           // 基础版 - 显示国家、省份、城市 (zoom 3-6) - 使用支持中文的OSM版本
           base: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png?language=zh&locale=zh', {
-            maxZoom: 9,
+            maxZoom: 18,
             minZoom: 3,
             subdomains: 'abc',
             attribution: '© OpenStreetMap contributors',
             updateWhenIdle: true,
             updateWhenZooming: true,
             keepBuffer: 8,
-            maxNativeZoom: 9,
+            maxNativeZoom: 19,
             tileSize: 256,
             zoomOffset: 0,
             tms: false,
@@ -325,14 +435,14 @@ const Map = () => {
           }),
           // 详细版 - 显示更多地理信息 (zoom 7-9) - 使用OSM中文优化版本
           detailed: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png?language=zh&locale=zh&style=osm', {
-            maxZoom: 9,
+            maxZoom: 18,
             minZoom: 7, // 从zoom 7开始显示详细信息
             subdomains: 'abc',
             attribution: '© OpenStreetMap contributors',
             updateWhenIdle: true,
             updateWhenZooming: true,
             keepBuffer: 8,
-            maxNativeZoom: 9,
+            maxNativeZoom: 19,
             tileSize: 256,
             zoomOffset: 0,
             tms: false,
@@ -348,25 +458,57 @@ const Map = () => {
       // 存储到全局，供切换功能使用
       window.tileLayers = tileLayers;
       
-      // 智能地图源切换函数 - 默认OSM，兜底高德
+      // 统一切换函数，便于性能策略调用
+      const switchTo = (source) => {
+        Object.values(tileLayers).forEach(src => {
+          Object.values(src).forEach(layer => {
+            if (layer && map.hasLayer(layer)) map.removeLayer(layer);
+          });
+        });
+        let base = tileLayers[source]?.base;
+        if (source === 'maptiler') {
+          base = buildMapTilerLayer(mapTilerStyle);
+          tileLayers.maptiler.base = base;
+        }
+        if (base) {
+          base.addTo(map);
+          setCurrentTileLayer(source);
+          // 重新绑定性能监控
+          if (source === 'carto' || source === 'maptiler') attachPerfMonitor(base);
+        }
+        if (tileLayers[source]?.detailed && map.getZoom() >= 7) {
+          tileLayers[source].detailed.addTo(map);
+        }
+      };
+
+      // 智能地图源切换函数 - 默认 MapTiler(有key) > OSM > AMap > Carto
       const switchTileLayer = (zoom, center) => {
-        // 优先使用OSM，如果失败则切换到高德
-        let mapSource = 'osm';
+        // 优先顺序：MapTiler(22) > OSM(18) > AMap(12) > Carto(18)
+        let mapSource = 'osm'; // 默认OSM
+        if (tileLayers.maptiler.base) {
+          mapSource = 'maptiler'; // 有MapTiler优先使用
+        }
         
         // 移除当前所有图层
         Object.values(tileLayers).forEach(source => {
           Object.values(source).forEach(layer => {
-            if (map.hasLayer(layer)) {
+            if (layer && map.hasLayer(layer)) {
               map.removeLayer(layer);
             }
           });
         });
         
-        // 添加基础图层
-        tileLayers[mapSource].base.addTo(map);
+        let base = tileLayers[mapSource]?.base;
+        if (mapSource === 'maptiler') {
+          base = buildMapTilerLayer(mapTilerStyle);
+          tileLayers.maptiler.base = base;
+        }
+        base?.addTo(map);
+        // 绑定性能监控
+        if (mapSource === 'carto' || mapSource === 'maptiler') attachPerfMonitor(base);
         
         // 如果缩放级别足够高，添加详细图层
-        if (zoom >= 7) {
+        if (tileLayers[mapSource]?.detailed && zoom >= 7) {
           tileLayers[mapSource].detailed.addTo(map);
         }
         
@@ -374,12 +516,51 @@ const Map = () => {
         if (mapSource === 'osm') {
           const region = getRegionForLocation(center.lat, center.lng);
           const language = getOptimalLanguage(region);
-          console.log(`使用OSM地图源: ${region}, 语言: ${language}`);
         }
         
         setCurrentTileLayer(mapSource);
-        setMapInfoLevel(''); // 所有模式都不显示文字
-        console.log(`切换到地图源: ${mapSource}, 缩放: ${zoom}`);
+        setMapInfoLevel(''); // 极简风格，不显示文字
+      };
+
+      // 性能监控：测量瓦片加载时延，过慢则自适应切换
+      const attachPerfMonitor = (layer) => {
+        const perf = tilePerfRef.current;
+        perf.samples = [];
+        perf.avg = 0;
+        perf.starts = new globalThis.Map();
+        const onStart = (e) => {
+          const key = e.tile?.src || Math.random();
+          perf.starts.set(key, performance.now());
+        };
+        const onLoad = (e) => {
+          const key = e.tile?.src;
+          const t0 = perf.starts.get(key);
+          if (t0) {
+            const dt = performance.now() - t0;
+            perf.starts.delete(key);
+            perf.samples.push(dt);
+            if (perf.samples.length > 20) perf.samples.shift();
+            const sum = perf.samples.reduce((a,b)=>a+b,0);
+            perf.avg = Math.round(sum / perf.samples.length);
+            // 禁用自动切换：仅记录性能，不触发切换
+            // if (!perf.switchLocked && perf.samples.length >= 10 && perf.avg > 600) {
+            //   // 自动切换逻辑已禁用
+            // }
+          }
+        };
+        const onError = () => {
+          // 禁用自动切换：仅记录错误，不触发切换
+          // if (!perf.switchLocked) {
+          //   perf.switchLocked = true;
+          //   const center = map.getCenter();
+          //   const inEastAsia = center.lat >= 18 && center.lat <= 54 && center.lng >= 73 && center.lng <= 135;
+          //   // 自动切换逻辑已禁用
+          //   setTimeout(()=>{ perf.switchLocked = false; }, 10000);
+          // }
+        };
+        layer.on('tileloadstart', onStart);
+        layer.on('tileload', onLoad);
+        layer.on('tileerror', onError);
       };
 
       // 获取地理位置对应的区域
@@ -407,47 +588,55 @@ const Map = () => {
         return languageMap[region] || 'zh';
       };
 
-      // 默认加载OSM地图基础版
-      tileLayers.osm.base.addTo(map);
-      setCurrentTileLayer('osm');
+      // 完全移除地图加载失败的监听器，避免任何自动切换
+      // 所有地图源的tileerror事件都已被移除
+
+      // 默认加载 MapTiler(若有key) > OSM > AMap > Carto
+      let defaultSource = 'osm'; // 默认OSM
+      if (tileLayers.maptiler.base) {
+        defaultSource = 'maptiler'; // 有MapTiler优先使用
+      }
+
+      if (defaultSource === 'maptiler') {
+        const base = buildMapTilerLayer(mapTilerStyle);
+        tileLayers.maptiler.base = base;
+        base.addTo(map);
+        setCurrentTileLayer('maptiler');
+        attachPerfMonitor(base);
+      } else {
+        tileLayers.osm.base.addTo(map);
+        setCurrentTileLayer('osm');
+      }
       
-      // 监听OSM加载失败，自动切换到高德地图
-      tileLayers.osm.base.on('tileerror', () => {
-        console.log('OSM地图加载失败，自动切换到高德地图');
-        map.removeLayer(tileLayers.osm.base);
-        if (map.hasLayer(tileLayers.osm.detailed)) {
-          map.removeLayer(tileLayers.osm.detailed);
-        }
-        tileLayers.amap.base.addTo(map);
-        setCurrentTileLayer('amap');
-      });
+      // 禁用地图加载失败时的自动切换
+      // 保持当前地图源，不进行自动回退
 
       // 监听缩放变化，动态切换地图源和图层
       map.on('zoomend', () => {
         const zoom = map.getZoom();
         const center = map.getCenter();
         
-        // 动态切换地图源
-        switchTileLayer(zoom, center);
+        // 只在缩放级别足够高时添加详细图层，不切换地图源
+        if (zoom >= 7) {
+          const currentSource = currentTileLayer;
+          if (tileLayers[currentSource]?.detailed && !map.hasLayer(tileLayers[currentSource].detailed)) {
+            tileLayers[currentSource].detailed.addTo(map);
+          }
+        } else {
+          // 缩放级别较低时移除详细图层
+          const currentSource = currentTileLayer;
+          if (tileLayers[currentSource]?.detailed && map.hasLayer(tileLayers[currentSource].detailed)) {
+            map.removeLayer(tileLayers[currentSource].detailed);
+          }
+        }
         
         // 更新缩放状态
         setCurrentZoom(zoom);
-        
-        // 应用缩放限制
-        const maxZoomForLocation = getMaxZoomForLocation(center.lat, center.lng);
-        if (zoom > maxZoomForLocation) {
-          map.setZoom(maxZoomForLocation, { animate: false });
-        } else if (zoom < 3) {
-          map.setZoom(3, { animate: false });
-        }
       });
 
       // 监听地图移动，动态调整缩放限制
       map.on('moveend', () => {
-        const center = map.getCenter();
-        const maxZoomForLocation = getMaxZoomForLocation(center.lat, center.lng);
-        map.setMaxZoom(maxZoomForLocation);
-        console.log(`位置变化，更新最大缩放为: ${maxZoomForLocation}`);
+        // 不再动态限制缩放
       });
 
       // 监听缩放变化，更新状态
@@ -461,8 +650,7 @@ const Map = () => {
 
       // 地图加载完成后的处理
       map.whenReady(() => {
-        console.log('地图加载完成');
-      setLoading(false);
+        setLoading(false);
         setCurrentZoom(3);
       });
 
@@ -508,8 +696,6 @@ const Map = () => {
   // 添加照片标记
   useEffect(() => {
     if (mapInstanceRef.current && photos.length > 0) {
-      console.log('开始添加照片标记，照片数量:', photos.length);
-      
       // 清除现有照片标记
       mapInstanceRef.current.eachLayer((layer) => {
         if (layer instanceof L.Marker && layer !== userMarkerRef.current) {
@@ -520,8 +706,6 @@ const Map = () => {
       // 添加新标记
       photos.forEach((photo, index) => {
         if (photo.latitude && photo.longitude) {
-          console.log(`添加标记 ${index + 1}: ${photo.title} at [${photo.latitude}, ${photo.longitude}]`);
-          
           const marker = L.marker([photo.latitude, photo.longitude], {
             title: photo.title || photo.location_name || '未命名照片',
             riseOnHover: true,
@@ -544,18 +728,7 @@ const Map = () => {
           
           // 点击事件
           marker.on('click', () => handlePhotoClick(photo));
-          
-          console.log(`标记 ${index + 1} 添加成功`);
-        } else {
-          console.warn(`照片 ${index + 1} 缺少坐标信息:`, photo);
         }
-      });
-      
-      console.log('所有照片标记添加完成');
-    } else {
-      console.log('无法添加照片标记:', {
-        hasMap: !!mapInstanceRef.current,
-        photosCount: photos.length
       });
     }
   }, [photos, selectedPhoto]);
@@ -606,6 +779,21 @@ const Map = () => {
       <div className="top-right-controls">
         {/* 统一控件容器 */}
         <div className="map-control-container">
+          {/* 样式切换（仅在使用 MapTiler 且有 key 时显示） */}
+          {import.meta.env.VITE_MAPTILER_KEY && (
+            <button
+              onClick={() => {
+                const idx = mapTilerStyles.indexOf(mapTilerStyle);
+                const next = mapTilerStyles[(idx + 1) % mapTilerStyles.length];
+                setMapTilerStyle(next);
+              }}
+              className="control-btn"
+              title={`切换底图样式（当前：${mapTilerStyle}）`}
+              style={{fontSize:'12px'}}
+            >
+              样式：{mapTilerStyle}
+            </button>
+          )}
           {/* 1. 全屏切换按钮 */}
           <button 
             onClick={toggleFullscreen}
@@ -657,111 +845,16 @@ const Map = () => {
         )}
         </div>
 
-             {/* 照片详情模态框 - 参考胶卷模式的全屏预览 */}
-      {selectedPhoto && (
-        <div className="fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 backdrop-blur-md flex items-center justify-center z-[9999] overflow-hidden">
-          <div className="relative w-full h-full flex items-center justify-center">
-            {/* 关闭按钮 */}
-            <button
-              onClick={() => setSelectedPhoto(null)}
-              className={`absolute top-6 right-6 z-10 text-gray-600 hover:text-gray-800 transition-all duration-300 bg-white/80 hover:bg-white/90 rounded-full p-2 shadow-lg ${
-                showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
-            >
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* 照片显示区域 */}
-            <div className="w-full h-full flex items-center justify-center">
-              <div className={`transition-all duration-500 ease-in-out ${
-                showUI ? 'transform -translate-y-12' : 'transform translate-y-0'
-              }`}>
-                {selectedPhoto.original ? (
-                  <LazyImage
-                    src={`${API_CONFIG.BASE_URL}${selectedPhoto.original}`}
-                    alt={selectedPhoto.title || '照片'}
-                    className="h-[80vh] w-auto object-contain rounded-2xl shadow-2xl cursor-pointer"
-                    onClick={() => setShowUI(!showUI)}
-                    lazyOptions={{
-                      rootMargin: '50px', // 地图照片预览较小的预加载距离
-                      threshold: 0.1
-                    }}
-                    onError={(e) => {
-                      console.error('照片加载失败:', selectedPhoto.original, e);
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
-                    }}
-                    onLoad={() => {
-                      if (process.env.NODE_ENV === 'development') {
-                        console.log('照片加载成功:', selectedPhoto.original);
-                      }
-                    }}
-                    crossOrigin="anonymous"
-                  />
-                ) : null}
-                <div
-                  className="items-center justify-center h-[80vh] w-[60vw] bg-gray-200 rounded-2xl shadow-2xl cursor-pointer text-gray-400 text-6xl"
-                  style={{ display: selectedPhoto.filename ? 'none' : 'flex' }}
-                  onClick={() => setShowUI(!showUI)}
-                >
-                  📷
-                </div>
-              </div>
-            </div>
-
-            {/* 照片信息 - 底部浮动显示，参考胶卷模式 */}
-            <div className={`absolute bottom-0 left-0 right-0 bg-white/90 backdrop-blur-sm border-t border-gray-200 py-8 px-4 transition-all duration-500 ease-in-out ${
-              showUI ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'
-            }`}>
-              <div className="max-w-4xl mx-auto">
-                <div className="flex flex-col items-center space-y-4 text-sm">
-                  {/* 主要信息居中 */}
-                  <div className="flex items-center space-x-4 text-gray-600">
-                    <span>{selectedPhoto.location_name || '未知位置'}</span>
-                    <span>•</span>
-                    <span>{selectedPhoto.taken_date || '未知日期'}</span>
-                    {selectedPhoto.camera_name && (
-                      <>
-                        <span>•</span>
-                        <span>{selectedPhoto.camera_name}</span>
-                      </>
-                    )}
-                    {selectedPhoto.film_roll_name && (
-                      <>
-                        <span>•</span>
-                        <span>{selectedPhoto.film_roll_name}</span>
-                      </>
-                    )}
-                  </div>
-                  
-                  {/* 评分显示 */}
-                  {selectedPhoto.rating > 0 && (
-                    <div className="flex space-x-1">
-                      {[...Array(selectedPhoto.rating)].map((_, i) => (
-                        <span key={i} className="text-yellow-400 text-lg">★</span>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* 分享按钮 */}
-                  <button
-                    onClick={() => {
-                      const shareUrl = `${window.location.origin}/map?photo=${selectedPhoto.id}`;
-                      navigator.clipboard.writeText(shareUrl);
-                      alert('分享链接已复制到剪贴板');
-                    }}
-                    className="text-blue-600 hover:text-blue-800 font-medium px-3 py-1 rounded-md hover:bg-blue-50 transition-colors"
-                  >
-                    分享
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 照片预览 */}
+      <PhotoPreview
+        photo={selectedPhoto}
+        photos={photos}
+        isOpen={!!selectedPhoto}
+        onClose={() => setSelectedPhoto(null)}
+        currentPath="/map"
+        showNavigation={true}
+        onPhotoChange={handlePhotoChange}
+      />
     </div>
   );
 };
