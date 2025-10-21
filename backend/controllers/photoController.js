@@ -10,38 +10,36 @@ const jwt = require('jsonwebtoken');
 /**
  * 获取所有照片
  */
-const getAllPhotos = (req, res) => {
+const getAllPhotos = async (req, res) => {
   try {
-    let { page = 1, limit = 20, sort = 'uploaded_at', order = 'DESC', film_roll_id } = req.query;
-    page = parseInt(page) || 1;
-    if (page < 1) page = 1;
-    limit = parseInt(limit) || 20;
-    if (limit > 100) limit = 100;
-    const offset = (page - 1) * limit;
+    const { page = 1, limit = 20, film_roll_id, sort = 'id', order = 'desc' } = req.query;
 
-    // 验证排序字段
-    const validSortFields = ['uploaded_at', 'taken_date', 'title'];
-    const sortField = validSortFields.includes(sort) ? 'uploaded_at' : 'uploaded_at';
-    const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    // 验证参数
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
+      return res.status(400).json({
+        success: false,
+        message: '无效的分页参数'
+      });
+    }
 
-    // 查询总数（可选按胶卷过滤）
-    const countResult = film_roll_id
-      ? query('SELECT COUNT(*) as total FROM photos WHERE film_roll_id = ?', [film_roll_id])
-      : query('SELECT COUNT(*) as total FROM photos');
-    const total = countResult[0].total;
+    // 构建排序字段和方向
+    const allowedSortFields = ['id', 'taken_date', 'uploaded_at', 'title', 'rating'];
+    const sortField = allowedSortFields.includes(sort) ? sort : 'id';
+    const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
 
-    // 尝试解析是否为管理员（可选令牌）
-    let isAdmin = false;
-    try {
-      const token = req.header('Authorization')?.replace('Bearer ', '');
-      const secret = process.env.JWT_SECRET || 'dev-secret';
-      if (token) {
-        const decoded = jwt.verify(token, secret);
-        if (decoded && decoded.username === 'admin') isAdmin = true;
-      }
-    } catch (e) {}
+    // 计算偏移量
+    const offset = (pageNum - 1) * limitNum;
 
-    // 查询照片列表，包含关联信息（包括胶卷是否加密）
+    // 获取总数
+    const totalQuery = film_roll_id ? 
+      'SELECT COUNT(*) as total FROM photos WHERE film_roll_id = ?' : 
+      'SELECT COUNT(*) as total FROM photos';
+    const totalResult = query(totalQuery, film_roll_id ? [film_roll_id] : []);
+    const total = totalResult[0].total;
+
+    // 查询照片数据
     const photos = film_roll_id ? query(`
       SELECT 
         p.*,
@@ -93,21 +91,19 @@ const getAllPhotos = (req, res) => {
       photo.effective_private = effectivePrivate;
       photo._raw = originalPhoto; // 保存原始数据副本
       photo._raw.effective_private = effectivePrivate;
-      if (photo.filename) {
-        const uploadsDir = path.join(__dirname, '../uploads');
-        const origPathAbs = path.join(uploadsDir, photo.filename);
+      
+      // 生成图片URL
+      if (photo.filename && photo.filename.trim()) {
         const baseName = photo.filename.replace(/\.[^.]+$/, '');
-        const thumbRel = `/uploads/thumbnails/${baseName}_thumb.jpg`;
-        const thumbPathAbs = path.join(uploadsDir, 'thumbnails', `${baseName}_thumb.jpg`);
-        const size1024Rel = `/uploads/size1024/${baseName}_1024.jpg`;
-        const size2048Rel = `/uploads/size2048/${baseName}_2048.jpg`;
-        const size1024Abs = path.join(uploadsDir, 'size1024', `${baseName}_1024.jpg`);
-        // 检查文件是否存在，设置URL
         photo.original = `/uploads/${photo.filename}`;
-        photo.thumbnail = thumbRel;
-        photo.size1024 = size1024Rel;
-        photo.size2048 = size2048Rel;
+        photo.thumbnail = `/uploads/thumbnails/${baseName}_thumb.jpg`;
+        photo.size1024 = `/uploads/size1024/${baseName}_1024.jpg`;
+        photo.size2048 = `/uploads/size2048/${baseName}_2048.jpg`;
+        
+        // 尝试读取EXIF信息
         try {
+          const uploadsDir = path.join(__dirname, '../uploads');
+          const origPathAbs = path.join(uploadsDir, photo.filename);
           const buf = fs.readFileSync(origPathAbs);
           const exif = ExifParser.create(buf).parse();
           if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
@@ -116,52 +112,50 @@ const getAllPhotos = (req, res) => {
             photo._raw.exif = photo._raw.exif || {};
             photo._raw.exif.Orientation = exif.tags.Orientation;
           }
-        } catch (e) {}
+        } catch (e) {
+          // EXIF读取失败，不影响图片显示
+        }
       } else {
         photo.original = null;
         photo.thumbnail = null;
+        photo.size1024 = null;
+        photo.size2048 = null;
       }
     });
 
-    // 调试：检查photo对象的状态
-    console.log('forEach后photos[0]:', photos[0] ? { id: photos[0].id, filename: photos[0].filename, thumbnail: photos[0].thumbnail, original: photos[0].original } : 'no photos');
-
     // 数据映射：将后端字段映射到前端期望的字段
-    const mappedPhotos = photos.map((photo, index) => {
-      console.log(`映射照片 ${index}:`, { id: photo.id, filename: photo.filename, hasFilename: !!photo.filename });
-      return {
-        id: photo.id || `photo-${page}-${index}`, // 使用稳定的ID，避免刷新时位置错乱
-        title: photo.title || photo.filename || '无标题',
-        description: photo.description || '',
-        thumbnail: photo.thumbnail,
-        original: photo.original,
-        size1024: photo.size1024,
-        size2048: photo.size2048,
-        filename: photo.filename || photo._raw?.filename, // 从_raw获取filename作为fallback
-        camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
-        film: photo.film_roll_name || photo.film_roll_number || '无',
-        date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'), // taken_date已经是日期格式
-        rating: photo.rating || 0,
-        location_name: photo.location_name,
-        photo_serial_number: photo.photo_serial_number,
-        // 新增的元数据字段
-        country: photo.country,
-        province: photo.province,
-        city: photo.city,
-        categories: photo.categories,
-        trip_name: photo.trip_name,
-        trip_start_date: photo.trip_start_date,
-        trip_end_date: photo.trip_end_date,
-        aperture: photo.aperture,
-        shutter_speed: photo.shutter_speed,
-        focal_length: photo.focal_length,
-        iso: photo.iso,
-        camera_model: photo.camera_model,
-        lens_model: photo.lens_model,
-        // 保留原始数据用于调试
-        _raw: photo
-      };
-    });
+    const mappedPhotos = photos.map((photo, index) => ({
+      id: photo.id || `photo-${page}-${index}`, // 使用稳定的ID，避免刷新时位置错乱
+      title: photo.title || photo.filename || '无标题',
+      description: photo.description || '',
+      thumbnail: photo.thumbnail,
+      original: photo.original,
+      size1024: photo.size1024,
+      size2048: photo.size2048,
+      filename: photo.filename,
+      camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
+      film: photo.film_roll_name || photo.film_roll_number || '无',
+      date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
+      rating: photo.rating || 0,
+      location_name: photo.location_name,
+      photo_serial_number: photo.photo_serial_number,
+      // 新增的元数据字段
+      country: photo.country,
+      province: photo.province,
+      city: photo.city,
+      categories: photo.categories,
+      trip_name: photo.trip_name,
+      trip_start_date: photo.trip_start_date,
+      trip_end_date: photo.trip_end_date,
+      aperture: photo.aperture,
+      shutter_speed: photo.shutter_speed,
+      focal_length: photo.focal_length,
+      iso: photo.iso,
+      camera_model: photo.camera_model,
+      lens_model: photo.lens_model,
+      // 保留原始数据用于调试
+      _raw: photo
+    }));
 
     res.json({
       success: true,
