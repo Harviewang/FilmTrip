@@ -34,39 +34,7 @@ const Map = () => {
     setCurrentTileLayer(source);
     currentTileLayerRef.current = source;
   }, []);
-  const mapTilerStyles = ['backdrop','streets-v2','basic-v2','outdoor','dataviz','bright-v2'];
-  const [mapTilerStyle, setMapTilerStyle] = useState(
-    localStorage.getItem('maptiler_style') || import.meta.env.VITE_MAPTILER_STYLE || 'backdrop'
-  );
-
-  // 当样式变化时，如果当前底图为 maptiler，动态重建底图
-  useEffect(() => {
-    try {
-      localStorage.setItem('maptiler_style', mapTilerStyle);
-      if (mapInstanceRef.current && currentTileLayer === 'maptiler') {
-        // 触发重建
-        const map = mapInstanceRef.current;
-        // 移除现有 maptiler 层
-        const layers = [];
-        map.eachLayer(l => layers.push(l));
-        layers.forEach(l => {
-          if (l && l._url && String(l._url).includes('api.maptiler.com')) {
-            map.removeLayer(l);
-          }
-        });
-        // 重建并添加
-        const key = import.meta.env.VITE_MAPTILER_KEY;
-        if (key) {
-          const newLayer = L.tileLayer(`https://api.maptiler.com/maps/${mapTilerStyle}/256/{z}/{x}/{y}.png?key=${key}`, {
-            maxZoom: 22,
-            minZoom: 2,
-            attribution: '&copy; OpenMapTiles &copy; OpenStreetMap contributors &copy; MapTiler',
-          });
-          newLayer.addTo(map);
-        }
-      }
-    } catch {}
-  }, [mapTilerStyle, currentTileLayer]);
+  const mapTilerStyle = 'dataviz'; // 固定使用dataviz样式
 
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -291,8 +259,6 @@ const Map = () => {
     }
   };
 
-  // 渐进式信息展示的地图系统
-  const [mapInfoLevel, setMapInfoLevel] = useState('基础');
   const tilePerfRef = useRef({ samples: [], avg: 0, starts: new globalThis.Map(), switchLocked: false });
 
   // 初始化地图
@@ -525,7 +491,7 @@ const Map = () => {
         }
         
         updateCurrentTileLayer(mapSource);
-        setMapInfoLevel(''); // 极简风格，不显示文字
+        // 极简风格，不显示文字
       };
 
       // 性能监控：测量瓦片加载时延，过慢则自适应切换
@@ -795,21 +761,7 @@ const Map = () => {
       <div className="top-right-controls">
         {/* 统一控件容器 */}
         <div className="map-control-container">
-          {/* 样式切换（仅在使用 MapTiler 且有 key 时显示） */}
-          {import.meta.env.VITE_MAPTILER_KEY && (
-            <button
-              onClick={() => {
-                const idx = mapTilerStyles.indexOf(mapTilerStyle);
-                const next = mapTilerStyles[(idx + 1) % mapTilerStyles.length];
-                setMapTilerStyle(next);
-              }}
-              className="control-btn"
-              title={`切换底图样式（当前：${mapTilerStyle}）`}
-              style={{fontSize:'12px'}}
-            >
-              样式：{mapTilerStyle}
-            </button>
-          )}
+          {/* 样式切换按钮已移除，默认使用 dataviz 样式 */}
           {/* 1. 全屏切换按钮 */}
           <button 
             onClick={toggleFullscreen}
@@ -840,7 +792,6 @@ const Map = () => {
                      {/* 4. 缩放等级显示 */}
            <div className="zoom-display">
              <span className="zoom-value">{getZoomLevelDisplay(currentZoom)}x</span>
-             <div className="map-info-level">{mapInfoLevel}</div>
            </div>
 
           {/* 5. 缩小按钮 */}
