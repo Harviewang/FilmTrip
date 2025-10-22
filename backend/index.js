@@ -13,7 +13,39 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // 中间件配置
-app.use(cors());
+// CORS配置：允许前端域名访问
+const corsOptions = {
+  origin: function (origin, callback) {
+    // 允许的域名列表
+    const allowedOrigins = [
+      'http://localhost:3000',  // 前端开发服务器
+      'http://localhost:3002',  // 管理后台开发服务器
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3002'
+    ];
+
+    // 检查环境变量中是否有额外的允许域名
+    const additionalOrigins = process.env.CORS_ALLOWED_ORIGINS;
+    if (additionalOrigins) {
+      const extraOrigins = additionalOrigins.split(',').map(origin => origin.trim());
+      allowedOrigins.push(...extraOrigins);
+    }
+
+    // 允许无origin的请求（如移动端应用、curl等）
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS policy: Origin ${origin} not allowed`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With']
+};
+
+app.use(cors(corsOptions));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -21,12 +53,9 @@ app.use(express.urlencoded({ extended: true }));
 // 注意：express.json() 和 express.urlencoded() 会干扰文件上传
 // 只在需要的地方使用，避免影响 multer 中间件
 
-// 静态文件服务 - 添加CORS头和正确的Content-Type
+// 静态文件服务 - 添加正确的Content-Type
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res, filePath) => {
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
     
     // 检查文件内容来确定正确的Content-Type
     const fs = require('fs');

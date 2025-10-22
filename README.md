@@ -38,11 +38,17 @@
 3. **配置环境变量**
    ```bash
    # 复制环境变量模板
-   cp project/config/.env.production.example .env.production
+   cp .env.example .env
    
    # 编辑环境变量
-   nano .env.production
+   nano .env
    ```
+   
+   **重要：CORS配置**
+   - 后端已配置CORS中间件，只允许指定的域名访问
+   - 默认允许 `localhost:3000` (前端) 和 `localhost:3002` (管理后台)
+   - 生产环境部署时，请在 `.env` 文件中设置 `CORS_ALLOWED_ORIGINS`
+   - 格式：`CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://admin.yourdomain.com`
 
 4. **启动服务**
    ```bash
