@@ -144,7 +144,7 @@ const getAllPhotos = async (req, res) => {
 
     // 数据映射：将后端字段映射到前端期望的字段
     const mappedPhotos = photos.map((photo, index) => ({
-      id: photo.id || `photo-${page}-${index}`, // 使用稳定的ID，避免刷新时位置错乱
+      id: photo.id, // 总是使用真实的数据库ID
       title: photo.title || photo.filename || '无标题',
       description: photo.description || '',
       thumbnail: photo.thumbnail,
@@ -762,6 +762,155 @@ const uploadPhoto = async (req, res) => {
   }
 };
 
+/**
+ * 获取随机照片
+ */
+const getRandomPhotos = (req, res) => {
+  try {
+    const { count = 1 } = req.query;
+    const limit = Math.min(parseInt(count) || 1, 10); // 最多返回10张
+
+    // 判断用户是否为管理员
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    let isAdmin = false;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        isAdmin = decoded.username === 'admin';
+      } catch (e) {
+        // Token 无效，视为普通用户
+      }
+    }
+
+    // 查询随机照片，排除受保护内容
+    const photos = query(`
+      SELECT
+        p.*,
+        c.name AS camera_name,
+        c.model AS camera_model,
+        c.brand AS camera_brand,
+        fr.roll_number AS film_roll_number,
+        fr.roll_number AS film_roll_name,
+        fr.is_private AS roll_is_private,
+        fr.is_protected AS roll_is_protected,
+        fr.protection_level AS roll_protection_level,
+        fs.brand AS film_roll_brand,
+        fs.iso AS film_roll_iso,
+        fs.type AS film_roll_type
+      FROM photos p
+      LEFT JOIN cameras c ON p.camera_id = c.id
+      LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
+      LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
+      WHERE (p.is_protected = 0 OR p.is_protected IS NULL)
+        AND (fr.is_protected = 0 OR fr.is_protected IS NULL)
+      ORDER BY RANDOM()
+      LIMIT ?
+    `, [limit]);
+
+    // 处理照片数据
+    const processedPhotos = photos.map(photo => {
+      // 在修改前保存原始数据副本
+      const originalPhoto = { ...photo };
+
+      photo.photo_serial_number = `${photo.film_roll_number}-${photo.photo_number.toString().padStart(3, '0')}`;
+      const photoIsPrivate = !!photo.is_private;
+      const rollIsPrivate = !!photo.roll_is_private;
+      const effectivePrivate = photoIsPrivate || rollIsPrivate;
+      photo.effective_private = effectivePrivate;
+
+      // 计算保护状态
+      const photoIsProtected = !!photo.is_protected;
+      const rollIsProtected = !!photo.roll_is_protected;
+      const effectiveProtection = photoIsProtected || rollIsProtected;
+      photo.effective_protection = effectiveProtection;
+      photo.protection_level = photo.protection_level || photo.roll_protection_level || null;
+
+      photo._raw = originalPhoto; // 保存原始数据副本
+      photo._raw.effective_private = effectivePrivate;
+      photo._raw.effective_protection = effectiveProtection;
+
+      // 随机照片API总是返回URL，因为查询时已过滤保护内容
+      if (photo.filename && photo.filename.trim()) {
+        const baseName = photo.filename.replace(/\.[^.]+$/, '');
+        photo.original = `/uploads/${photo.filename}`;
+        photo.thumbnail = `/uploads/thumbnails/${baseName}_thumb.jpg`;
+        photo.size1024 = `/uploads/size1024/${baseName}_1024.jpg`;
+        photo.size2048 = `/uploads/size2048/${baseName}_2048.jpg`;
+
+        // 尝试读取EXIF信息
+        try {
+          const uploadsDir = path.join(__dirname, '../uploads');
+          const origPathAbs = path.join(uploadsDir, photo.filename);
+          const buf = fs.readFileSync(origPathAbs);
+          const exif = ExifParser.create(buf).parse();
+          if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
+            photo.exif = photo.exif || {};
+            photo.exif.Orientation = exif.tags.Orientation;
+            photo._raw.exif = photo._raw.exif || {};
+            photo._raw.exif.Orientation = exif.tags.Orientation;
+          }
+        } catch (e) {
+          // EXIF读取失败，不影响图片显示
+        }
+      } else {
+        photo.original = null;
+        photo.thumbnail = null;
+        photo.size1024 = null;
+        photo.size2048 = null;
+      }
+
+      return photo;
+    });
+
+    // 数据映射：将后端字段映射到前端期望的字段
+    const mappedPhotos = processedPhotos.map((photo, index) => ({
+      id: photo.id || `photo-random-${index}`,
+      title: photo.title || photo.filename || '无标题',
+      description: photo.description || '',
+      thumbnail: photo.thumbnail,
+      original: photo.original,
+      size1024: photo.size1024,
+      size2048: photo.size2048,
+      filename: photo.filename,
+      camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
+      film: photo.film_roll_name || photo.film_roll_number || '无',
+      date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
+      rating: photo.rating || 0,
+      location_name: photo.location_name,
+      photo_serial_number: photo.photo_serial_number,
+      // 新增的元数据字段
+      country: photo.country,
+      province: photo.province,
+      city: photo.city,
+      categories: photo.categories,
+      trip_name: photo.trip_name,
+      trip_start_date: photo.trip_start_date,
+      trip_end_date: photo.trip_end_date,
+      aperture: photo.aperture,
+      shutter_speed: photo.shutter_speed,
+      focal_length: photo.focal_length,
+      iso: photo.iso,
+      camera_model: photo.camera_model,
+      lens_model: photo.lens_model,
+      // 保留原始数据用于调试
+      _raw: photo
+    }));
+
+    res.json({
+      success: true,
+      data: mappedPhotos,
+      count: mappedPhotos.length
+    });
+  } catch (error) {
+    console.error('获取随机照片失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取随机照片失败',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAllPhotos,
   getPhotoById,
@@ -769,5 +918,6 @@ module.exports = {
   uploadPhotosBatch,
   updatePhoto,
   deletePhoto,
-  getOriginalPhoto
+  getOriginalPhoto,
+  getRandomPhotos
 };
