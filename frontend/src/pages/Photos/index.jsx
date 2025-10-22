@@ -346,16 +346,14 @@ const Photos = () => {
     return () => clearInterval(cleanupInterval);
   }, []);
 
-
-
   const renderPhotoCard = (photo) => {
     const isAdmin = (() => {
       try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; } catch (e) { return false; }
     })();
     const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
-    // 后端已经对非管理员隐藏了 URL；前端以“是否有可用URL”作为是否可见的最终依据，确保管理员可见
-    const hasAnyUrl = !!(photo.size1024 || photo.thumbnail || photo.original);
-    const isPrivateForViewer = !hasAnyUrl;
+    // 加密判断基于后端返回的effective_private字段，而非URL是否存在
+    const isPrivateForViewer = effectivePrivate && !isAdmin;
+    
     return (
       <AdaptiveCard 
         key={photo.id} 
@@ -572,8 +570,7 @@ const Photos = () => {
                             catch (e) { return false; }
                           })();
                           const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
-                          const hasAnyUrl = !!(photo.size1024 || photo.thumbnail || photo.original);
-                          const isPrivateForViewer = !hasAnyUrl;
+                          const isPrivateForViewer = effectivePrivate && !isAdmin;
                           
                           return (
                             <div 

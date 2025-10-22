@@ -79,7 +79,17 @@ const getAllPhotos = async (req, res) => {
       LIMIT ? OFFSET ?
     `, [parseInt(limit), parseInt(offset)]);
     
-    // 在JavaScript中生成照片流水号和图片路径，并根据隐私策略处理URL
+    // 判断用户是否为管理员
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    let isAdmin = false;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        isAdmin = decoded.username === 'admin';
+      } catch (e) {
+        // Token 无效，视为普通用户
+      }
+    }
     photos.forEach(photo => {
       // 在修改前保存原始数据副本
       const originalPhoto = { ...photo };
@@ -92,28 +102,37 @@ const getAllPhotos = async (req, res) => {
       photo._raw = originalPhoto; // 保存原始数据副本
       photo._raw.effective_private = effectivePrivate;
       
-      // 生成图片URL
+      // 根据用户角色和加密状态决定是否生成URL
       if (photo.filename && photo.filename.trim()) {
-        const baseName = photo.filename.replace(/\.[^.]+$/, '');
-        photo.original = `/uploads/${photo.filename}`;
-        photo.thumbnail = `/uploads/thumbnails/${baseName}_thumb.jpg`;
-        photo.size1024 = `/uploads/size1024/${baseName}_1024.jpg`;
-        photo.size2048 = `/uploads/size2048/${baseName}_2048.jpg`;
-        
-        // 尝试读取EXIF信息
-        try {
-          const uploadsDir = path.join(__dirname, '../uploads');
-          const origPathAbs = path.join(uploadsDir, photo.filename);
-          const buf = fs.readFileSync(origPathAbs);
-          const exif = ExifParser.create(buf).parse();
-          if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
-            photo.exif = photo.exif || {};
-            photo.exif.Orientation = exif.tags.Orientation;
-            photo._raw.exif = photo._raw.exif || {};
-            photo._raw.exif.Orientation = exif.tags.Orientation;
+        // 如果用户是管理员或者照片未加密，才生成URL
+        if (isAdmin || !effectivePrivate) {
+          const baseName = photo.filename.replace(/\.[^.]+$/, '');
+          photo.original = `/uploads/${photo.filename}`;
+          photo.thumbnail = `/uploads/thumbnails/${baseName}_thumb.jpg`;
+          photo.size1024 = `/uploads/size1024/${baseName}_1024.jpg`;
+          photo.size2048 = `/uploads/size2048/${baseName}_2048.jpg`;
+          
+          // 尝试读取EXIF信息
+          try {
+            const uploadsDir = path.join(__dirname, '../uploads');
+            const origPathAbs = path.join(uploadsDir, photo.filename);
+            const buf = fs.readFileSync(origPathAbs);
+            const exif = ExifParser.create(buf).parse();
+            if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
+              photo.exif = photo.exif || {};
+              photo.exif.Orientation = exif.tags.Orientation;
+              photo._raw.exif = photo._raw.exif || {};
+              photo._raw.exif.Orientation = exif.tags.Orientation;
+            }
+          } catch (e) {
+            // EXIF读取失败，不影响图片显示
           }
-        } catch (e) {
-          // EXIF读取失败，不影响图片显示
+        } else {
+          // 普通用户且照片加密，不返回URL
+          photo.original = null;
+          photo.thumbnail = null;
+          photo.size1024 = null;
+          photo.size2048 = null;
         }
       } else {
         photo.original = null;
