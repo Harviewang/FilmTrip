@@ -30,7 +30,9 @@ const PhotoManagement = () => {
     taken_date: '',
     location_name: '',
     tags: '',
-    file: null
+    file: null,
+    is_protected: false,
+    protection_level: ''
   });
 
   // 获取照片列表
@@ -140,6 +142,8 @@ const PhotoManagement = () => {
       formData.append('location_name', uploadForm.location_name || '');
       formData.append('tags', uploadForm.tags || '');
       formData.append('file', uploadForm.file);
+      formData.append('is_protected', uploadForm.is_protected ? '1' : '0');
+      formData.append('protection_level', uploadForm.protection_level || '');
       
       console.log('FormData内容:');
       for (let [key, value] of formData.entries()) {
@@ -159,7 +163,9 @@ const PhotoManagement = () => {
         taken_date: '',
         location_name: '',
         tags: '',
-        file: null
+        file: null,
+        is_protected: false,
+        protection_level: ''
       });
       
       console.log('刷新照片列表...');
@@ -356,7 +362,12 @@ const PhotoManagement = () => {
                 )}
                 <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
                   <span>{photo.film_roll_id ? '胶卷实例' : '未知胶片'}</span>
-                  <span>{photo.taken_date ? new Date(photo.taken_date).toLocaleDateString() : '未知日期'}</span>
+                  <div className="flex items-center gap-2">
+                    {photo.is_protected && (
+                      <span className="text-red-500 text-xs" title="隐私保护已启用">🔒</span>
+                    )}
+                    <span>{photo.taken_date ? new Date(photo.taken_date).toLocaleDateString() : '未知日期'}</span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -380,7 +391,9 @@ const PhotoManagement = () => {
                         taken_date: photo.taken_date ? photo.taken_date.split('T')[0] : '',
                         location_name: photo.location_name || '',
                         tags: photo.tags || '',
-                        file: null // 清空文件
+                        file: null, // 清空文件
+                        is_protected: photo.is_protected || false,
+                        protection_level: photo.protection_level || ''
                       });
                       setShowEditModal(true);
                     }}
@@ -526,6 +539,53 @@ const PhotoManagement = () => {
                     placeholder="用逗号分隔多个标签"
                   />
                 </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    🔒 隐私保护设置
+                    <span className="text-xs text-gray-500">(可选)</span>
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          name="is_protected"
+                          checked={uploadForm.is_protected}
+                          onChange={(e) => setUploadForm({...uploadForm, is_protected: e.target.checked})}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">启用隐私保护</span>
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1 ml-6">
+                        启用后普通用户无法查看原图，管理员可正常访问
+                      </p>
+                    </div>
+
+                    {uploadForm.is_protected && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          保护级别
+                        </label>
+                        <select
+                          name="protection_level"
+                          value={uploadForm.protection_level}
+                          onChange={(e) => setUploadForm({...uploadForm, protection_level: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">选择保护级别</option>
+                          <option value="personal">个人隐私</option>
+                          <option value="sensitive">敏感内容</option>
+                          <option value="restricted">严格限制</option>
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          选择合适的保护级别，帮助管理员更好地管理内容
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -637,6 +697,44 @@ const PhotoManagement = () => {
                     placeholder="用逗号分隔多个标签"
                   />
                 </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    🔒 隐私保护设置
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={uploadForm.is_protected}
+                          onChange={(e) => setUploadForm({...uploadForm, is_protected: e.target.checked})}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">启用隐私保护</span>
+                      </label>
+                    </div>
+
+                    {uploadForm.is_protected && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          保护级别
+                        </label>
+                        <select
+                          value={uploadForm.protection_level}
+                          onChange={(e) => setUploadForm({...uploadForm, protection_level: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">选择保护级别</option>
+                          <option value="personal">个人隐私</option>
+                          <option value="sensitive">敏感内容</option>
+                          <option value="restricted">严格限制</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="flex gap-3 mt-6">
                 <button
@@ -720,6 +818,29 @@ const PhotoManagement = () => {
                     <p className="text-gray-600">
                       {selectedPhoto.uploaded_at ? new Date(selectedPhoto.uploaded_at).toLocaleDateString() : '未知'}
                     </p>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-2">隐私保护</h3>
+                    <div className="flex items-center gap-2">
+                      {selectedPhoto.is_protected ? (
+                        <>
+                          <span className="text-red-500">🔒</span>
+                          <span className="text-red-700 font-medium">已启用</span>
+                          {selectedPhoto.protection_level && (
+                            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                              {selectedPhoto.protection_level === 'personal' ? '个人隐私' :
+                               selectedPhoto.protection_level === 'sensitive' ? '敏感内容' :
+                               selectedPhoto.protection_level === 'restricted' ? '严格限制' : selectedPhoto.protection_level}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-green-500">🔓</span>
+                          <span className="text-green-700">公开</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
                 {selectedPhoto.tags && (
