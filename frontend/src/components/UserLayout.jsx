@@ -17,7 +17,7 @@ const UserLayout = ({ isFullscreen = false }) => {
   const navigation = [
     { name: '照片', href: '/gallery', icon: PhotoIcon },
     { name: '胶卷', href: '/film-rolls', icon: FilmIcon },
-    { name: '旅途', href: '/map', icon: MapIcon },
+    { name: '地点', href: '/map', icon: MapIcon },
     { name: '随机', href: '/random', icon: SparklesIcon },
     { name: '更多', href: '/more', icon: EllipsisHorizontalIcon },
   ];
