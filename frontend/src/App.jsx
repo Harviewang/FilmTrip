@@ -7,8 +7,8 @@ import FilmStockManagement from './views/FilmStockManagement';
 import FilmRollManagement from './views/FilmRollManagement';
 import CameraManagement from './views/CameraManagement';
 import ScannerManagement from './views/ScannerManagement';
+import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
-import ErrorBoundary from './components/ErrorBoundary';
 // 用户端页面
 import Photos from './pages/Photos';
 import FilmRolls from './pages/FilmRolls';
