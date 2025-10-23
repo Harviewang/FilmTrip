@@ -84,6 +84,8 @@ const initialize = () => {
                 scanner_id TEXT,
                 is_encrypted BOOLEAN DEFAULT 0,
                 is_private BOOLEAN DEFAULT 0,
+                is_protected INTEGER DEFAULT 0,
+                protection_level INTEGER DEFAULT 0,
                 status TEXT DEFAULT '未启封',
                 notes TEXT,
                 package_image TEXT,
@@ -131,6 +133,12 @@ const initialize = () => {
         trip_end_date TEXT,
         is_encrypted BOOLEAN DEFAULT 0,
         is_private BOOLEAN DEFAULT 0,
+        is_protected INTEGER DEFAULT 0,
+        protection_level INTEGER DEFAULT 0,
+        width INTEGER,
+        height INTEGER,
+        orientation INTEGER DEFAULT 1,
+        rotation INTEGER DEFAULT 0,
         tags TEXT,
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -235,6 +243,51 @@ const initialize = () => {
           console.log(`已添加 ${field.name} 字段到 photos 表`);
         }
       });
+
+      // 2025-10-23 添加照片尺寸和方向相关字段
+      const sizeOrientationFields = [
+        { name: 'width', type: 'INTEGER' },
+        { name: 'height', type: 'INTEGER' },
+        { name: 'orientation', type: 'INTEGER DEFAULT 1' },
+        { name: 'rotation', type: 'INTEGER DEFAULT 0' }
+      ];
+
+      sizeOrientationFields.forEach(field => {
+        if (!existingColumns.includes(field.name)) {
+          db.exec(`ALTER TABLE photos ADD COLUMN ${field.name} ${field.type}`);
+          console.log(`已添加 ${field.name} 字段到 photos 表`);
+        }
+      });
+
+      // 2025-10-23 添加照片保护相关字段
+      const protectionFields = [
+        { name: 'is_protected', type: 'INTEGER DEFAULT 0' },
+        { name: 'protection_level', type: 'INTEGER DEFAULT 0' }
+      ];
+
+      protectionFields.forEach(field => {
+        if (!existingColumns.includes(field.name)) {
+          db.exec(`ALTER TABLE photos ADD COLUMN ${field.name} ${field.type}`);
+          console.log(`已添加 ${field.name} 字段到 photos 表`);
+        }
+      });
+
+      // 添加胶卷保护相关字段
+      const rollColumns = db.prepare("PRAGMA table_info(film_rolls)").all()
+        .map(column => column.name);
+
+      const rollProtectionFields = [
+        { name: 'is_protected', type: 'INTEGER DEFAULT 0' },
+        { name: 'protection_level', type: 'INTEGER DEFAULT 0' }
+      ];
+
+      rollProtectionFields.forEach(field => {
+        if (!rollColumns.includes(field.name)) {
+          db.exec(`ALTER TABLE film_rolls ADD COLUMN ${field.name} ${field.type}`);
+          console.log(`已添加 ${field.name} 字段到 film_rolls 表`);
+        }
+      });
+
     } catch (migrationError) {
       console.error('数据库迁移失败:', migrationError);
     }

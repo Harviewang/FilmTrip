@@ -49,6 +49,8 @@ const getAllPhotos = async (req, res) => {
         fr.roll_number AS film_roll_number,
         fr.roll_number AS film_roll_name,
         fr.is_private AS roll_is_private,
+        fr.is_protected AS roll_is_protected,
+        fr.protection_level AS roll_protection_level,
         fs.brand AS film_roll_brand,
         fs.iso AS film_roll_iso,
         fs.type AS film_roll_type
@@ -68,6 +70,8 @@ const getAllPhotos = async (req, res) => {
         fr.roll_number AS film_roll_number,
         fr.roll_number AS film_roll_name,
         fr.is_private AS roll_is_private,
+        fr.is_protected AS roll_is_protected,
+        fr.protection_level AS roll_protection_level,
         fs.brand AS film_roll_brand,
         fs.iso AS film_roll_iso,
         fs.type AS film_roll_type
@@ -90,22 +94,28 @@ const getAllPhotos = async (req, res) => {
         // Token 无效，视为普通用户
       }
     }
+    
     photos.forEach(photo => {
       // 在修改前保存原始数据副本
       const originalPhoto = { ...photo };
       
       photo.photo_serial_number = `${photo.film_roll_number}-${photo.photo_number.toString().padStart(3, '0')}`;
-      const photoIsPrivate = !!photo.is_private;
-      const rollIsPrivate = !!photo.roll_is_private;
-      const effectivePrivate = photoIsPrivate || rollIsPrivate;
-      photo.effective_private = effectivePrivate;
-      photo._raw = originalPhoto; // 保存原始数据副本
-      photo._raw.effective_private = effectivePrivate;
       
-      // 根据用户角色和加密状态决定是否生成URL
+      // 统一使用 effective_protection 逻辑
+      const photoIsProtected = !!photo.is_protected;
+      const rollIsProtected = !!photo.roll_is_protected;
+      const effectiveProtection = photoIsProtected || rollIsProtected;
+      photo.effective_protection = effectiveProtection;
+      photo.protection_level = photo.protection_level || photo.roll_protection_level || null;
+
+      photo._raw = originalPhoto; // 保存原始数据副本
+      photo._raw.effective_protection = effectiveProtection;
+      photo._raw.protection_level = photo.protection_level; // 确保_raw中也有protection_level
+      
+      // 根据用户角色和保护状态决定是否生成URL
       if (photo.filename && photo.filename.trim()) {
-        // 如果用户是管理员或者照片未加密，才生成URL
-        if (isAdmin || !effectivePrivate) {
+        // 如果用户是管理员或者照片未受保护，才生成URL
+        if (isAdmin || !effectiveProtection) {
           const baseName = photo.filename.replace(/\.[^.]+$/, '');
           photo.original = `/uploads/${photo.filename}`;
           photo.thumbnail = `/uploads/thumbnails/${baseName}_thumb.jpg`;
@@ -144,7 +154,7 @@ const getAllPhotos = async (req, res) => {
 
     // 数据映射：将后端字段映射到前端期望的字段
     const mappedPhotos = photos.map((photo, index) => ({
-      id: photo.id, // 总是使用真实的数据库ID
+      id: photo.id || `photo-${page}-${index}`, // 使用稳定的ID，避免刷新时位置错乱
       title: photo.title || photo.filename || '无标题',
       description: photo.description || '',
       thumbnail: photo.thumbnail,
@@ -158,6 +168,14 @@ const getAllPhotos = async (req, res) => {
       rating: photo.rating || 0,
       location_name: photo.location_name,
       photo_serial_number: photo.photo_serial_number,
+      // 加密保护字段
+      is_protected: photo.is_protected,
+      protection_level: photo.protection_level,
+      effective_protection: photo.effective_protection,
+      // 图片尺寸和方向(用于前端布局计算)
+      width: photo.width,
+      height: photo.height,
+      orientation: photo.orientation,
       // 新增的元数据字段
       country: photo.country,
       province: photo.province,
@@ -213,7 +231,11 @@ const getOriginalPhoto = (req, res) => {
     return res.sendFile(filePath);
   } catch (error) {
     console.error('获取原图失败:', error);
-    return res.status(500).json({ success: false, message: '获取原图失败', error: error.message });
+    return res.status(500).json({ 
+      success: false, 
+      message: '获取原图失败', 
+      error: error.message 
+    });
   }
 };
 
@@ -230,7 +252,9 @@ const uploadPhotosBatch = async (req, res) => {
       categories,
       trip_name,
       trip_start_date,
-      trip_end_date
+      trip_end_date,
+      is_protected,
+      protection_level
     } = req.body;
     if (!film_roll_id) {
       return res.status(400).json({ success: false, message: '胶卷实例为必填字段' });
@@ -273,11 +297,59 @@ const uploadPhotosBatch = async (req, res) => {
       const thumbPath = path.join(thumbDir, `${base}_thumb.jpg`);
       const size1024Path = path.join(size1024Dir, `${base}_1024.jpg`);
       const size2048Path = path.join(size2048Dir, `${base}_2048.jpg`);
-      fs.writeFileSync(filePath, file.buffer);
-      // 生成派生图：rotate()自动应用EXIF方向，withMetadata:false移除EXIF防止前端二次旋转
-      try { await sharp(file.buffer).rotate().resize(300, 300, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 80 }).withMetadata(false).toFile(thumbPath); } catch (e) {}
-      try { await sharp(file.buffer).rotate().resize(1024, 1024, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 85 }).withMetadata(false).toFile(size1024Path); } catch (e) {}
-      try { await sharp(file.buffer).rotate().resize(2048, 2048, { fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).withMetadata(false).toFile(size2048Path); } catch (e) {}
+      
+      // 处理EXIF Orientation:保留原图orientation或应用用户旋转
+      const userRotation = req.body[`rotation_${i}`] ? parseInt(req.body[`rotation_${i}`]) : 0;
+      
+      let orientationValue = null;
+      if (userRotation > 0) {
+        // 用户手动旋转,设置对应的orientation
+        if (userRotation === 90) orientationValue = 6;
+        else if (userRotation === 180) orientationValue = 3;
+        else if (userRotation === 270) orientationValue = 8;
+      } else {
+        // 用户没有旋转,读取原图的EXIF orientation
+        const originalMetadata = await sharp(file.buffer).metadata();
+        orientationValue = originalMetadata.orientation || 1;
+      }
+      
+      // 保存原图,设置或保留EXIF Orientation
+      await sharp(file.buffer)
+        .withMetadata({ orientation: orientationValue })
+        .toFile(originalPath);
+      
+      // 获取图片原始物理尺寸
+      let imageWidth = null;
+      let imageHeight = null;
+      let imageOrientation = orientationValue;
+      try {
+        const metadata = await sharp(originalPath).metadata();
+        imageWidth = metadata.width;
+        imageHeight = metadata.height;
+      } catch (e) {}
+      
+      // 生成派生图:同样设置EXIF Orientation
+      try {
+        await sharp(originalPath)
+          .withMetadata({ orientation: orientationValue })
+          .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toFile(thumbPath);
+      } catch (e) {}
+      try {
+        await sharp(originalPath)
+          .withMetadata({ orientation: orientationValue })
+          .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .toFile(size1024Path);
+      } catch (e) {}
+      try {
+        await sharp(originalPath)
+          .withMetadata({ orientation: orientationValue })
+          .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 90 })
+          .toFile(size2048Path);
+      } catch (e) {}
       let exifAperture2 = null;
       let exifShutter2 = null;
       let exifIso2 = null;
@@ -307,10 +379,13 @@ const uploadPhotosBatch = async (req, res) => {
       const result = insert(
         `INSERT INTO photos (
           id, film_roll_id, photo_number, filename, original_name, title, description,
-          camera_id, taken_date, location_name, tags, uploaded_at,
-          aperture, shutter_speed, focal_length, iso, latitude, longitude,
-          country, province, city, categories, trip_name, trip_start_date, trip_end_date
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          taken_date, camera_id, camera_model, lens_model, lens_focal_length,
+          aperture, shutter_speed, focal_length, iso,
+          exposure_compensation, metering_mode, focus_mode,
+          latitude, longitude, location_name, country, province, city,
+          categories, trip_name, trip_start_date, trip_end_date,
+          tags, is_protected, protection_level, width, height, orientation, rotation
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           film_roll_id,
@@ -319,24 +394,35 @@ const uploadPhotosBatch = async (req, res) => {
           file.originalname,
           path.basename(file.originalname, ext),
           '',
-          camera_id || null,
           takenDate,
-          location_name || '',
-          tags || '',
-          now,
+          camera_id || null,
+          null, // camera_model
+          null, // lens_model
+          null, // lens_focal_length
           exifAperture2,
           exifShutter2,
           exifFocal2,
           exifIso2 || null,
+          null, // exposure_compensation
+          null, // metering_mode
+          null, // focus_mode
           exifLat2 || null,
           exifLon2 || null,
+          location_name || '',
           country || null,
           province || null,
           city || null,
           categories || null,
           trip_name || null,
           trip_start_date || null,
-          trip_end_date || null
+          trip_end_date || null,
+          tags || '',
+          is_protected ? 1 : 0,
+          protection_level || null,
+          imageWidth,
+          imageHeight,
+          imageOrientation, // EXIF orientation
+          0 // rotation字段设为0,不再使用
         ]
       );
       if (result.changes > 0) {
@@ -362,7 +448,38 @@ const getPhotoById = (req, res) => {
   try {
     const { id } = req.params;
 
-    const photos = query('SELECT * FROM photos WHERE id = ?', [id]);
+    // 判断用户是否为管理员
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    let isAdmin = false;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        isAdmin = decoded.username === 'admin';
+      } catch (e) {
+        // Token 无效，视为普通用户
+      }
+    }
+
+    const photos = query(`
+      SELECT 
+        p.*,
+        c.name AS camera_name,
+        c.model AS camera_model,
+        c.brand AS camera_brand,
+        fr.roll_number AS film_roll_number,
+        fr.roll_number AS film_roll_name,
+        fr.is_private AS roll_is_private,
+        fr.is_protected AS roll_is_protected,
+        fr.protection_level AS roll_protection_level,
+        fs.brand AS film_roll_brand,
+        fs.iso AS film_roll_iso,
+        fs.type AS film_roll_type
+      FROM photos p
+      LEFT JOIN cameras c ON p.camera_id = c.id
+      LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
+      LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
+      WHERE p.id = ?
+    `, [id]);
 
     if (photos.length === 0) {
       return res.status(404).json({
@@ -371,9 +488,108 @@ const getPhotoById = (req, res) => {
       });
     }
 
+    const photo = photos[0];
+
+    // 在修改前保存原始数据副本
+    const originalPhoto = { ...photo };
+
+    photo.photo_serial_number = `${photo.film_roll_number}-${photo.photo_number.toString().padStart(3, '0')}`;
+
+    // 统一使用 effective_protection 逻辑
+    const photoIsProtected = !!photo.is_protected;
+    const rollIsProtected = !!photo.roll_is_protected;
+    const effectiveProtection = photoIsProtected || rollIsProtected;
+    photo.effective_protection = effectiveProtection;
+    photo.protection_level = photo.protection_level || photo.roll_protection_level || null;
+
+    photo._raw = originalPhoto; // 保存原始数据副本
+    photo._raw.effective_protection = effectiveProtection;
+    photo._raw.protection_level = photo.protection_level; // 确保_raw中也有protection_level
+
+    // 根据用户角色和保护状态决定是否生成URL
+    if (photo.filename && photo.filename.trim()) {
+      // 如果用户是管理员或者照片未受保护，才生成URL
+      if (isAdmin || !effectiveProtection) {
+        const baseName = photo.filename.replace(/\.[^.]+$/, '');
+        photo.original = `/uploads/${photo.filename}`;
+        photo.thumbnail = `/uploads/thumbnails/${baseName}_thumb.jpg`;
+        photo.size1024 = `/uploads/size1024/${baseName}_1024.jpg`;
+        photo.size2048 = `/uploads/size2048/${baseName}_2048.jpg`;
+
+        // 尝试读取EXIF信息
+        try {
+          const uploadsDir = path.join(__dirname, '../uploads');
+          const origPathAbs = path.join(uploadsDir, photo.filename);
+          const buf = fs.readFileSync(origPathAbs);
+          const exif = ExifParser.create(buf).parse();
+          if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
+            photo.exif = photo.exif || {};
+            photo.exif.Orientation = exif.tags.Orientation;
+            photo._raw.exif = photo._raw.exif || {};
+            photo._raw.exif.Orientation = exif.tags.Orientation;
+          }
+        } catch (e) {
+          // EXIF读取失败，不影响图片显示
+        }
+      } else {
+        // 普通用户且照片受保护，不返回URL
+        photo.original = null;
+        photo.thumbnail = null;
+        photo.size1024 = null;
+        photo.size2048 = null;
+      }
+    } else {
+      photo.original = null;
+      photo.thumbnail = null;
+      photo.size1024 = null;
+      photo.size2048 = null;
+    }
+
+    // 数据映射：将后端字段映射到前端期望的字段
+    const mappedPhoto = {
+      id: photo.id,
+      title: photo.title || photo.filename || '无标题',
+      description: photo.description || '',
+      thumbnail: photo.thumbnail,
+      original: photo.original,
+      size1024: photo.size1024,
+      size2048: photo.size2048,
+      filename: photo.filename,
+      camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
+      film: photo.film_roll_name || photo.film_roll_number || '无',
+      date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
+      rating: photo.rating || 0,
+      location_name: photo.location_name,
+      photo_serial_number: photo.photo_serial_number,
+      // 加密保护字段
+      is_protected: photo.is_protected,
+      protection_level: photo.protection_level,
+      effective_protection: photo.effective_protection,
+      // 图片尺寸和方向(用于前端布局计算)
+      width: photo.width,
+      height: photo.height,
+      orientation: photo.orientation,
+      // 新增的元数据字段
+      country: photo.country,
+      province: photo.province,
+      city: photo.city,
+      categories: photo.categories,
+      trip_name: photo.trip_name,
+      trip_start_date: photo.trip_start_date,
+      trip_end_date: photo.trip_end_date,
+      aperture: photo.aperture,
+      shutter_speed: photo.shutter_speed,
+      focal_length: photo.focal_length,
+      iso: photo.iso,
+      camera_model: photo.camera_model,
+      lens_model: photo.lens_model,
+      // 保留原始数据用于调试
+      _raw: photo
+    };
+
     res.json({
       success: true,
-      data: photos[0]
+      data: mappedPhoto
     });
   } catch (error) {
     console.error('获取照片详情失败:', error);
@@ -388,7 +604,7 @@ const getPhotoById = (req, res) => {
 /**
  * 更新照片信息
  */
-const updatePhoto = (req, res) => {
+const updatePhoto = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -414,15 +630,16 @@ const updatePhoto = (req, res) => {
         'longitude', 'location_name', 'taken_date', 'album_id', 'is_private',
         'camera_model', 'lens_model', 'lens_focal_length', 'exposure_compensation',
         'metering_mode', 'focus_mode', 'country', 'province', 'city',
-        'categories', 'trip_name', 'trip_start_date', 'trip_end_date'
+        'categories', 'trip_name', 'trip_start_date', 'trip_end_date',
+        'is_protected', 'protection_level', 'rotation'
       ];
 
       if (allowedFields.includes(key)) {
-        if (key === 'is_private') {
+        if (key === 'is_private' || key === 'is_protected') {
           // 布尔转 0/1，保持 undefined 不覆盖
           if (value === undefined || value === null || value === '') return;
           const v = (value === true || value === 1 || value === '1' || value === 'true') ? 1 : 0;
-          updateFields.push('is_private = ?');
+          updateFields.push(`${key} = ?`);
           params.push(v);
         } else {
           updateFields.push(`${key} = ?`);
@@ -451,6 +668,101 @@ const updatePhoto = (req, res) => {
         success: false,
         message: '更新失败，未修改任何数据'
       });
+    }
+
+    // 如果rotation字段被更新,需要重新生成图片文件
+    if (updateData.rotation !== undefined) {
+      const photos = query('SELECT * FROM photos WHERE id = ?', [id]);
+      if (photos.length > 0) {
+        const photo = photos[0];
+        // 使用filename字段构建原图路径
+        const uploadsDir = path.join(__dirname, '..', 'uploads');
+        const originalPath = path.join(uploadsDir, photo.filename);
+        
+        // 检查原图是否存在
+        if (fs.existsSync(originalPath)) {
+          console.log('检测到rotation更新,重新生成图片:', photo.filename);
+          
+          const rotation = parseInt(updateData.rotation) || 0;
+          const thumbnailPath = path.join(uploadsDir, 'thumbnails', photo.filename.replace(/\.[^.]+$/, '_thumb.jpg'));
+          const size1024Path = path.join(uploadsDir, 'size1024', photo.filename.replace(/\.[^.]+$/, '_1024.jpg'));
+          const size2048Path = path.join(uploadsDir, 'size2048', photo.filename.replace(/\.[^.]+$/, '_2048.jpg'));
+          
+          try {
+            // 最优方案:只修改EXIF Orientation,不物理旋转像素!
+            // rotation值对应EXIF Orientation值:
+            // 0° → orientation=1, 90° → orientation=6, 180° → orientation=3, 270° → orientation=8
+            console.log(`检测到rotation更新=${rotation},修改EXIF Orientation`);
+            
+            if (rotation > 0) {
+              // 将用户的rotation角度转换为EXIF Orientation值
+              let orientationValue = 1; // 默认不旋转
+              if (rotation === 90) orientationValue = 6;   // 顺时针90°
+              else if (rotation === 180) orientationValue = 3; // 180°
+              else if (rotation === 270) orientationValue = 8; // 顺时针270° = 逆时针90°
+              
+              console.log(`设置EXIF Orientation=${orientationValue} (${rotation}°)`);
+              
+              // 修改原图EXIF
+              const tempOriginal = originalPath + '.tmp';
+              await sharp(originalPath, { failOnError: false })
+                .withMetadata({ orientation: orientationValue })
+                .toFile(tempOriginal);
+              fs.renameSync(tempOriginal, originalPath);
+              console.log('原图EXIF已更新');
+              
+              // 修改缩略图EXIF
+              if (fs.existsSync(thumbnailPath)) {
+                const tempThumb = thumbnailPath + '.tmp';
+                await sharp(thumbnailPath, { failOnError: false })
+                  .withMetadata({ orientation: orientationValue })
+                  .toFile(tempThumb);
+                fs.renameSync(tempThumb, thumbnailPath);
+                console.log('缩略图EXIF已更新');
+              }
+              
+              // 修改1024尺寸EXIF
+              if (fs.existsSync(size1024Path)) {
+                const temp1024 = size1024Path + '.tmp';
+                await sharp(size1024Path, { failOnError: false })
+                  .withMetadata({ orientation: orientationValue })
+                  .toFile(temp1024);
+                fs.renameSync(temp1024, size1024Path);
+                console.log('1024尺寸EXIF已更新');
+              }
+              
+              // 修改2048尺寸EXIF
+              if (fs.existsSync(size2048Path)) {
+                const temp2048 = size2048Path + '.tmp';
+                await sharp(size2048Path, { failOnError: false })
+                  .withMetadata({ orientation: orientationValue })
+                  .toFile(temp2048);
+                fs.renameSync(temp2048, size2048Path);
+                console.log('2048尺寸EXIF已更新');
+              }
+              
+              // 所有EXIF已更新,重置rotation并更新宽高(如果是90°/270°需要互换)
+              if (rotation === 90 || rotation === 270) {
+                // 需要互换宽高
+                const currentPhoto = query('SELECT width, height FROM photos WHERE id = ?', [id])[0];
+                if (currentPhoto && currentPhoto.width && currentPhoto.height) {
+                  const newWidth = currentPhoto.height;
+                  const newHeight = currentPhoto.width;
+                  update('UPDATE photos SET rotation = 0, width = ?, height = ? WHERE id = ?', [newWidth, newHeight, id]);
+                  console.log(`宽高已互换: ${currentPhoto.width}x${currentPhoto.height} → ${newWidth}x${newHeight}`);
+                } else {
+                  update('UPDATE photos SET rotation = 0 WHERE id = ?', [id]);
+                }
+              } else {
+                update('UPDATE photos SET rotation = 0 WHERE id = ?', [id]);
+              }
+              console.log('所有图片EXIF已更新,数据库已同步');
+            }
+          } catch (regenerateError) {
+            console.error('重新生成图片失败:', regenerateError);
+          }
+        }
+      }
     }
 
     // 获取更新后的照片信息
@@ -534,7 +846,9 @@ const uploadPhoto = async (req, res) => {
       categories,
       trip_name,
       trip_start_date,
-      trip_end_date
+      trip_end_date,
+      is_protected,
+      protection_level
     } = req.body;
 
     // 验证必填字段
@@ -613,17 +927,51 @@ const uploadPhoto = async (req, res) => {
     const size1024Path = path.join(size1024Dir, `${base}_1024.jpg`);
     const size2048Path = path.join(size2048Dir, `${base}_2048.jpg`);
 
-    // 保存原文件
-    fs.writeFileSync(filePath, req.file.buffer);
-    console.log('原文件保存成功:', filePath);
+    // 处理EXIF Orientation:
+    // 1. 如果用户手动旋转了(rotation > 0),设置对应的orientation值
+    // 2. 如果用户没有旋转(rotation = 0),保留原图的EXIF orientation
+    const userRotation = req.body.rotation ? parseInt(req.body.rotation) : 0;
+    
+    let orientationValue = null;
+    if (userRotation > 0) {
+      // 用户手动旋转,设置对应的orientation
+      if (userRotation === 90) orientationValue = 6;
+      else if (userRotation === 180) orientationValue = 3;
+      else if (userRotation === 270) orientationValue = 8;
+      console.log(`用户手动旋转${userRotation}°,设置EXIF Orientation=${orientationValue}`);
+    } else {
+      // 用户没有旋转,读取原图的EXIF orientation
+      const originalMetadata = await sharp(req.file.buffer).metadata();
+      orientationValue = originalMetadata.orientation || 1;
+      console.log(`保留原图EXIF Orientation=${orientationValue}`);
+    }
+    
+    // 保存原图,设置或保留EXIF Orientation
+    await sharp(req.file.buffer)
+      .withMetadata({ orientation: orientationValue })
+      .toFile(filePath);
+    console.log('原图保存成功:', filePath);
 
-    // 生成派生图：rotate()自动应用EXIF方向，withMetadata(false)移除EXIF防止前端二次旋转
+    // 获取图片原始物理尺寸和EXIF orientation
+    let imageWidth = null;
+    let imageHeight = null;
+    let imageOrientation = orientationValue; // 使用我们刚设置的EXIF orientation值
     try {
-      await sharp(req.file.buffer)
-        .rotate()
+      const metadata = await sharp(filePath).metadata();
+      imageWidth = metadata.width;
+      imageHeight = metadata.height;
+      
+      console.log(`图片物理尺寸: ${imageWidth}x${imageHeight}, EXIF Orientation: ${imageOrientation}`);
+    } catch (metaError) {
+      console.error('获取图片尺寸失败:', metaError);
+    }
+
+    // 生成派生图:同样设置EXIF Orientation
+    try {
+      await sharp(filePath)
+        .withMetadata({ orientation: orientationValue })
         .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
-        .withMetadata(false)
         .toFile(thumbnailPath);
       console.log('缩略图生成成功:', thumbnailPath);
     } catch (thumbError) {
@@ -632,11 +980,10 @@ const uploadPhoto = async (req, res) => {
     
     // 生成1024尺寸
     try {
-      await sharp(req.file.buffer)
-        .rotate()
+      await sharp(filePath)
+        .withMetadata({ orientation: orientationValue })
         .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 85 })
-        .withMetadata(false)
         .toFile(size1024Path);
       console.log('1024尺寸生成成功:', size1024Path);
     } catch (e) {
@@ -645,11 +992,10 @@ const uploadPhoto = async (req, res) => {
     
     // 生成2048尺寸
     try {
-      await sharp(req.file.buffer)
-        .rotate()
+      await sharp(filePath)
+        .withMetadata({ orientation: orientationValue })
         .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 90 })
-        .withMetadata(false)
         .toFile(size2048Path);
       console.log('2048尺寸生成成功:', size2048Path);
     } catch (e) {
@@ -686,10 +1032,13 @@ const uploadPhoto = async (req, res) => {
     const result = insert(
       `INSERT INTO photos (
         id, film_roll_id, photo_number, filename, original_name, title, description,
-        camera_id, taken_date, location_name, tags, uploaded_at,
-        aperture, shutter_speed, focal_length, iso, latitude, longitude,
-        country, province, city, categories, trip_name, trip_start_date, trip_end_date
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        taken_date, camera_id, camera_model, lens_model, lens_focal_length,
+        aperture, shutter_speed, focal_length, iso,
+        exposure_compensation, metering_mode, focus_mode,
+        latitude, longitude, location_name, country, province, city,
+        categories, trip_name, trip_start_date, trip_end_date,
+        tags, is_protected, protection_level, width, height, orientation, rotation
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         film_roll_id,
@@ -698,24 +1047,35 @@ const uploadPhoto = async (req, res) => {
         req.file.originalname,
         title,
         description || '',
-        camera_id || null,
         (taken_date || exifTaken || null),
-        location_name || '',
-        tags || '',
-        now,
+        camera_id || null,
+        null, // camera_model
+        null, // lens_model
+        null, // lens_focal_length
         exifAperture,
         exifShutter,
         exifFocal,
         exifIso || null,
+        null, // exposure_compensation
+        null, // metering_mode
+        null, // focus_mode
         exifLat || null,
         exifLon || null,
+        location_name || '',
         country || null,
         province || null,
         city || null,
         categories || null,
         trip_name || null,
         trip_start_date || null,
-        trip_end_date || null
+        trip_end_date || null,
+        tags || '',
+        is_protected ? 1 : 0,
+        protection_level || null,
+        imageWidth,
+        imageHeight,
+        imageOrientation, // EXIF orientation
+        0 // rotation字段设为0,不再使用
       ]
     );
 
@@ -767,8 +1127,8 @@ const uploadPhoto = async (req, res) => {
  */
 const getRandomPhotos = (req, res) => {
   try {
-    const { count = 1 } = req.query;
-    const limit = Math.min(parseInt(count) || 1, 10); // 最多返回10张
+    const { count = 6 } = req.query; // 默认返回6张照片
+    const limit = Math.min(parseInt(count) || 6, 10); // 最多返回10张
 
     // 判断用户是否为管理员
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -813,12 +1173,8 @@ const getRandomPhotos = (req, res) => {
       const originalPhoto = { ...photo };
 
       photo.photo_serial_number = `${photo.film_roll_number}-${photo.photo_number.toString().padStart(3, '0')}`;
-      const photoIsPrivate = !!photo.is_private;
-      const rollIsPrivate = !!photo.roll_is_private;
-      const effectivePrivate = photoIsPrivate || rollIsPrivate;
-      photo.effective_private = effectivePrivate;
 
-      // 计算保护状态
+      // 统一使用 effective_protection 逻辑
       const photoIsProtected = !!photo.is_protected;
       const rollIsProtected = !!photo.roll_is_protected;
       const effectiveProtection = photoIsProtected || rollIsProtected;
@@ -826,8 +1182,8 @@ const getRandomPhotos = (req, res) => {
       photo.protection_level = photo.protection_level || photo.roll_protection_level || null;
 
       photo._raw = originalPhoto; // 保存原始数据副本
-      photo._raw.effective_private = effectivePrivate;
       photo._raw.effective_protection = effectiveProtection;
+      photo._raw.protection_level = photo.protection_level; // 确保_raw中也有protection_level
 
       // 随机照片API总是返回URL，因为查询时已过滤保护内容
       if (photo.filename && photo.filename.trim()) {
@@ -878,6 +1234,14 @@ const getRandomPhotos = (req, res) => {
       rating: photo.rating || 0,
       location_name: photo.location_name,
       photo_serial_number: photo.photo_serial_number,
+      // 加密保护字段
+      is_protected: photo.is_protected,
+      protection_level: photo.protection_level,
+      effective_protection: photo.effective_protection,
+      // 图片尺寸和方向(用于前端布局计算)
+      width: photo.width,
+      height: photo.height,
+      orientation: photo.orientation,
       // 新增的元数据字段
       country: photo.country,
       province: photo.province,

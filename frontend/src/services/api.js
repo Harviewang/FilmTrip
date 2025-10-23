@@ -54,6 +54,9 @@ export const photoApi = {
   uploadPhoto: (formData) => api.post('/photos', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+  uploadPhotosBatch: (formData) => api.post('/photos/batch', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
 };
 
 export const albumApi = {

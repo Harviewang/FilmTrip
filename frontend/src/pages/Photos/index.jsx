@@ -29,6 +29,9 @@ const Photos = () => {
   const [viewMode, setViewMode] = useState('list');
   const [galleryCurrentIndex, setGalleryCurrentIndex] = useState(0);
   
+  // 随机照片状态
+  const [randomPhotos, setRandomPhotos] = useState([]);
+  
   // 使用稳定的时间戳，避免每次渲染都刷新图片
   const stableTimestamp = useRef(Date.now()).current;
   const ROW_HEIGHT = 1; // px for masonry grid-auto-rows (1px for fine control)
@@ -131,6 +134,10 @@ const Photos = () => {
           iso: photo.iso,
           camera_model: photo.camera_model,
           lens_model: photo.lens_model,
+          // 图片尺寸和方向(用于瀑布流布局计算)
+          width: photo.width,
+          height: photo.height,
+          orientation: photo.orientation,
           // 保留原始数据用于调试
           _raw: photo
         }));
@@ -180,18 +187,81 @@ const Photos = () => {
     }
   };
 
-  // 加载更多照片
-  const loadMorePhotos = async () => {
-    if (!hasMore || loadingMore) {
-      console.log('跳过加载更多:', { hasMore, loadingMore });
-      return;
-    }
-    console.log('开始加载更多照片:', { currentPage, nextPage: currentPage + 1 });
-    setLoadingMore(true);
+  // 获取随机照片
+  const fetchRandomPhoto = async () => {
     try {
-      await fetchPhotos(currentPage + 1, true);
+      setLoading(true);
+      setError(null);
+      
+      const url = `/api/photos/random?count=6`; // 默认获取6张随机照片
+      const token = localStorage.getItem('token');
+      const response = await fetch(url, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('获取到的随机照片数据:', result);
+        
+        if (result.success && result.data && Array.isArray(result.data)) {
+          // 数据映射：将后端字段映射到前端期望的字段
+          const mappedPhotos = result.data.map((photoData, index) => ({
+            id: photoData.id || `random-photo-${index}`,
+            title: photoData.title || photoData.filename || '随机照片',
+            description: photoData.description || '',
+            thumbnail: photoData.thumbnail || photoData.original,
+            original: photoData.original,
+            size1024: photoData.size1024,
+            size2048: photoData.size2048,
+            camera: photoData.camera_name || photoData.camera_model || photoData.camera_brand || '未知相机',
+            film: photoData.film_roll_name || photoData.film_roll_number || '无',
+            date: photoData.taken_date ? photoData.taken_date.split(' ')[0] : (photoData.uploaded_at ? photoData.uploaded_at.split(' ')[0] : '未知日期'),
+            rating: photoData.rating || 0,
+            location_name: photoData.location_name,
+            photo_serial_number: photoData.photo_serial_number,
+            country: photoData.country,
+            province: photoData.province,
+            city: photoData.city,
+            categories: photoData.categories,
+            trip_name: photoData.trip_name,
+            trip_start_date: photoData.trip_start_date,
+            trip_end_date: photoData.trip_end_date,
+            aperture: photoData.aperture,
+            shutter_speed: photoData.shutter_speed,
+            focal_length: photoData.focal_length,
+            iso: photoData.iso,
+            camera_model: photoData.camera_model,
+            lens_model: photoData.lens_model,
+            // 图片尺寸和方向(用于瀑布流布局计算)
+            width: photoData.width,
+            height: photoData.height,
+            orientation: photoData.orientation,
+            // 保留原始数据用于调试
+            _raw: photoData
+          }));
+          
+          console.log('映射后的随机照片数据:', mappedPhotos);
+          setRandomPhotos(mappedPhotos);
+          setViewMode('random');
+        } else {
+          setError('没有找到随机照片数据');
+        }
+      } else {
+        console.error('获取随机照片失败:', response.status);
+        setError(`获取随机照片失败: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('获取随机照片出错:', error);
+      setError(`网络错误: ${error.message}`);
     } finally {
-      setLoadingMore(false);
+      setLoading(false);
+    }
+  };
+
+  // 加载更多照片
+  const loadMorePhotos = () => {
+    if (hasMore && !loadingMore) {
+      fetchPhotos(currentPage + 1, true);
     }
   };
 
@@ -346,33 +416,16 @@ const Photos = () => {
     return () => clearInterval(cleanupInterval);
   }, []);
 
-  const renderPhotoCard = (photo) => {
+  const renderPhotoCard = (photo, isRandomMode = false, isMasonry = false) => {
     const isAdmin = (() => {
       try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; } catch (e) { return false; }
     })();
-    const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
-    // 加密判断基于后端返回的effective_private字段，而非URL是否存在
-    const isPrivateForViewer = effectivePrivate && !isAdmin;
     
-    return (
-      <AdaptiveCard 
-        key={photo.id} 
-        className={`h-full group photo-card ${isPrivateForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-        hover={true}
-        shadow={'default'}
-      >
-        <div className={'aspect-[4/3] overflow-hidden rounded-lg relative'}>
-          {isPrivateForViewer ? (
-            <div
-              className={`w-full h-full flex items-center justify-center bg-gray-100 text-gray-500 relative`}
-              title="已加密：未登录用户不可查看详情"
-            >
-              <div className="flex flex-col items-center">
-                <div className="text-3xl mb-2">🔒</div>
-                <div className="text-xs">该照片涉及隐私或他人肖像，已被管理员加密</div>
-              </div>
-            </div>
-          ) : (
+    // 随机模式下的照片已经由后端过滤，不需要再次检查保护状态
+    if (isRandomMode) {
+      const randomContent = (
+        <div className={'relative w-full overflow-hidden rounded-lg'} style={{ paddingTop: '75%' /* 4:3 aspect ratio */ }}>
+          <div className="absolute inset-0">
             <LazyImage
               src={(photo.size1024 || photo.thumbnail) ? `${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}` : null}
               alt={photo.title || '照片'}
@@ -386,14 +439,89 @@ const Photos = () => {
                 threshold: 0.05
               }}
             />
+          </div>
+        </div>
+      );
+      
+      if (isMasonry) {
+        return randomContent;
+      }
+      
+      return (
+        <AdaptiveCard 
+          key={photo.id} 
+          className="h-full group photo-card cursor-pointer"
+          hover={true}
+          shadow={'default'}
+        >
+          {randomContent}
+        </AdaptiveCard>
+      );
+    }
+    
+    // 普通模式：检查保护状态
+    const effectiveProtection = !!(photo && photo._raw && photo._raw.effective_protection);
+    const isProtectedForViewer = effectiveProtection && !isAdmin;
+    
+    // 检查是否有有效的图片URL
+    const hasValidImageUrl = photo.size1024 || photo.thumbnail;
+    
+    const content = (
+      <div className={'relative w-full overflow-hidden rounded-lg'} style={{ paddingTop: '75%' /* 4:3 aspect ratio */ }}>
+        <div className="absolute inset-0">
+          {isProtectedForViewer || !hasValidImageUrl ? (
+            // 非管理员用户或没有有效URL时显示锁图标
+            <div
+              className={`w-full h-full flex items-center justify-center bg-gray-100 text-gray-500 relative`}
+              title={isProtectedForViewer ? "已加密：未登录用户不可查看详情" : "图片不可用"}
+            >
+              <div className="flex flex-col items-center">
+                <div className="text-3xl mb-2">🔒</div>
+                <div className="text-xs">{isProtectedForViewer ? "该照片涉及隐私或他人肖像，已被管理员加密" : "图片不可用"}</div>
+              </div>
+            </div>
+          ) : (
+            // 普通用户或管理员可以查看的照片
+            <LazyImage
+              src={`${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}`}
+              alt={photo.title || '照片'}
+              className={`transition-transform duration-300 group-hover:scale-110 w-full h-full object-cover`}
+              onClick={(e) => handlePhotoClick(photo, e)}
+              onMouseDown={(e) => handlePhotoMouseDown(photo, e)}
+              onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
+              autoOrientation={true}
+              lazyOptions={{
+                rootMargin: '200px',
+                threshold: 0.05
+              }}
+            />
           )}
           {/* 管理员视图：加密则常显锁图标（无文案） */}
-          {!isPrivateForViewer && effectivePrivate && (
+          {!isProtectedForViewer && effectiveProtection && (
             <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">
               🔒
             </div>
           )}
         </div>
+      </div>
+    );
+    
+    if (isMasonry) {
+      return (
+        <div className={`masonry-content relative w-full h-full overflow-hidden rounded-lg bg-gray-100 shadow-sm hover:shadow-lg transition-shadow ${isProtectedForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e)=>{ if (isProtectedForViewer) return; handlePhotoClick(photo, e); }}>
+          {content}
+        </div>
+      );
+    }
+    
+    return (
+      <AdaptiveCard 
+        key={photo.id} 
+        className={`h-full group photo-card ${isProtectedForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+        hover={true}
+        shadow={'default'}
+      >
+        {content}
       </AdaptiveCard>
     );
   };
@@ -452,35 +580,64 @@ const Photos = () => {
         <div className="w-full flex-shrink-0 py-1 bg-white/80 backdrop-blur-sm border-b border-gray-200">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
+                {/* 平铺模式 */}
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors flex items-center space-x-1 ${
-                    viewMode === 'list' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  className={`px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                    viewMode === 'list' 
+                      ? 'bg-blue-500 text-white shadow-md' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
-                  title="平铺"
+                  title="平铺模式"
                 >
-                  {/* 平铺图标：四宫格 */}
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="4" y="4" width="6" height="6" rx="1" strokeWidth="2"></rect>
-                    <rect x="14" y="4" width="6" height="6" rx="1" strokeWidth="2"></rect>
-                    <rect x="4" y="14" width="6" height="6" rx="1" strokeWidth="2"></rect>
-                    <rect x="14" y="14" width="6" height="6" rx="1" strokeWidth="2"></rect>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                    <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                    <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                    <rect x="14" y="14" width="7" height="7" rx="1"></rect>
                   </svg>
+                  <span className="text-sm font-medium">平铺</span>
                 </button>
+                
+                {/* 瀑布流模式 */}
                 <button
                   onClick={() => setViewMode('waterfall')}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors flex items-center space-x-1 ${
-                    viewMode === 'waterfall' ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  className={`px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                    viewMode === 'waterfall' 
+                      ? 'bg-blue-500 text-white shadow-md' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
-                  title="瀑布流"
+                  title="瀑布流模式"
                 >
-                  {/* 瀑布流图标：三列高低错落 */}
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="3" y="4" width="5" height="8" rx="1"></rect>
-                    <rect x="10" y="4" width="5" height="14" rx="1"></rect>
-                    <rect x="17" y="4" width="4" height="10" rx="1"></rect>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="2" y="3" width="6" height="10" rx="1"></rect>
+                    <rect x="9" y="3" width="6" height="16" rx="1"></rect>
+                    <rect x="16" y="3" width="6" height="13" rx="1"></rect>
                   </svg>
+                  <span className="text-sm font-medium">瀑布流</span>
+                </button>
+                
+                {/* 随机模式 */}
+                <button
+                  onClick={fetchRandomPhoto}
+                  className={`px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 ${
+                    viewMode === 'random' 
+                      ? 'bg-blue-500 text-white shadow-md' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                  title="随机浏览"
+                  disabled={loading}
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                    <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                    <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                    <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                    <circle cx="6.5" cy="6.5" r="1.5" fill="currentColor"></circle>
+                    <circle cx="17.5" cy="17.5" r="1.5" fill="currentColor"></circle>
+                  </svg>
+                  <span className="text-sm font-medium">随机</span>
                 </button>
               </div>
             </div>
@@ -489,13 +646,54 @@ const Photos = () => {
 
         <div className="w-full flex-1 py-2">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            {photos.length === 0 && !loading ? (
+            {viewMode === 'random' ? (
+              // 随机照片模式：显示6张随机照片的网格
+              randomPhotos.length > 0 ? (
+                <div className="w-full">
+                  <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                    <div className="text-center">
+                      <div className="text-4xl mb-4">🎲</div>
+                      <h2 className="text-2xl font-bold text-gray-900 mb-2">随机照片</h2>
+                      <p className="text-gray-600 mb-4">为您精选了 6 张有趣的照片</p>
+                      <button
+                        onClick={fetchRandomPhoto}
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-1 mx-auto"
+                        disabled={loading}
+                      >
+                        <span>🎲</span>
+                        <span>{loading ? '刷新中...' : '换一批'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 随机照片网格 */}
+                  <div className="grid gap-6 sm:gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                    {randomPhotos.map((photo) => renderPhotoCard(photo, true))}
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full h-64 flex flex-col items-center justify-center text-center">
+                  <div className="text-gray-400 text-6xl mb-4">🎲</div>
+                  <h3 className="text-xl font-medium text-gray-900 mb-2">随机照片</h3>
+                  <p className="text-gray-600 mb-4">点击上方按钮获取随机照片</p>
+                  <button
+                    onClick={fetchRandomPhoto}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                    disabled={loading}
+                  >
+                    {loading ? '加载中...' : '🎲 获取随机照片'}
+                  </button>
+                </div>
+              )
+            ) : photos.length === 0 && !loading ? (
+              // 空状态
               <div className="w-full h-64 flex flex-col items-center justify-center text-center">
                 <div className="text-gray-400 text-6xl mb-4">📸</div>
                 <h3 className="text-xl font-medium text-gray-900 mb-2">暂无照片</h3>
                 <p className="text-gray-600">请稍后再来查看</p>
               </div>
             ) : (
+              // 正常照片列表模式
               <>
                 {(viewMode === 'list' || !WATERFALL_ENABLED) ? (
                   // 固定网格：一行4个，统一宽高
@@ -528,17 +726,28 @@ const Photos = () => {
                     // 计算每张图片的位置
                     const columnHeights = Array(columnCount).fill(0);
                     const photoPositions = photos.map((photo, index) => {
-                      // 暂时使用默认宽高比，后续通过图片加载后动态调整
-                      let aspectRatio = 1; // 默认正方形
+                      // 根据原始物理尺寸和EXIF Orientation计算显示宽高比
+                      let aspectRatio = 1.5; // 默认3:2横图
                       
-                      // 可以根据照片编号或其他信息设置不同的默认宽高比
-                      const photoNum = photo.photo_number || index + 1;
-                      if (photoNum % 3 === 0) {
-                        aspectRatio = 0.75; // 竖图
-                      } else if (photoNum % 2 === 0) {
-                        aspectRatio = 1.33; // 横图
+                      if (photo.width && photo.height && photo.height > 0) {
+                        // 数据库存储的是原始物理尺寸,需要根据EXIF Orientation判断是否需要互换
+                        // orientation 6(90°顺时针) 或 8(270°顺时针/90°逆时针) 需要互换宽高
+                        const needsSwap = photo.orientation === 6 || photo.orientation === 8;
+                        
+                        const displayWidth = needsSwap ? photo.height : photo.width;
+                        const displayHeight = needsSwap ? photo.width : photo.height;
+                        
+                        aspectRatio = displayWidth / displayHeight;
                       } else {
-                        aspectRatio = 1; // 正方形
+                        // 如果没有尺寸数据,使用备用方案:根据编号模拟
+                        const photoNum = photo.photo_number || index + 1;
+                        if (photoNum % 3 === 0) {
+                          aspectRatio = 0.67; // 2:3竖图
+                        } else if (photoNum % 2 === 0) {
+                          aspectRatio = 1.5; // 3:2横图
+                        } else {
+                          aspectRatio = 1; // 正方形
+                        }
                       }
                       
                       const imageHeight = columnWidth / aspectRatio;
@@ -569,8 +778,8 @@ const Photos = () => {
                             try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; }
                             catch (e) { return false; }
                           })();
-                          const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
-                          const isPrivateForViewer = effectivePrivate && !isAdmin;
+                          const effectiveProtection = !!(photo && photo._raw && photo._raw.effective_protection);
+                          const isProtectedForViewer = effectiveProtection && !isAdmin;
                           
                           return (
                             <div 
@@ -583,12 +792,22 @@ const Photos = () => {
                                 height: `${height}px`
                               }}
                             >
-                              <div className={`masonry-content relative w-full h-full overflow-hidden rounded-lg bg-gray-100 shadow-sm hover:shadow-lg transition-shadow ${isPrivateForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e)=>{ if (isPrivateForViewer) return; handlePhotoClick(photo, e); }}>
-                                {isPrivateForViewer ? (
+                              <div className={`masonry-content relative w-full h-full overflow-hidden rounded-lg bg-gray-100 shadow-sm hover:shadow-lg transition-shadow ${isProtectedForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e)=>{ if (isProtectedForViewer) return; handlePhotoClick(photo, e); }}>
+                                {isProtectedForViewer ? (
                                   <div className="w-full h-full bg-gray-100 text-gray-500 flex items-center justify-center text-center px-3">
                                     <div>
                                       <div className="text-3xl mb-2">🔒</div>
-                                      <div className="text-xs">该照片涉及隐私或他人肖像，已被管理员加密</div>
+                                      <div className="text-xs">
+                                        {(() => {
+                                          const level = photo.protection_level || photo._raw?.protection_level;
+                                          if (level === 'personal') return '此照片包含个人隐私内容，已加密保护';
+                                          if (level === 'sensitive') return '此照片包含敏感内容，已加密保护';
+                                          if (level === 'restricted') return '此照片严格限制访问，已加密保护';
+                                          if (level === 'portrait') return '此照片涉及他人肖像权，已加密保护';
+                                          if (level === 'other') return '此照片已被管理员加密保护';
+                                          return '该照片涉及隐私或他人肖像，已被管理员加密';
+                                        })()}
+                                      </div>
                                     </div>
                                   </div>
                                 ) : (
@@ -602,7 +821,7 @@ const Photos = () => {
                                     draggable={false}
                                   />
                                 )}
-                                {!isPrivateForViewer && effectivePrivate && (
+                                {!isProtectedForViewer && effectiveProtection && (
                                   <div className="pointer-events-none absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">🔒</div>
                                 )}
                               </div>

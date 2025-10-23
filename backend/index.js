@@ -53,27 +53,23 @@ app.use(express.urlencoded({ extended: true }));
 // 注意：express.json() 和 express.urlencoded() 会干扰文件上传
 // 只在需要的地方使用，避免影响 multer 中间件
 
-// 静态文件服务 - 添加正确的Content-Type
+// 静态文件服务 - 根据文件扩展名设置Content-Type
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res, filePath) => {
-    
-    // 检查文件内容来确定正确的Content-Type
-    const fs = require('fs');
-    try {
-      const content = fs.readFileSync(filePath, 'utf8');
-      if (content.includes('<svg')) {
-        res.set('Content-Type', 'image/svg+xml');
-      } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
-        res.set('Content-Type', 'image/jpeg');
-      } else if (filePath.endsWith('.png')) {
-        res.set('Content-Type', 'image/png');
-      }
-    } catch (error) {
-      // 如果读取失败，使用默认类型
-      if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
-        res.set('Content-Type', 'image/jpeg');
-      }
+    // 直接根据文件扩展名设置Content-Type,不要读取文件内容
+    const ext = filePath.toLowerCase();
+    if (ext.endsWith('.svg')) {
+      res.set('Content-Type', 'image/svg+xml');
+    } else if (ext.endsWith('.jpg') || ext.endsWith('.jpeg')) {
+      res.set('Content-Type', 'image/jpeg');
+    } else if (ext.endsWith('.png')) {
+      res.set('Content-Type', 'image/png');
+    } else if (ext.endsWith('.gif')) {
+      res.set('Content-Type', 'image/gif');
+    } else if (ext.endsWith('.webp')) {
+      res.set('Content-Type', 'image/webp');
     }
+    // Express会自动处理其他类型
   }
 }));
 

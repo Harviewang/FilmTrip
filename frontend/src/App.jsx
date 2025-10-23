@@ -14,12 +14,10 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Photos from './pages/Photos';
 import FilmRolls from './pages/FilmRolls';
 import Map from './pages/Map';
-import Random from './pages/Random';
 import More from './pages/More';
 import PhotoDetail from './pages/PhotoDetail';
 import NotFound from './pages/NotFound';
 import UserLayout from './components/UserLayout';
-import Trip from './pages/Trip';
 
 import './App.css';
 
@@ -49,8 +47,6 @@ function App() {
               <Route path="gallery" element={<Photos />} />
               <Route path="film-rolls" element={<FilmRolls />} />
               <Route path="map" element={<Map />} />
-              <Route path="random" element={<Navigate to="/gallery?mode=random" replace />} />
-              <Route path="trip" element={<Trip />} />
               <Route path="more" element={<More />} />
               <Route path="photo/:id" element={<PhotoDetail />} />
             </Route>

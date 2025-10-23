@@ -161,11 +161,17 @@ const PhotoPreview = ({
     setShouldAnimateRotation(false);
     setRotateDeg(0);
     setFittedSize({ width: 0, height: 0 });
-    // 不再应用EXIF初始方向（派生图已校正），初始为0，仅响应用户旋转按钮
-    // 预估纵横：若有尺寸（派生图已校正，直接基于宽高判断）
-    const w = photo?.thumbnail_width || photo?._raw?.thumbnail_width || photo?._raw?.width;
-    const h = photo?.thumbnail_height || photo?._raw?.thumbnail_height || photo?._raw?.height;
+    // 预估纵横比:根据EXIF Orientation调整显示尺寸
+    let w = photo?.thumbnail_width || photo?._raw?.thumbnail_width || photo?._raw?.width || photo?.width;
+    let h = photo?.thumbnail_height || photo?._raw?.thumbnail_height || photo?._raw?.height || photo?.height;
+    const orientation = photo?.orientation || photo?._raw?.orientation || 1;
+    
     if (w && h) {
+      // orientation 6(90°) 或 8(270°) 需要互换宽高,因为数据库存储的是原始物理尺寸
+      const needsSwap = orientation === 6 || orientation === 8;
+      if (needsSwap) {
+        [w, h] = [h, w]; // 互换宽高得到显示尺寸
+      }
       setImageDimensions({ width: w, height: h });
     } else {
       setImageDimensions({ width: 0, height: 0 });

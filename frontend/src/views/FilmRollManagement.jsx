@@ -51,8 +51,9 @@ const FilmRollManagement = () => {
       const data = await response.json();
       
       if (data.success) {
-        setFilmRolls(data.data.filmRolls);
-        setPagination(data.data.pagination);
+        const filmRollsData = data.data || [];
+        setFilmRolls(filmRollsData);
+        updatePagination(filmRollsData);
       }
     } catch (error) {
       console.error('获取胶卷实例失败:', error);
@@ -241,10 +242,27 @@ const FilmRollManagement = () => {
   // 分页
   const handlePageChange = (page) => {
     setPagination(prev => ({ ...prev, page }));
-    fetchFilmRolls(page);
+    // 客户端分页，不需要重新获取数据
   };
 
-  // 获取状态标签样式
+  // 获取当前页的数据（客户端分页）
+  const getCurrentPageData = () => {
+    const startIndex = (pagination.page - 1) * pagination.limit;
+    const endIndex = startIndex + pagination.limit;
+    return (filmRolls || []).slice(startIndex, endIndex);
+  };
+
+  // 更新分页信息
+  const updatePagination = (data) => {
+    const total = data?.length || 0;
+    const pages = Math.ceil(total / pagination.limit);
+    setPagination(prev => ({
+      ...prev,
+      total,
+      pages,
+      page: Math.min(prev.page, pages) || 1
+    }));
+  };
   const getStatusBadge = (status) => {
     const statusConfig = {
       '未启封': 'bg-gray-100 text-gray-800',
@@ -326,7 +344,7 @@ const FilmRollManagement = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">全部品类</option>
-              {filmStocks.map(stock => (
+              {(filmStocks || []).map(stock => (
                 <option key={stock.id} value={stock.id}>
                   {stock.brand} {stock.series} {stock.iso}
                 </option>
@@ -386,14 +404,14 @@ const FilmRollManagement = () => {
                     加载中...
                   </td>
                 </tr>
-              ) : filmRolls.length === 0 ? (
+              ) : (filmRolls || []).length === 0 ? (
                 <tr>
                   <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                     暂无数据
                   </td>
                 </tr>
               ) : (
-                filmRolls.map((roll) => (
+                getCurrentPageData().map((roll) => (
                   <tr key={roll.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {roll.roll_number}
@@ -507,7 +525,7 @@ const FilmRollManagement = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">选择胶卷品类</option>
-                    {filmStocks.map(stock => (
+                    {(filmStocks || []).map(stock => (
                       <option key={stock.id} value={stock.id}>
                         {stock.brand} {stock.series} {stock.iso} {stock.format}
                       </option>
@@ -567,7 +585,7 @@ const FilmRollManagement = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">选择相机</option>
-                    {cameras.map(camera => (
+                    {(cameras || []).map(camera => (
                       <option key={camera.id} value={camera.id}>
                         {camera.name} {camera.model}
                       </option>

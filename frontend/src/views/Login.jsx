@@ -34,7 +34,7 @@ const Login = () => {
         localStorage.setItem('user', JSON.stringify(user));
         console.log('Token saved:', token); // 调试日志
         console.log('User saved:', user); // 调试日志
-        navigate('/dashboard');
+        navigate('/admin/dashboard');
       } else {
         setError(response.data.message || '登录失败');
       }
