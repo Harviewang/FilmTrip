@@ -68,7 +68,7 @@ docs/work-plans/
   7. Git 提交：仅在 Codex 验收通过后填写实际 commit hash / PR 链接；未通过前请留空。
   ```
 - `git-log.md`：位于 `docs/work-plans/git-log.md`，保存近期提交摘要，指向相应 `commits` 文档。
-- `git-log.md`：保存 `git log` 结果（至少 5 条），方便对照代码历史。
+- `git-log.md`：保存 `git log` 结果（至少 15 条），方便对照代码历史。**重要：更新时应追加（Append）新记录，不得覆盖（Overwrite）历史记录，保持时间倒序排列。**
 
 > 若一个提交覆盖多个任务，在 summary 表格的对应行都注明状态；审计与修订记录同理。
 
