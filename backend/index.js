@@ -21,7 +21,9 @@ const corsOptions = {
       'http://localhost:3000',  // 前端开发服务器
       'http://localhost:3002',  // 管理后台开发服务器
       'http://127.0.0.1:3000',
-      'http://127.0.0.1:3002'
+      'http://127.0.0.1:3002',
+      'https://filmtrip.imhw.top',  // 生产环境前端
+      'https://filmtrip.cn'  // 备用生产环境前端
     ];
 
     // 检查环境变量中是否有额外的允许域名

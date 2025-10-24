@@ -52,8 +52,8 @@ const FilmStockManagement = () => {
       const data = await response.json();
       
       if (data.success) {
-        setFilmStocks(data.data.filmStocks);
-        setPagination(data.data.pagination);
+        setFilmStocks(data.filmStocks);
+        setPagination(data.pagination);
       }
     } catch (error) {
       console.error('获取胶卷品类失败:', error);
@@ -201,43 +201,43 @@ const FilmStockManagement = () => {
   }, []);
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">胶卷品类管理</h1>
+    <div className="p-6">
+      {/* 页面标题和操作按钮 */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">胶卷品类管理</h1>
+          <p className="text-gray-600">管理您的胶卷品类</p>
+        </div>
         <button
           onClick={openCreateModal}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
         >
-          <PlusIcon className="h-4 w-4 mr-2" />
+          <PlusIcon className="h-5 w-5" />
           新增胶卷品类
         </button>
       </div>
 
-      {/* 搜索和筛选 */}
-      <div className="bg-white p-6 rounded-lg shadow">
+      {/* 搜索和过滤 */}
+      <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              搜索品牌/系列
-            </label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="输入品牌或系列名称"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="relative">
+              <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="搜索品牌或系列名称"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              规格
-            </label>
             <select
               value={filterFormat}
               onChange={(e) => setFilterFormat(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">全部规格</option>
               <option value="135mm">135mm</option>
@@ -248,13 +248,10 @@ const FilmStockManagement = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              类型
-            </label>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">全部类型</option>
               <option value="彩色负片">彩色负片</option>
@@ -264,12 +261,12 @@ const FilmStockManagement = () => {
             </select>
           </div>
           
-          <div className="flex items-end">
+          <div>
             <button
               onClick={handleSearch}
-              className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2"
             >
-              <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
+              <MagnifyingGlassIcon className="h-4 w-4" />
               搜索
             </button>
           </div>

@@ -22,7 +22,7 @@ const getAllScanners = (req, res) => {
 
     res.json({
       success: true,
-      data: scanners,
+      scanners,
       pagination: {
         total,
         page: parseInt(page),

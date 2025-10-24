@@ -229,11 +229,11 @@ const Map = () => {
     }, 300);
   };
 
-  // 缩放等级映射函数：扩展支持MapTiler的22级完整范围
+  // 缩放等级映射函数：支持MapTiler的20级范围
   const getZoomLevelDisplay = (zoom) => {
     const zoomMap = {
       3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9: 7, 10: 8, 11: 9, 12: 10, 13: 11, 14: 12,
-      15: 13, 16: 14, 17: 15, 18: 16, 19: 17, 20: 18, 21: 19, 22: 20
+      15: 13, 16: 14, 17: 15, 18: 16, 19: 17, 20: 18
     };
     return zoomMap[zoom] || zoom;
   };
@@ -244,7 +244,7 @@ const Map = () => {
     
     const currentZoom = mapInstanceRef.current.getZoom();
     
-    if (currentZoom < 22) { // MapTiler支持的最大缩放级别
+    if (currentZoom < 20) { // MapTiler支持的最大缩放级别
       mapInstanceRef.current.zoomIn();
     }
   };
@@ -260,6 +260,138 @@ const Map = () => {
   };
 
   const tilePerfRef = useRef({ samples: [], avg: 0, starts: new globalThis.Map(), switchLocked: false });
+  
+  // 请求节流机制
+  const throttleRef = useRef({
+    lastRequest: 0,
+    requestQueue: [],
+    isProcessing: false
+  });
+
+  // 防抖函数
+  const debounce = (func, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func.apply(null, args), delay);
+    };
+  };
+
+  // 节流函数
+  const throttle = (func, delay) => {
+    let lastCall = 0;
+    return (...args) => {
+      const now = Date.now();
+      if (now - lastCall >= delay) {
+        lastCall = now;
+        func.apply(null, args);
+      }
+    };
+  };
+
+  // 本地存储缓存管理
+  const localStorageCache = {
+    set: (key, value, ttl = 24 * 60 * 60 * 1000) => { // 默认24小时过期
+      const item = {
+        value: value,
+        timestamp: Date.now(),
+        ttl: ttl
+      };
+      try {
+        localStorage.setItem(`maptiler_${key}`, JSON.stringify(item));
+      } catch (e) {
+        console.warn('LocalStorage cache failed:', e);
+      }
+    },
+    
+    get: (key) => {
+      try {
+        const item = localStorage.getItem(`maptiler_${key}`);
+        if (!item) return null;
+        
+        const parsed = JSON.parse(item);
+        const now = Date.now();
+        
+        if (now - parsed.timestamp > parsed.ttl) {
+          localStorage.removeItem(`maptiler_${key}`);
+          return null;
+        }
+        
+        return parsed.value;
+      } catch (e) {
+        console.warn('LocalStorage cache read failed:', e);
+        return null;
+      }
+    },
+    
+    clear: () => {
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+          if (key.startsWith('maptiler_')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch (e) {
+        console.warn('LocalStorage cache clear failed:', e);
+      }
+    }
+  };
+
+  // MapTiler配额监控和降级策略
+  const quotaMonitor = {
+    trackRequest: () => {
+      const today = new Date().toDateString();
+      const usage = JSON.parse(localStorage.getItem('maptiler_daily_usage') || '{}');
+      
+      if (!usage[today]) {
+        usage[today] = 0;
+      }
+      
+      usage[today]++;
+      localStorage.setItem('maptiler_daily_usage', JSON.stringify(usage));
+      
+      // 如果接近限制，显示警告但不封禁
+      if (usage[today] > 150) { // 75%阈值
+        console.warn('MapTiler daily usage approaching limit:', usage[today]);
+        // 不自动切换，让用户继续使用
+      }
+    },
+    
+    getDailyUsage: () => {
+      const today = new Date().toDateString();
+      const usage = JSON.parse(localStorage.getItem('maptiler_daily_usage') || '{}');
+      return usage[today] || 0;
+    },
+    
+    resetDailyUsage: () => {
+      const today = new Date().toDateString();
+      const usage = JSON.parse(localStorage.getItem('maptiler_daily_usage') || '{}');
+      usage[today] = 0;
+      localStorage.setItem('maptiler_daily_usage', JSON.stringify(usage));
+    },
+    
+    // 检查是否应该使用OSM（降级策略）
+    shouldUseOSM: () => {
+      const usage = quotaMonitor.getDailyUsage();
+      
+      // 如果使用量过高，建议切换到OSM（但不强制）
+      if (usage > 200) { // 100%阈值
+        console.warn('MapTiler usage limit reached, consider switching to OSM');
+        return true;
+      }
+      
+      return false;
+    }
+  };
+
+  // 切换到OSM地图（降级策略）
+  const switchToOSM = () => {
+    console.log('Switching to OSM due to quota limit');
+    // 不再设置封禁状态，只是记录日志
+    console.log('MapTiler quota limit reached, using OSM fallback');
+    return true;
+  };
 
   // 初始化地图
   useEffect(() => {
@@ -268,7 +400,7 @@ const Map = () => {
       const map = L.map(mapRef.current, {
         center: [22.5, 113.9],       // 深圳南山区坐标
         zoom: 3,                      // 默认缩放3.0，映射显示为1
-        maxZoom: 22,                  // 放开缩放限制
+        maxZoom: 20,                  // 降低缩放限制到20级，减少瓦片请求
         minZoom: 3,                   // 限制最小缩放为3
         zoomControl: false,           // 隐藏默认缩放控件
         attributionControl: false,    // 隐藏归属信息
@@ -289,29 +421,35 @@ const Map = () => {
         inertiaDeceleration: 1500,    // 降低惯性减速度，更丝滑
         inertiaMaxSpeed: 10000,       // 提高最大惯性速度，更流畅
         easeLinearity: 0.1,           // 降低缓动线性度，更自然
-        // 瓦片加载优化
+        // 瓦片加载优化 - 添加节流控制
         updateWhenIdle: true,         // 空闲时更新，减少拖动时的加载
-        updateWhenZooming: true,      // 缩放时更新，确保缩放流畅
+        updateWhenZooming: false,     // 缩放时不立即更新，减少请求
         zoomAnimation: true,           // 缩放动画
         zoomAnimationThreshold: 4,     // 缩放动画阈值
         fadeAnimation: true,           // 淡入淡出动画
         markerZoomAnimation: true,     // 标记缩放动画
         transform3DLimit: 8388608,     // 3D变换限制
+        // 添加请求控制
+        updateInterval: 150,          // 更新间隔150ms（优化响应速度）
+        keepBuffer: 16,               // 增加缓存瓦片数量
       });
 
       // 定义渐进式地图源
       const buildMapTilerLayer = (style) => {
         const key = import.meta.env.VITE_MAPTILER_KEY;
-        if (!key) return null;
+        if (!key || quotaMonitor.shouldUseOSM()) {
+          console.log('Using OSM fallback due to quota limit or attack prevention');
+          return null; // 返回null，使用OSM
+        }
         return L.tileLayer(`https://api.maptiler.com/maps/${style}/256/{z}/{x}/{y}.png?key=${key}`, {
-          maxZoom: 22,
+          maxZoom: 20,  // 降低最大缩放级别
           minZoom: 2,
           attribution: '&copy; OpenMapTiles &copy; OpenStreetMap contributors &copy; MapTiler',
           updateWhenIdle: true,
           updateWhenZooming: true,
-          keepBuffer: 8,
+          keepBuffer: 16, // 增加缓存瓦片数量
           tileSize: 256,
-          maxNativeZoom: 22,
+          maxNativeZoom: 20, // 降低原生缩放级别
           opacity: 1.0,
           zIndex: 1,
           crossOrigin: true,
@@ -514,6 +652,12 @@ const Map = () => {
             if (perf.samples.length > 20) perf.samples.shift();
             const sum = perf.samples.reduce((a,b)=>a+b,0);
             perf.avg = Math.round(sum / perf.samples.length);
+            
+            // 恢复：前端统计用于UI提示和样式切换
+            if (key && key.includes('api.maptiler.com')) {
+              quotaMonitor.trackRequest();
+            }
+            
             // 禁用自动切换：仅记录性能，不触发切换
             // if (!perf.switchLocked && perf.samples.length >= 10 && perf.avg > 600) {
             //   // 自动切换逻辑已禁用
@@ -629,6 +773,31 @@ const Map = () => {
 
       // 存储地图实例
       mapInstanceRef.current = map;
+
+      // 智能地图源切换
+      const initializeMapSource = () => {
+        if (quotaMonitor.shouldUseOSM()) {
+          console.log('Switching to OSM due to quota limit or attack prevention');
+          // 切换到OSM
+          if (tileLayers.osm?.base) {
+            tileLayers.osm.base.addTo(map);
+          }
+        } else {
+          // 使用MapTiler
+          if (tileLayers.maptiler?.base) {
+            tileLayers.maptiler.base.addTo(map);
+          } else {
+            // MapTiler不可用，使用OSM
+            console.log('MapTiler unavailable, using OSM fallback');
+            if (tileLayers.osm?.base) {
+              tileLayers.osm.base.addTo(map);
+            }
+          }
+        }
+      };
+
+      // 初始化地图源
+      initializeMapSource();
 
       // 地图加载完成后的处理
       map.whenReady(() => {

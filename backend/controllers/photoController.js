@@ -12,7 +12,15 @@ const jwt = require('jsonwebtoken');
  */
 const getAllPhotos = async (req, res) => {
   try {
-    const { page = 1, limit = 20, film_roll_id, sort = 'id', order = 'desc' } = req.query;
+    const { 
+      page = 1, 
+      limit = 20, 
+      film_roll_id, 
+      sort = 'id', 
+      order = 'desc',
+      film_type, // 新增：胶卷类型筛选
+      film_format // 新增：胶卷画幅筛选
+    } = req.query;
 
     // 验证参数
     const pageNum = parseInt(page);
@@ -25,22 +33,57 @@ const getAllPhotos = async (req, res) => {
     }
 
     // 构建排序字段和方向
-    const allowedSortFields = ['id', 'taken_date', 'uploaded_at', 'title', 'rating'];
+    const allowedSortFields = ['id', 'taken_date', 'uploaded_at', 'title', 'rating', 'random'];
     const sortField = allowedSortFields.includes(sort) ? sort : 'id';
     const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
+    
+    // 处理随机排序
+    let orderClause;
+    if (sortField === 'random') {
+      orderClause = 'ORDER BY RANDOM()';
+    } else {
+      orderClause = `ORDER BY p.${sortField} ${sortOrder}`;
+    }
 
     // 计算偏移量
     const offset = (pageNum - 1) * limitNum;
 
+    // 构建WHERE条件
+    let whereConditions = [];
+    let queryParams = [];
+    
+    if (film_roll_id) {
+      whereConditions.push('p.film_roll_id = ?');
+      queryParams.push(film_roll_id);
+    }
+    
+    // 胶卷类型筛选
+    if (film_type && film_type !== 'all') {
+      whereConditions.push('fs.type = ?');
+      queryParams.push(film_type);
+    }
+    
+    // 胶卷画幅筛选
+    if (film_format && film_format !== 'all') {
+      whereConditions.push('fs.format = ?');
+      queryParams.push(film_format);
+    }
+    
+    const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+
     // 获取总数
-    const totalQuery = film_roll_id ? 
-      'SELECT COUNT(*) as total FROM photos WHERE film_roll_id = ?' : 
-      'SELECT COUNT(*) as total FROM photos';
-    const totalResult = query(totalQuery, film_roll_id ? [film_roll_id] : []);
+    const totalQuery = `
+      SELECT COUNT(*) as total 
+      FROM photos p
+      LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
+      LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
+      ${whereClause}
+    `;
+    const totalResult = query(totalQuery, queryParams);
     const total = totalResult[0].total;
 
     // 查询照片数据
-    const photos = film_roll_id ? query(`
+    const photos = query(`
       SELECT 
         p.*,
         c.name AS camera_name,
@@ -53,35 +96,16 @@ const getAllPhotos = async (req, res) => {
         fr.protection_level AS roll_protection_level,
         fs.brand AS film_roll_brand,
         fs.iso AS film_roll_iso,
-        fs.type AS film_roll_type
+        fs.type AS film_roll_type,
+        fs.format AS film_roll_format
       FROM photos p
       LEFT JOIN cameras c ON p.camera_id = c.id
       LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
       LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
-      WHERE p.film_roll_id = ?
-      ORDER BY p.${sortField} ${sortOrder} 
+      ${whereClause}
+      ${orderClause}
       LIMIT ? OFFSET ?
-    `, [film_roll_id, parseInt(limit), parseInt(offset)]) : query(`
-      SELECT 
-        p.*,
-        c.name AS camera_name,
-        c.model AS camera_model,
-        c.brand AS camera_brand,
-        fr.roll_number AS film_roll_number,
-        fr.roll_number AS film_roll_name,
-        fr.is_private AS roll_is_private,
-        fr.is_protected AS roll_is_protected,
-        fr.protection_level AS roll_protection_level,
-        fs.brand AS film_roll_brand,
-        fs.iso AS film_roll_iso,
-        fs.type AS film_roll_type
-      FROM photos p
-      LEFT JOIN cameras c ON p.camera_id = c.id
-      LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
-      LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
-      ORDER BY p.${sortField} ${sortOrder} 
-      LIMIT ? OFFSET ?
-    `, [parseInt(limit), parseInt(offset)]);
+    `, [...queryParams, parseInt(limit), parseInt(offset)]);
     
     // 判断用户是否为管理员
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -241,6 +265,11 @@ const getOriginalPhoto = (req, res) => {
 
 const uploadPhotosBatch = async (req, res) => {
   try {
+    console.log('=== 批量上传开始 ===');
+    console.log('请求体字段:', Object.keys(req.body));
+    console.log('文件数量:', req.files ? req.files.length : 0);
+    console.log('文件信息:', req.files ? req.files.map(f => ({ name: f.fieldname, originalname: f.originalname, size: f.size })) : []);
+    
     const { 
       film_roll_id, 
       camera_id, 
@@ -316,35 +345,35 @@ const uploadPhotosBatch = async (req, res) => {
       // 保存原图,设置或保留EXIF Orientation
       await sharp(file.buffer)
         .withMetadata({ orientation: orientationValue })
-        .toFile(originalPath);
+        .toFile(filePath);
       
       // 获取图片原始物理尺寸
       let imageWidth = null;
       let imageHeight = null;
       let imageOrientation = orientationValue;
       try {
-        const metadata = await sharp(originalPath).metadata();
+        const metadata = await sharp(filePath).metadata();
         imageWidth = metadata.width;
         imageHeight = metadata.height;
       } catch (e) {}
       
       // 生成派生图:同样设置EXIF Orientation
       try {
-        await sharp(originalPath)
+        await sharp(filePath)
           .withMetadata({ orientation: orientationValue })
           .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 80 })
           .toFile(thumbPath);
       } catch (e) {}
       try {
-        await sharp(originalPath)
+        await sharp(filePath)
           .withMetadata({ orientation: orientationValue })
           .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 85 })
           .toFile(size1024Path);
       } catch (e) {}
       try {
-        await sharp(originalPath)
+        await sharp(filePath)
           .withMetadata({ orientation: orientationValue })
           .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 90 })

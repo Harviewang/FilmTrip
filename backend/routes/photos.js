@@ -46,4 +46,7 @@ router.post('/batch', upload.array('photos', 50), photoController.uploadPhotosBa
 // 更新照片信息 (需要管理员权限)
 router.put('/:id', photoController.updatePhoto);
 
+// 删除照片 (需要管理员权限)
+router.delete('/:id', photoController.deletePhoto);
+
 module.exports = router;

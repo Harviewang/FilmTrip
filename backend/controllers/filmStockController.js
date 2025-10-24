@@ -69,7 +69,7 @@ const getAllFilmStocks = (req, res) => {
     
     res.json({
       success: true,
-      data: filmStocks,
+      filmStocks,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),

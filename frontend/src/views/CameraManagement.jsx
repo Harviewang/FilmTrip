@@ -40,11 +40,11 @@ const CameraManagement = () => {
       console.log('响应数据结构:', {
         data: response.data,
         success: response.data?.success,
-        camerasArray: response.data?.data
+        camerasArray: response.data?.cameras
       });
       
       // 确保cameras是数组
-      const camerasData = response.data?.data || [];
+      const camerasData = response.data?.cameras || [];
       console.log('解析后的相机数据:', camerasData);
       console.log('是否为数组:', Array.isArray(camerasData));
       

@@ -61,7 +61,7 @@ const FilmRolls = () => {
         throw new Error('获取胶卷数据失败');
       }
       const data = await response.json();
-      const rolls = Array.isArray(data) ? data : (data?.data ?? data?.filmRolls ?? []);
+      const rolls = Array.isArray(data) ? data : (data?.filmRolls ?? data?.data ?? []);
       setFilmRolls(rolls);
     } catch (err) {
       setError(err.message);
@@ -90,7 +90,7 @@ const FilmRolls = () => {
         throw new Error('获取胶卷品类数据失败');
       }
       const data = await response.json();
-      const stocks = Array.isArray(data) ? data : (data?.data ?? data?.filmStocks ?? []);
+      const stocks = Array.isArray(data) ? data : (data?.filmStocks ?? data?.data ?? []);
       setFilmStocks(stocks);
     } catch (err) {
       console.error('获取胶卷品类失败:', err);

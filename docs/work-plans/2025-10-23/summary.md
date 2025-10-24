@@ -473,7 +473,7 @@
 
 #### 代码质量审查
 - [ ] 后端photoController.js的EXIF处理逻辑是否健壮
-- [ ] 前端Photos/index.jsx的瀑布流计算是否高效
+- [ ] 前端Gallery/index.jsx的瀑布流计算是否高效
 - [ ] ImageRotateControl组件的实现是否符合规范
 - [ ] fix-photo-dimensions.js脚本的异常处理是否完善
 

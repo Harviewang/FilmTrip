@@ -58,14 +58,12 @@ const getAllFilmRolls = async (req, res) => {
     
     res.json({
       success: true,
-      data: {
-        filmRolls,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total,
-          pages: Math.ceil(total / limit)
-        }
+      filmRolls,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
       }
     });
   } catch (error) {

@@ -12,7 +12,13 @@
 | [项目规范总览.md](项目规范总览.md) | 规范类总览 |
 | [部署指南.md](部署指南.md) | 部署/运维说明 |
 
-## B. 推荐保留的支持文档
+## 📚 知识库（2025-10-24新增）
+- `knowledge-base/` - 项目知识库
+  - `best-practices/` - 最佳实践和开发规范
+  - `refactoring-guides/` - 重构指南和经验记录
+  - `problem-solving/` - 问题解决方案和故障排除
+  - `architecture-decisions/` - 架构决策和技术选型
+  - `README.md` - 知识库使用指南
 - `数据库设计.md`
 - `前端设计规范.md`
 - `地图照片分布展示方案.md`

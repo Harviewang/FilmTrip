@@ -31,7 +31,9 @@ const FilmRollManagement = () => {
     opened_date: '',
     location: '',
     camera_id: '',
-    notes: ''
+    notes: '',
+    is_protected: false,
+    protection_level: ''
   });
 
   // 获取胶卷实例列表
@@ -51,7 +53,7 @@ const FilmRollManagement = () => {
       const data = await response.json();
       
       if (data.success) {
-        const filmRollsData = data.data || [];
+        const filmRollsData = data.filmRolls || [];
         setFilmRolls(filmRollsData);
         updatePagination(filmRollsData);
       }
@@ -68,7 +70,7 @@ const FilmRollManagement = () => {
       const response = await fetch('http://localhost:3001/api/filmStocks');
       const data = await response.json();
       if (data.success) {
-        const stocksArray = data.data.filmStocks || [];
+        const stocksArray = data.filmStocks || [];
         setFilmStocks(stocksArray);
       }
     } catch (error) {
@@ -82,7 +84,7 @@ const FilmRollManagement = () => {
       const response = await fetch('http://localhost:3001/api/cameras');
       const data = await response.json();
       if (data.success) {
-        const camerasArray = data.data || [];
+        const camerasArray = data.cameras || [];
         setCameras(camerasArray);
       }
     } catch (error) {
@@ -96,7 +98,7 @@ const FilmRollManagement = () => {
       const response = await fetch('http://localhost:3001/api/scanners');
       const data = await response.json();
       if (data.success) {
-        const scannersArray = data.data || [];
+        const scannersArray = data.scanners || [];
         setScanners(scannersArray);
       }
     } catch (error) {
@@ -202,7 +204,9 @@ const FilmRollManagement = () => {
       opened_date: roll.opened_date || '',
       location: roll.location || '',
       camera_id: roll.camera_id || '',
-      notes: roll.notes || ''
+      notes: roll.notes || '',
+      is_protected: roll.is_protected || false,
+      protection_level: roll.protection_level || ''
     });
     setShowModal(true);
   };
@@ -215,7 +219,9 @@ const FilmRollManagement = () => {
       opened_date: '',
       location: '',
       camera_id: '',
-      notes: ''
+      notes: '',
+      is_protected: false,
+      protection_level: ''
     });
   };
 
@@ -287,43 +293,43 @@ const FilmRollManagement = () => {
   }, []);
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">胶卷实例管理</h1>
+    <div className="p-6">
+      {/* 页面标题和操作按钮 */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">胶卷实例管理</h1>
+          <p className="text-gray-600">管理您的胶卷实例</p>
+        </div>
         <button
           onClick={openCreateModal}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
         >
-          <PlusIcon className="h-4 w-4 mr-2" />
+          <PlusIcon className="h-5 w-5" />
           新增胶卷实例
         </button>
       </div>
 
-      {/* 搜索和筛选 */}
-      <div className="bg-white p-6 rounded-lg shadow">
+      {/* 搜索和过滤 */}
+      <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              搜索编号/名称
-            </label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="输入胶卷编号或名称"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="relative">
+              <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="搜索胶卷编号或名称"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              状态
-            </label>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">全部状态</option>
               <option value="未启封">未启封</option>
@@ -335,13 +341,10 @@ const FilmRollManagement = () => {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              胶卷品类
-            </label>
             <select
               value={filterStock}
               onChange={(e) => setFilterStock(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">全部品类</option>
               {(filmStocks || []).map(stock => (
@@ -352,12 +355,12 @@ const FilmRollManagement = () => {
             </select>
           </div>
           
-          <div className="flex items-end">
+          <div>
             <button
               onClick={handleSearch}
-              className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2"
             >
-              <MagnifyingGlassIcon className="h-4 w-4 mr-2" />
+              <MagnifyingGlassIcon className="h-4 w-4" />
               搜索
             </button>
           </div>
@@ -393,6 +396,9 @@ const FilmRollManagement = () => {
                   启封日期
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  加密状态
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   操作
                 </th>
               </tr>
@@ -400,13 +406,13 @@ const FilmRollManagement = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan="8" className="px-6 py-4 text-center text-gray-500">
                     加载中...
                   </td>
                 </tr>
               ) : (filmRolls || []).length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan="8" className="px-6 py-4 text-center text-gray-500">
                     暂无数据
                   </td>
                 </tr>
@@ -424,7 +430,7 @@ const FilmRollManagement = () => {
                         {roll.package_image ? (
                           <img 
                             src={`http://localhost:3001${roll.package_image}`}
-                            alt={`${roll.brand} ${roll.series}`}
+                            alt={`${roll.film_roll_brand} ${roll.film_roll_name}`}
                             className="h-8 w-8 object-cover rounded"
                             onError={(e) => {
                               e.target.style.display = 'none';
@@ -432,8 +438,8 @@ const FilmRollManagement = () => {
                           />
                         ) : null}
                         <div>
-                          <div className="font-medium">{roll.brand} {roll.series}</div>
-                          <div className="text-gray-500">{roll.iso} • {roll.format}</div>
+                          <div className="font-medium">{roll.film_roll_brand} {roll.film_roll_name}</div>
+                          <div className="text-gray-500">{roll.film_roll_iso} • {roll.film_roll_format}</div>
                         </div>
                       </div>
                     </td>
@@ -445,6 +451,17 @@ const FilmRollManagement = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {roll.opened_date || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {roll.is_protected ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          🔒 {roll.protection_level || '已加密'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          🔓 公开
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
@@ -605,6 +622,44 @@ const FilmRollManagement = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="备注信息"
                   />
+                </div>
+                
+                {/* 加密设置 */}
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">加密设置</h3>
+                  
+                  <div className="mb-4">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.is_protected}
+                        onChange={(e) => setFormData({...formData, is_protected: e.target.checked})}
+                        className="mr-2"
+                      />
+                      <span className="text-sm font-medium text-gray-700">整卷加密</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">启用后，整卷胶卷的所有照片都将被加密保护</p>
+                  </div>
+                  
+                  {formData.is_protected && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        加密级别
+                      </label>
+                      <select
+                        value={formData.protection_level}
+                        onChange={(e) => setFormData({...formData, protection_level: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">请选择加密级别</option>
+                        <option value="personal">个人隐私</option>
+                        <option value="sensitive">敏感内容</option>
+                        <option value="restricted">严格限制</option>
+                        <option value="portrait">肖像权</option>
+                        <option value="other">其他</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex justify-end space-x-3 pt-4">

@@ -27,7 +27,7 @@ const getAllAlbums = (req, res) => {
 
     res.json({
       success: true,
-      data: albums,
+      albums,
       pagination: {
         total,
         page: parseInt(page),

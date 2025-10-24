@@ -53,6 +53,209 @@ body {
   }
 }
 
+/* 胶卷暗盒随机动画 */
+@keyframes canisterSpin {
+  0% {
+    transform: translateY(0);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateY(-6%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.9;
+  }
+}
+
+.film-canister-package--spinning {
+  animation: canisterSpin 0.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.film-strip__frame-foreign .group {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.film-strip__frame-foreign .group:hover {
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.35);
+}
+
+/* 随机胶卷视图 */
+.random-film-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  padding: 0.65rem 1.4rem;
+  transition: all 0.25s ease;
+}
+
+.random-film-button--primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+.random-film-button--primary:hover {
+  background: #1d4ed8;
+}
+
+.random-film-button--disabled {
+  background: #e2e8f0;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.random-film-roll {
+  position: relative;
+  background: linear-gradient(135deg, #141f32 0%, #091222 100%);
+  border-radius: 28px;
+  padding: 32px 42px;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow: hidden;
+  box-shadow: 0 25px 40px rgba(9, 18, 34, 0.25);
+}
+
+.random-film-roll--active {
+  box-shadow: 0 28px 50px rgba(29, 78, 216, 0.35);
+}
+
+.random-film-roll__holes {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.random-film-roll__holes span {
+  width: 22px;
+  height: 12px;
+  border-radius: 4px;
+  background: rgba(8, 18, 35, 0.9);
+}
+
+.random-film-roll__holes--top {
+  padding: 0 36px;
+}
+
+.random-film-roll__holes--bottom {
+  padding: 0 36px;
+}
+
+.random-film-roll__body {
+  display: flex;
+  align-items: center;
+  gap: 36px;
+}
+
+.random-film-roll__packaging {
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.random-film-roll__brand {
+  font-size: 0.75rem;
+  letter-spacing: 0.45em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+}
+
+.random-film-roll__name {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.random-film-roll__iso {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #a7f3d0;
+}
+
+.random-film-roll__meta {
+  font-size: 0.85rem;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.random-film-roll__hero {
+  width: 260px;
+  height: 170px;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.25);
+}
+
+.random-film-roll__hero:hover img {
+  transform: scale(1.02);
+  transition: transform 0.35s ease;
+}
+
+.random-film-roll__hero-placeholder {
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 23, 42, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(226, 232, 240, 0.6);
+  font-size: 0.9rem;
+}
+
+.random-film-trail {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.random-film-trail__frame {
+  position: relative;
+  background: #101a2b;
+  padding: 18px 24px;
+  border-radius: 20px;
+  min-width: 200px;
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: 0 12px 20px rgba(10, 18, 30, 0.2);
+}
+
+.random-film-trail__frame:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 26px rgba(29, 78, 216, 0.25);
+}
+
+.random-film-trail__photo {
+  width: 180px;
+  height: 120px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.05);
+}
+
+.random-film-trail__holes {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.random-film-trail__holes--bottom {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.random-film-trail__holes span {
+  width: 14px;
+  height: 9px;
+  background: rgba(11, 18, 30, 0.95);
+  border-radius: 3px;
+}
+
 .animate-shimmer {
   animation: shimmer 2s infinite;
 }

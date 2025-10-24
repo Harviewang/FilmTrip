@@ -27,7 +27,7 @@ const getAllCameras = (req, res) => {
 
     res.json({
       success: true,
-      data: cameras,
+      cameras,
       pagination: {
         total,
         page: parseInt(page),

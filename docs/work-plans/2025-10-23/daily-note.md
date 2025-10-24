@@ -71,7 +71,7 @@
 ### 晚上 (数据完整性修复)
 - **18:30**: 用户反馈瀑布流宽高比仍然不对
 - **18:45**: 发现问题:
-  - 前端`Photos/index.jsx`缺少`width`/`height`/`orientation`映射
+  - 前端`Gallery/index.jsx`缺少`width`/`height`/`orientation`映射
   - `PhotoPreview`组件未使用orientation计算初始尺寸
   - 历史照片数据库缺少这些字段
 - **19:00**: 最关键发现:上传逻辑bug

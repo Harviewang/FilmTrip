@@ -17,6 +17,7 @@ const PhotoManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterFilmRoll, setFilterFilmRoll] = useState('');
   const [filterCamera, setFilterCamera] = useState('');
+  const [filterEncryption, setFilterEncryption] = useState('all'); // 新增：加密状态过滤
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -95,8 +96,8 @@ const PhotoManagement = () => {
       const response = await fetch('http://localhost:3001/api/filmRolls');
       const data = await response.json();
       if (data.success) {
-        // API返回的是 { data: { filmRolls: [...] } } 结构
-        const filmRollsData = data.data?.filmRolls || data.data || [];
+        // API返回的是 { filmRolls: [...] } 结构
+        const filmRollsData = data.filmRolls || [];
         console.log('获取到的胶卷实例数据:', filmRollsData);
         setFilmRolls(filmRollsData);
       } else {
@@ -116,7 +117,7 @@ const PhotoManagement = () => {
       const data = await response.json();
       if (data.success) {
         // API返回的是 { data: [...] } 结构
-        const camerasData = data.data || [];
+        const camerasData = data.cameras || [];
         console.log('获取到的相机数据:', camerasData);
         setCameras(camerasData);
       } else {
@@ -329,7 +330,15 @@ const PhotoManagement = () => {
     const matchesFilmRoll = !filterFilmRoll || photo.film_roll_id === filterFilmRoll;
     const matchesCamera = !filterCamera || photo.camera_id === filterCamera;
     
-    return matchesSearch && matchesFilmRoll && matchesCamera;
+    // 新增：加密状态过滤
+    let matchesEncryption = true;
+    if (filterEncryption === 'encrypted') {
+      matchesEncryption = photo.is_protected || photo.effective_protection;
+    } else if (filterEncryption === 'public') {
+      matchesEncryption = !photo.is_protected && !photo.effective_protection;
+    }
+    
+    return matchesSearch && matchesFilmRoll && matchesCamera && matchesEncryption;
   }) : [];
 
   if (loading) {
@@ -368,7 +377,7 @@ const PhotoManagement = () => {
 
       {/* 搜索和过滤 */}
       <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="relative">
             <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-3 text-gray-400" />
             <input
@@ -403,7 +412,24 @@ const PhotoManagement = () => {
               </option>
             ))}
           </select>
-          <button className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center justify-center gap-2">
+          <select
+            value={filterEncryption}
+            onChange={(e) => setFilterEncryption(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">全部照片</option>
+            <option value="public">仅公开照片</option>
+            <option value="encrypted">仅加密照片</option>
+          </select>
+          <button 
+            onClick={() => {
+              setSearchTerm('');
+              setFilterFilmRoll('');
+              setFilterCamera('');
+              setFilterEncryption('all');
+            }}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg flex items-center justify-center gap-2"
+          >
             <FunnelIcon className="h-5 w-5" />
             重置过滤
           </button>
@@ -689,6 +715,8 @@ const PhotoManagement = () => {
                           <option value="personal">个人隐私</option>
                           <option value="sensitive">敏感内容</option>
                           <option value="restricted">严格限制</option>
+                          <option value="portrait">他人肖像权</option>
+                          <option value="other">其他原因</option>
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
                           选择合适的保护级别，帮助管理员更好地管理内容
@@ -873,6 +901,8 @@ const PhotoManagement = () => {
                           <option value="personal">个人隐私</option>
                           <option value="sensitive">敏感内容</option>
                           <option value="restricted">严格限制</option>
+                          <option value="portrait">他人肖像权</option>
+                          <option value="other">其他原因</option>
                         </select>
                       </div>
                     )}
@@ -1024,6 +1054,8 @@ const PhotoManagement = () => {
                           <option value="personal">个人隐私</option>
                           <option value="sensitive">敏感内容</option>
                           <option value="restricted">严格限制</option>
+                          <option value="portrait">他人肖像权</option>
+                          <option value="other">其他原因</option>
                         </select>
                         <p className="text-xs text-gray-500 mt-1">
                           选择合适的保护级别，帮助管理员更好地管理内容

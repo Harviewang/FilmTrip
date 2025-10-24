@@ -31,7 +31,7 @@
 
 ## 代码改动要点
 - `frontend/src/components/PhotoPreview.jsx`：预览模式与动画实现
-- `frontend/src/pages/Photos/index.jsx`：瀑布流基础布局
+- `frontend/src/pages/Gallery/index.jsx`：瀑布流基础布局
 - `.gitignore`：增加上传目录与编辑器缓存忽略
 
 ## 问题与说明

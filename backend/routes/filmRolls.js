@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { query, insert, update } = require('../models/db');
 
-// 获取所有胶卷实例，包含胶卷品类信息和照片信息
-router.get('/', (req, res) => {
+// 获取随机胶卷实例（用于随机浏览功能）
+router.get('/random', (req, res) => {
   try {
     const result = query(`
       SELECT 
@@ -33,6 +33,71 @@ router.get('/', (req, res) => {
         COUNT(p.id) as photo_count
       FROM film_rolls fr
       LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
+      LEFT JOIN photos p ON fr.id = p.film_roll_id AND p.is_protected = 0
+      WHERE fr.status = '已完成' AND fr.is_private = 0
+      GROUP BY fr.id
+      HAVING photo_count > 0
+      ORDER BY RANDOM()
+      LIMIT 1
+    `);
+    
+    if (result.length > 0) {
+      res.json({
+        success: true,
+        data: result[0]
+      });
+    } else {
+      res.json({
+        success: false,
+        message: '没有可用的胶卷实例'
+      });
+    }
+  } catch (error) {
+    console.error('获取随机胶卷失败:', error);
+    res.status(500).json({
+      success: false,
+      message: '获取随机胶卷失败',
+      error: error.message
+    });
+  }
+});
+
+// 获取所有胶卷实例，包含胶卷品类信息和照片信息
+router.get('/', (req, res) => {
+  try {
+    const result = query(`
+      SELECT 
+        fr.id,
+        fr.roll_number,
+        fr.film_stock_id,
+        fr.is_private,
+        fr.name,
+        fr.status,
+        fr.opened_date,
+        fr.finished_date,
+        fr.location,
+        fr.camera_id,
+        fr.camera_name,
+        fr.notes,
+        fr.created_at,
+        fr.updated_at,
+        -- 相机信息
+        c.name as camera_name,
+        c.model as camera_model,
+        -- 胶卷品类信息
+        fs.brand as film_roll_brand,
+        fs.series as film_roll_name,
+        fs.iso as film_roll_iso,
+        fs.type as film_roll_type,
+        fs.format as film_roll_format,
+        fs.description as film_roll_description,
+        fs.package_image as package_image,
+        fs.cartridge_image as canister_image,
+        -- 照片统计
+        COUNT(p.id) as photo_count
+      FROM film_rolls fr
+      LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
+      LEFT JOIN cameras c ON fr.camera_id = c.id
       LEFT JOIN photos p ON fr.id = p.film_roll_id
       GROUP BY fr.id
       ORDER BY fr.opened_date DESC, fr.created_at DESC
@@ -40,7 +105,7 @@ router.get('/', (req, res) => {
     
     res.json({
       success: true,
-      data: result,
+      filmRolls: result,
       message: '胶卷数据获取成功'
     });
   } catch (error) {
@@ -71,13 +136,13 @@ router.put('/:id', (req, res) => {
     const id = row[0].id;
 
     // 允许更新的字段
-    const allowed = ['film_stock_id','roll_number','name','opened_date','location','camera_name','notes','status','is_private'];
+    const allowed = ['film_stock_id','roll_number','name','opened_date','location','camera_id','camera_name','notes','status','is_private','is_protected','protection_level'];
     const sets = [];
     const params = [];
     for (const [k, v] of Object.entries(body)) {
       if (allowed.includes(k)) {
-        if (k === 'is_private') {
-          sets.push('is_private = ?');
+        if (k === 'is_private' || k === 'is_protected') {
+          sets.push(`${k} = ?`);
           params.push(v ? 1 : 0);
         } else {
           sets.push(`${k} = ?`);

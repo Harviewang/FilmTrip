@@ -11,7 +11,7 @@ import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 // 用户端页面
-import Photos from './pages/Photos';
+import Gallery from './pages/Gallery';
 import FilmRolls from './pages/FilmRolls';
 import Map from './pages/Map';
 import More from './pages/More';
@@ -44,7 +44,7 @@ function App() {
             {/* 公开路由 - 用户端 */}
             <Route path="/" element={<UserLayout isFullscreen={isFullscreen} />}>
               <Route index element={<Navigate to="/gallery" replace />} />
-              <Route path="gallery" element={<Photos />} />
+              <Route path="gallery" element={<Gallery />} />
               <Route path="film-rolls" element={<FilmRolls />} />
               <Route path="map" element={<Map />} />
               <Route path="more" element={<More />} />
