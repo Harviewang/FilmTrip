@@ -553,11 +553,13 @@ const PhotoManagement = () => {
 
       {/* 上传照片模态框 */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-            <h2 className="text-xl font-bold mb-4">上传照片</h2>
-            <form onSubmit={handleUpload}>
-              <div className="space-y-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+            {/* 弹窗内容区域 */}
+            <div className="p-6 space-y-4">
+              <h2 className="text-xl font-bold mb-4">上传照片</h2>
+              <form id="upload-form" onSubmit={handleUpload}>
+                <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     标题 <span className="text-red-500">*</span>
@@ -759,29 +761,33 @@ const PhotoManagement = () => {
                     </div>
                   )}
                 </div>
-              </div>
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg"
-                >
-                  上传
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (previewUrl) {
-                      URL.revokeObjectURL(previewUrl);
-                      setPreviewUrl(null);
-                    }
-                    setShowUploadModal(false);
-                  }}
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
-                >
-                  取消
-                </button>
-              </div>
-            </form>
+                </div>
+              </form>
+            </div>
+            
+            {/* 固定底部按钮 */}
+            <div className="sticky bottom-0 bg-white border-t p-4 flex gap-3">
+              <button
+                type="submit"
+                form="upload-form"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg"
+              >
+                上传
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (previewUrl) {
+                    URL.revokeObjectURL(previewUrl);
+                    setPreviewUrl(null);
+                  }
+                  setShowUploadModal(false);
+                }}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
+              >
+                取消
+              </button>
+            </div>
           </div>
         </div>
       )}

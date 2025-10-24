@@ -300,7 +300,7 @@ const PhotoPreview = ({
   const imageHeight = Math.max(1, Math.round(fittedSize.height));
 
   return (
-    <div className={`fixed inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 backdrop-blur-md z-[9999] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${
+    <div className={`fixed inset-0 bg-gradient-to-br from-slate-100 via-gray-50 to-slate-200 backdrop-blur-sm z-[9999] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${
       isClosing ? 'opacity-0 scale-90 translate-y-8' : 'opacity-100 scale-100 translate-y-0'
     }`}>
       {/* 顶部工具栏 */}

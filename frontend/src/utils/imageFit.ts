@@ -1,7 +1,8 @@
 type ViewMode = 'standard' | 'immersive';
 
 /**
- * 计算旋转后的等比尺寸，使长边贴视口 80%（沉浸=100%），短边自适应
+ * 计算旋转后的等比尺寸，使长边贴视口 80%（沉浸=90%），短边自适应
+ * 根据浏览器尺寸合理摆放在中间，标准预览看大图+详情，沉浸预览看图片细节
  */
 export function getFittedSizeAfterRotate(
   imgWidth: number,
@@ -15,9 +16,9 @@ export function getFittedSizeAfterRotate(
 ): { width: number; height: number } {
   if (!imgWidth || !imgHeight) return { width: 0, height: 0 };
 
-  // 目标比例：沉浸=100%，标准=80%
-  const MAX_W_RATIO = viewMode === 'immersive' ? 1 : 0.8;
-  const MAX_H_RATIO = viewMode === 'immersive' ? 1 : 0.8;
+  // 目标比例：沉浸=90%，标准=80%（根据浏览器尺寸合理摆放在中间）
+  const MAX_W_RATIO = viewMode === 'immersive' ? 0.9 : 0.8;
+  const MAX_H_RATIO = viewMode === 'immersive' ? 0.9 : 0.8;
 
   // 注意：移动端建议用视觉视口单位（见文末细节）
   const vw =
