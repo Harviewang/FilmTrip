@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import API_CONFIG from '../config/api';
-import { getFittedSizeAfterRotate } from '../utils/imageFit';
+import { getFittedSize } from '../utils/imageFit';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, ShareIcon, LinkIcon, ArrowUturnRightIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 
 /**
@@ -49,15 +49,14 @@ const PhotoPreview = ({
       ? Math.max(chromePadding.top, chromePadding.bottom)
       : 0;
 
-    let { width, height } = getFittedSizeAfterRotate(
+    let { width, height } = getFittedSize(
       imageDimensions.width,
       imageDimensions.height,
       viewMode,
       {
         width: baseWidth,
         height: Math.max(0, baseHeight - symmetricPadding)
-      },
-      photo?.orientation
+      }
     );
 
     setFittedSize({
@@ -374,11 +373,13 @@ const PhotoPreview = ({
         style={{
           paddingTop: showChrome ? (() => {
             // 简化逻辑：直接使用视口高度的5%作为上边距
-            return Math.max(chromePadding.top, window.innerHeight * 0.05);
+            const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
+            return Math.max(chromePadding.top, windowHeight * 0.05);
           })() : 0,
           paddingBottom: showChrome ? (() => {
             // 简化逻辑：直接使用视口高度的15%作为下边距
-            return Math.max(chromePadding.bottom, window.innerHeight * 0.15);
+            const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
+            return Math.max(chromePadding.bottom, windowHeight * 0.15);
           })() : 0
         }}
         onClick={(e) => {
