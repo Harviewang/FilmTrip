@@ -198,8 +198,8 @@ const Gallery = () => {
           setLoading(false);
         } else {
           setPhotos(filteredPhotos);
-          setCurrentPage(page);
-          setLoading(false);
+      setCurrentPage(page);
+      setLoading(false);
         }
         
         // 检查是否还有更多数据
@@ -224,7 +224,7 @@ const Gallery = () => {
       if (append) {
         setLoadingMore(false);
       } else {
-        setLoading(false);
+      setLoading(false);
       }
     }
   };
@@ -706,7 +706,7 @@ const Gallery = () => {
   if (error) {
     return (
       <AdaptiveLayout background="white">
-        <div className="w-full h-full flex items-center justify-center">
+      <div className="w-full h-full flex items-center justify-center">
           <div className="text-center max-w-md mx-auto">
             <div className="text-red-400 text-6xl mb-4">⚠️</div>
             <h3 className="text-xl font-medium text-gray-900 mb-2">加载失败</h3>
@@ -718,7 +718,7 @@ const Gallery = () => {
               重试
             </button>
           </div>
-        </div>
+      </div>
       </AdaptiveLayout>
     );
   }
@@ -844,7 +844,7 @@ const Gallery = () => {
             </div>
           </div>
         </div>
-
+        
         <div className="w-full flex-1 py-2">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             {viewMode === 'random' ? (
@@ -956,7 +956,7 @@ const Gallery = () => {
                           
                           return (
                             <div 
-                              key={photo.id} 
+                      key={photo.id}
                               className="absolute"
                               style={{
                                 left: `${left}px`,
@@ -980,9 +980,9 @@ const Gallery = () => {
                                           if (level === 'other') return '此照片已被管理员加密保护';
                                           return '该照片涉及隐私或他人肖像，已被管理员加密';
                                         })()}
-                                      </div>
-                                    </div>
-                                  </div>
+                        </div>
+                            </div>
+                            </div>
                                 ) : (
                                   <img
                                     src={(photo.size1024 || photo.thumbnail) ? `${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}` : ''}

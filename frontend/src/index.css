@@ -337,3 +337,28 @@ body {
     background-position: -200% 0;
   }
 }
+
+/* 照片预览渐变背景动画 - 使用更流畅的缓动 */
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* 自定义缓动函数 */
+:root {
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in-smooth: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out-smooth: cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* 性能优化：使用GPU加速 */
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+  will-change: transform, opacity;
+}

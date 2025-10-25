@@ -26,9 +26,7 @@ const PhotoPreview = ({
   const [isZoomed, setIsZoomed] = useState(false);
   const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
   const [viewMode, setViewMode] = useState('standard'); // 'standard' (80%) 或 'immersive' (95%)
-  const [rotateDeg, setRotateDeg] = useState(0);
   const [fittedSize, setFittedSize] = useState({ width: 0, height: 0 });
-  const [shouldAnimateRotation, setShouldAnimateRotation] = useState(false);
   const toolbarRef = useRef(null);
   const infoRef = useRef(null);
   const imgRef = useRef(null);
@@ -54,12 +52,12 @@ const PhotoPreview = ({
     let { width, height } = getFittedSizeAfterRotate(
       imageDimensions.width,
       imageDimensions.height,
-      rotateDeg,
       viewMode,
       {
         width: baseWidth,
         height: Math.max(0, baseHeight - symmetricPadding * 2)
-      }
+      },
+      photo?.orientation
     );
 
     setFittedSize({
@@ -70,7 +68,6 @@ const PhotoPreview = ({
     photo,
     imageDimensions.width,
     imageDimensions.height,
-    rotateDeg,
     viewMode,
     showChrome,
     chromePadding.top,
@@ -137,14 +134,10 @@ const PhotoPreview = ({
       setIsVisible(true);
       setImageLoaded(false);
       setIsClosing(false);
-      setShouldAnimateRotation(false);
-      setRotateDeg(0);
       setFittedSize({ width: 0, height: 0 });
     } else {
       setIsClosing(true);
-      // 关闭时重置旋转状态
-      setShouldAnimateRotation(false);
-      setRotateDeg(0);
+      // 关闭时重置状态
       setFittedSize({ width: 0, height: 0 });
       const timer = setTimeout(() => {
         setIsVisible(false);
@@ -158,8 +151,6 @@ const PhotoPreview = ({
   useEffect(() => {
     setImageLoaded(false);
     setIsZoomed(false);
-    setShouldAnimateRotation(false);
-    setRotateDeg(0);
     setFittedSize({ width: 0, height: 0 });
     // 预估纵横比:根据EXIF Orientation调整显示尺寸
     let w = photo?.thumbnail_width || photo?._raw?.thumbnail_width || photo?._raw?.width || photo?.width;
@@ -300,40 +291,22 @@ const PhotoPreview = ({
   const imageHeight = Math.max(1, Math.round(fittedSize.height));
 
   return (
-    <div className={`fixed inset-0 bg-gradient-to-br from-slate-100 via-gray-50 to-slate-200 backdrop-blur-sm z-[9999] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${
-      isClosing ? 'opacity-0 scale-90 translate-y-8' : 'opacity-100 scale-100 translate-y-0'
-    }`}>
+    <div 
+      className="fixed inset-0 backdrop-blur-sm z-[9999] flex flex-col"
+      style={{
+        background: 'linear-gradient(135deg, #e8f0f7 0%, #dce7f2 25%, #d0deec 50%, #c4d5e6 75%, #d0deec 100%)',
+        transition: 'opacity 600ms cubic-bezier(0.4, 0, 0.2, 1)',
+        opacity: isClosing ? 0 : 1
+      }}
+    >
       {/* 顶部工具栏 */}
       {showChrome && (
         <div
           ref={toolbarRef}
-          className="absolute top-4 right-4 z-10 flex items-center space-x-2 transition-all duration-300 ease-out opacity-100 translate-y-0"
+          className={`absolute top-4 right-4 z-10 flex items-center space-x-2 transition-all duration-500 ease-out ${
+            showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
+          }`}
         >
-          {/* 旋转按钮（放在分享前面） */}
-          <button
-          onClick={() => {
-            setShouldAnimateRotation(true);
-            setRotateDeg((d) => {
-              const next = d - 90;
-              return next;
-            });
-          }}
-            className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
-          >
-            <ArrowUturnLeftIcon className="w-5 h-5 text-gray-700" />
-          </button>
-          <button
-          onClick={() => {
-            setShouldAnimateRotation(true);
-            setRotateDeg((d) => {
-              const next = d + 90; // 连续旋转，不限制在360度内
-              return next;
-            });
-          }}
-            className="p-2 bg-white/80 hover:bg-white rounded-full shadow-lg transition-all duration-300 hover:scale-110 hover:shadow-xl"
-          >
-            <ArrowUturnRightIcon className="w-5 h-5 text-gray-700" />
-          </button>
           {/* 分享按钮 */}
           <button
             onClick={sharePhoto}
@@ -370,8 +343,8 @@ const PhotoPreview = ({
       {/* 导航按钮 */}
       {showNavigation && photos.length > 1 && (
         <>
-          <div className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 transition-all duration-300 ease-out ${
-            viewMode === 'immersive' || (uiVisible && !isZoomed) ? 'opacity-100 -translate-x-0' : 'opacity-0 -translate-x-4'
+          <div className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 transition-all duration-500 ease-out ${
+            viewMode === 'immersive' || (uiVisible && !isZoomed) ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8 pointer-events-none'
           }`}>
             <button
               onClick={() => navigateToPhoto('prev')}
@@ -380,8 +353,8 @@ const PhotoPreview = ({
               <ChevronLeftIcon className="w-6 h-6 text-gray-700" />
             </button>
           </div>
-          <div className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 transition-all duration-300 ease-out ${
-            viewMode === 'immersive' || (uiVisible && !isZoomed) ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
+          <div className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 transition-all duration-500 ease-out ${
+            viewMode === 'immersive' || (uiVisible && !isZoomed) ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8 pointer-events-none'
           }`}>
             <button
               onClick={() => navigateToPhoto('next')}
@@ -397,8 +370,14 @@ const PhotoPreview = ({
       <div
         className="relative flex-1 grid place-items-center"
         style={{
-          paddingTop: symmetricPadding,
-          paddingBottom: symmetricPadding
+          paddingTop: showChrome ? (() => {
+            // 简化逻辑：直接使用视口高度的5%作为上边距
+            return Math.max(chromePadding.top, window.innerHeight * 0.05);
+          })() : 0,
+          paddingBottom: showChrome ? (() => {
+            // 简化逻辑：直接使用视口高度的15%作为下边距
+            return Math.max(chromePadding.bottom, window.innerHeight * 0.15);
+          })() : 0
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -420,24 +399,23 @@ const PhotoPreview = ({
         <img
           src={photo.size2048 ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${stableVRef.current}` : (photo.size1024 ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${stableVRef.current}` : (photo.original ? `${API_CONFIG.BASE_URL}${photo.original}?v=${stableVRef.current}` : (photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${stableVRef.current}` : '')))}
           alt={photo.title || '照片'}
-          className={`transition-all duration-500 ease-out ${
-            imageLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+          className={`transition-all duration-400 ease-out ${
+            imageLoaded ? 'opacity-100' : 'opacity-0'
           }`}
           style={{
-            width: `${imageWidth}px`,
-            height: `${imageHeight}px`,
+            maxWidth: `${imageWidth}px`,
+            maxHeight: `${imageHeight}px`,
+            width: 'auto',
+            height: 'auto',
             objectFit: 'contain',
-            transform: `rotate(${rotateDeg}deg)`,
-            transformOrigin: 'center center',
-            transition: shouldAnimateRotation ? 'transform 0.2s ease-out' : 'none',
-            display: 'block'
+            opacity: imageLoaded ? 1 : 0,
+            transition: 'opacity 400ms cubic-bezier(0.4, 0, 0.2, 1)',
+            ...(viewMode === 'standard' ? {
+              borderRadius: '16px',
+              boxShadow: '0 32px 64px -12px rgba(0, 0, 0, 0.25), 0 20px 48px -8px rgba(0, 0, 0, 0.18), 0 12px 24px -4px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+            } : {})
           }}
           ref={imgRef}
-          onTransitionEnd={(e) => {
-            if (e.propertyName === 'transform') {
-              setShouldAnimateRotation(false);
-            }
-          }}
           onLoad={(e) => {
             setImageLoaded(true);
             try {
@@ -456,7 +434,9 @@ const PhotoPreview = ({
 
         {/* 照片信息区域 - 绝对定位在底部，不会与图片重叠 */}
         {showChrome && (
-        <div ref={infoRef} className="absolute bottom-4 left-0 right-0 flex justify-center transition-all duration-300 ease-out opacity-100 translate-y-0">
+        <div ref={infoRef} className={`absolute bottom-4 left-0 right-0 flex justify-center transition-all duration-500 ease-out ${
+          showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
+        }`}>
             {/* 照片信息 - 上下布局，参考 camarts.cn 设计 */}
             <div className="max-w-6xl w-full px-4">
               {/* 第一行：基本信息 */}
