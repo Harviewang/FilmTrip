@@ -32,8 +32,8 @@ export function getFittedSizeAfterRotate(
   const vw = viewport?.width ?? (typeof window !== 'undefined' ? window.innerWidth : 0);
   const vh = viewport?.height ?? (typeof window !== 'undefined' ? window.innerHeight : 0);
 
-  // 确定图片是横图还是竖图（基于原始尺寸）
-  const isHorizontal = imgWidth > imgHeight;
+  // 确定图片是横图还是竖图
+  const isHorizontal = displayWidth > displayHeight;
 
   // 根据模式和图片方向计算尺寸
   let finalWidth: number;
@@ -48,15 +48,15 @@ export function getFittedSizeAfterRotate(
     // 标准模式：最长边占对应视口边的80%
     const ratio = 0.8;
     
-    if (isHorizontal) {
-      // 横图：宽度 = 视口宽度的80%
-      finalWidth = vw * ratio;
-      finalHeight = (finalWidth / displayWidth) * displayHeight;
-    } else {
-      // 竖图：高度 = 视口高度的80%
-      finalHeight = vh * ratio;
-      finalWidth = (finalHeight / displayHeight) * displayWidth;
-    }
+    // 计算两个方向的缩放比例
+    const scaleByWidth = (vw * ratio) / displayWidth;
+    const scaleByHeight = (vh * ratio) / displayHeight;
+    
+    // 选择较小的缩放比例，确保图片完全在视口内且最长边达到80%
+    const scale = Math.min(scaleByWidth, scaleByHeight);
+    
+    finalWidth = displayWidth * scale;
+    finalHeight = displayHeight * scale;
   }
 
   return {

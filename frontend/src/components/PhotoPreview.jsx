@@ -55,7 +55,7 @@ const PhotoPreview = ({
       viewMode,
       {
         width: baseWidth,
-        height: baseHeight
+        height: Math.max(0, baseHeight - symmetricPadding)
       },
       photo?.orientation
     );
@@ -181,7 +181,7 @@ const PhotoPreview = ({
 
   // 生成短链接
   const generateShortLink = useCallback(() => {
-    if (!photo || typeof window === 'undefined') return '';
+    if (!photo) return '';
     return `${window.location.origin}/photo/${photo.id}`;
   }, [photo]);
 
@@ -371,11 +371,11 @@ const PhotoPreview = ({
         className="relative flex-1 grid place-items-center"
         style={{
           paddingTop: showChrome ? (() => {
-            if (typeof window === 'undefined') return chromePadding.top;
+            // 简化逻辑：直接使用视口高度的5%作为上边距
             return Math.max(chromePadding.top, window.innerHeight * 0.05);
           })() : 0,
           paddingBottom: showChrome ? (() => {
-            if (typeof window === 'undefined') return chromePadding.bottom;
+            // 简化逻辑：直接使用视口高度的15%作为下边距
             return Math.max(chromePadding.bottom, window.innerHeight * 0.15);
           })() : 0
         }}
@@ -433,7 +433,6 @@ const PhotoPreview = ({
         />
 
         {/* 照片信息区域 - 绝对定位在底部，不会与图片重叠 */}
-        {showChrome && (
         <div ref={infoRef} className={`absolute bottom-4 left-0 right-0 flex justify-center transition-all duration-500 ease-out ${
           showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
         }`}>
@@ -594,8 +593,7 @@ const PhotoPreview = ({
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
       </div>
     );
   };
