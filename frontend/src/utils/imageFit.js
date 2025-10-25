@@ -1,19 +1,19 @@
-type ViewMode = 'standard' | 'immersive';
-
 /**
  * 计算图片显示尺寸
  * 标准模式：最长边占对应视口边的80%
  * 沉浸模式：图片铺满视口（100%）
+ * @param {number} imgWidth - 图片宽度
+ * @param {number} imgHeight - 图片高度
+ * @param {string} viewMode - 视图模式：'standard' | 'immersive'
+ * @param {Object} viewport - 视口尺寸 {width?, height?}
+ * @returns {{width: number, height: number}} 计算后的尺寸
  */
 export function getFittedSize(
-  imgWidth: number,
-  imgHeight: number,
-  viewMode: ViewMode = 'standard',
-  viewport?: {
-    width?: number;
-    height?: number;
-  }
-): { width: number; height: number } {
+  imgWidth,
+  imgHeight,
+  viewMode = 'standard',
+  viewport = {}
+) {
   if (!imgWidth || !imgHeight) {
     return { width: 0, height: 0 };
   }
@@ -23,8 +23,8 @@ export function getFittedSize(
   const vh = viewport?.height ?? (typeof window !== 'undefined' ? window.innerHeight : 0);
 
   // 根据模式计算尺寸
-  let finalWidth: number;
-  let finalHeight: number;
+  let finalWidth;
+  let finalHeight;
 
   if (viewMode === 'immersive') {
     // 沉浸模式：图片铺满视口（100%）

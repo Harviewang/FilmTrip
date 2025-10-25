@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import API_CONFIG from '../config/api';
-import { getFittedSize } from '../utils/imageFit';
+import { getFittedSize } from '../utils/imageFit.js';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, ShareIcon, LinkIcon, ArrowUturnRightIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 
 /**

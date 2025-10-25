@@ -25,6 +25,7 @@ const PhotoManagement = () => {
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [filmRolls, setFilmRolls] = useState([]);
   const [cameras, setCameras] = useState([]);
+  // 完全隔离的状态管理
   const [uploadForm, setUploadForm] = useState({
     title: '',
     description: '',
@@ -38,7 +39,21 @@ const PhotoManagement = () => {
     protection_level: '',
     rotation: 0
   });
-  const [previewUrl, setPreviewUrl] = useState(null); // 添加预览URL状态
+  
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    film_roll_id: '',
+    camera_id: '',
+    taken_date: '',
+    location_name: '',
+    tags: '',
+    file: null,
+    is_protected: false,
+    protection_level: '',
+    rotation: 0
+  });
+  
   const [batchUploadForm, setBatchUploadForm] = useState({
     film_roll_id: '',
     camera_id: '',
@@ -49,13 +64,52 @@ const PhotoManagement = () => {
     files: []
   });
   const [batchFileRotations, setBatchFileRotations] = useState({}); // 批量上传时每个文件的旋转角度 {fileIndex: rotation}
+  const [previewUrl, setPreviewUrl] = useState(null); // 图片预览 URL
 
-  // 获取照片列表
-  useEffect(() => {
-    fetchPhotos();
-    fetchFilmRolls();
-    fetchCameras();
-  }, []);
+  // 重置表单的辅助函数
+  const resetUploadForm = () => {
+    setUploadForm({
+      title: '',
+      description: '',
+      film_roll_id: '',
+      camera_id: '',
+      taken_date: '',
+      location_name: '',
+      tags: '',
+      file: null,
+      is_protected: false,
+      protection_level: '',
+      rotation: 0
+    });
+  };
+
+  const resetEditForm = () => {
+    setEditForm({
+      title: '',
+      description: '',
+      film_roll_id: '',
+      camera_id: '',
+      taken_date: '',
+      location_name: '',
+      tags: '',
+      file: null,
+      is_protected: false,
+      protection_level: '',
+      rotation: 0
+    });
+  };
+
+  const resetBatchUploadForm = () => {
+    setBatchUploadForm({
+      film_roll_id: '',
+      camera_id: '',
+      location_name: '',
+      tags: '',
+      is_protected: false,
+      protection_level: '',
+      files: []
+    });
+  };
 
   const fetchPhotos = async () => {
     try {
@@ -171,6 +225,7 @@ const PhotoManagement = () => {
       console.log('照片上传成功:', response);
       
       setShowUploadModal(false);
+      resetUploadForm(); // 重置上传表单
       // 清理预览URL
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
@@ -208,15 +263,16 @@ const PhotoManagement = () => {
   const handleEdit = async (e) => {
     e.preventDefault();
     console.log('=== 开始编辑照片 ===');
-    console.log('编辑表单数据:', uploadForm);
+    console.log('编辑表单数据:', editForm);
     console.log('选中的照片:', selectedPhoto);
     
     try {
       console.log('调用照片更新API...');
-      const response = await photoApi.updatePhoto(selectedPhoto.id, uploadForm);
+      const response = await photoApi.updatePhoto(selectedPhoto.id, editForm);
       console.log('照片更新成功:', response);
       
       setShowEditModal(false);
+      resetEditForm(); // 重置编辑表单
       setSelectedPhoto(null);
       setPreviewUrl(null);
       
@@ -283,6 +339,7 @@ const PhotoManagement = () => {
       formData.append('camera_id', batchUploadForm.camera_id || '');
       formData.append('location_name', batchUploadForm.location_name || '');
       formData.append('tags', batchUploadForm.tags || '');
+      console.log('批量上传 is_protected 值:', batchUploadForm.is_protected);
       formData.append('is_protected', batchUploadForm.is_protected ? '1' : '0');
       formData.append('protection_level', batchUploadForm.protection_level || '');
       
@@ -298,15 +355,7 @@ const PhotoManagement = () => {
       console.log('批量上传成功:', response);
       
       setShowBatchUploadModal(false);
-      setBatchUploadForm({
-        film_roll_id: '',
-        camera_id: '',
-        location_name: '',
-        tags: '',
-        is_protected: false,
-        protection_level: '',
-        files: []
-      });
+      resetBatchUploadForm(); // 重置批量上传表单
       setBatchFileRotations({}); // 清理旋转状态
       
       console.log('刷新照片列表...');
@@ -322,6 +371,13 @@ const PhotoManagement = () => {
       setError('批量上传照片失败');
     }
   };
+
+  // 初始化：获取数据
+  useEffect(() => {
+    fetchPhotos();
+    fetchFilmRolls();
+    fetchCameras();
+  }, []); // 只在组件挂载时执行一次
 
   // 过滤照片
   const filteredPhotos = Array.isArray(photos) ? photos.filter(photo => {
@@ -341,7 +397,7 @@ const PhotoManagement = () => {
     return matchesSearch && matchesFilmRoll && matchesCamera && matchesEncryption;
   }) : [];
 
-  if (loading) {
+  if (loading && photos.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -359,7 +415,19 @@ const PhotoManagement = () => {
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => setShowBatchUploadModal(true)}
+            onClick={() => {
+              // 重置批量上传表单状态，确保加密选项默认为 false
+              setBatchUploadForm({
+                film_roll_id: '',
+                camera_id: '',
+                location_name: '',
+                tags: '',
+                is_protected: false,
+                protection_level: '',
+                files: []
+              });
+              setShowBatchUploadModal(true);
+            }}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
           >
             <PlusIcon className="h-5 w-5" />
@@ -515,7 +583,7 @@ const PhotoManagement = () => {
                   <button
                     onClick={() => {
                       setSelectedPhoto(photo);
-                      setUploadForm({
+                      setEditForm({
                         title: photo.title || '',
                         description: photo.description || '',
                         film_roll_id: photo.film_roll_id || '',
@@ -691,8 +759,11 @@ const PhotoManagement = () => {
                         <input
                           type="checkbox"
                           name="is_protected"
-                          checked={uploadForm.is_protected}
-                          onChange={(e) => setUploadForm({...uploadForm, is_protected: e.target.checked})}
+                          checked={uploadForm.is_protected || false}
+                          onChange={(e) => {
+                            console.log('加密选项变化:', e.target.checked);
+                            setUploadForm({...uploadForm, is_protected: e.target.checked});
+                          }}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="text-sm text-gray-700">启用隐私保护</span>
@@ -782,6 +853,7 @@ const PhotoManagement = () => {
                     setPreviewUrl(null);
                   }
                   setShowUploadModal(false);
+                  resetUploadForm(); // 重置上传表单
                 }}
                 className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
               >
@@ -803,8 +875,8 @@ const PhotoManagement = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">标题</label>
                   <input
                     type="text"
-                    value={uploadForm.title}
-                    onChange={(e) => setUploadForm({...uploadForm, title: e.target.value})}
+                    value={editForm.title}
+                    onChange={(e) => setEditForm({...editForm, title: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
@@ -812,8 +884,8 @@ const PhotoManagement = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">描述</label>
                   <textarea
-                    value={uploadForm.description}
-                    onChange={(e) => setUploadForm({...uploadForm, description: e.target.value})}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({...editForm, description: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     rows="3"
                   />
@@ -822,8 +894,8 @@ const PhotoManagement = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">胶卷实例</label>
                     <select
-                      value={uploadForm.film_roll_id}
-                      onChange={(e) => setUploadForm({...uploadForm, film_roll_id: e.target.value})}
+                      value={editForm.film_roll_id}
+                      onChange={(e) => setEditForm({...editForm, film_roll_id: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="">选择胶卷实例</option>
@@ -838,8 +910,8 @@ const PhotoManagement = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">拍摄日期</label>
                     <input
                       type="date"
-                      value={uploadForm.taken_date}
-                      onChange={(e) => setUploadForm({...uploadForm, taken_date: e.target.value})}
+                      value={editForm.taken_date}
+                      onChange={(e) => setEditForm({...editForm, taken_date: e.target.value})}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -848,8 +920,8 @@ const PhotoManagement = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">拍摄地点</label>
                   <input
                     type="text"
-                    value={uploadForm.location_name}
-                    onChange={(e) => setUploadForm({...uploadForm, location_name: e.target.value})}
+                    value={editForm.location_name}
+                    onChange={(e) => setEditForm({...editForm, location_name: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
@@ -857,8 +929,8 @@ const PhotoManagement = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">标签</label>
                   <input
                     type="text"
-                    value={uploadForm.tags}
-                    onChange={(e) => setUploadForm({...uploadForm, tags: e.target.value})}
+                    value={editForm.tags}
+                    onChange={(e) => setEditForm({...editForm, tags: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="用逗号分隔多个标签"
                   />
@@ -869,8 +941,8 @@ const PhotoManagement = () => {
                   {previewUrl && (
                     <ImageRotateControl
                       previewUrl={previewUrl}
-                      rotation={uploadForm.rotation}
-                      onRotationChange={(newRotation) => setUploadForm({...uploadForm, rotation: newRotation})}
+                      rotation={editForm.rotation}
+                      onRotationChange={(newRotation) => setEditForm({...editForm, rotation: newRotation})}
                     />
                   )}
                 </div>
@@ -885,22 +957,22 @@ const PhotoManagement = () => {
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
-                          checked={uploadForm.is_protected}
-                          onChange={(e) => setUploadForm({...uploadForm, is_protected: e.target.checked})}
+                          checked={editForm.is_protected}
+                          onChange={(e) => setEditForm({...editForm, is_protected: e.target.checked})}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="text-sm text-gray-700">启用隐私保护</span>
                       </label>
                     </div>
 
-                    {uploadForm.is_protected && (
+                    {editForm.is_protected && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           保护级别
                         </label>
                         <select
-                          value={uploadForm.protection_level}
-                          onChange={(e) => setUploadForm({...uploadForm, protection_level: e.target.value})}
+                          value={editForm.protection_level}
+                          onChange={(e) => setEditForm({...editForm, protection_level: e.target.value})}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
                           <option value="">选择保护级别</option>
@@ -927,6 +999,7 @@ const PhotoManagement = () => {
                   onClick={() => {
                     setPreviewUrl(null);
                     setShowEditModal(false);
+                    resetEditForm(); // 重置编辑表单
                   }}
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
                 >
@@ -1034,8 +1107,11 @@ const PhotoManagement = () => {
                         <input
                           type="checkbox"
                           name="is_protected"
-                          checked={batchUploadForm.is_protected}
-                          onChange={(e) => setBatchUploadForm({...batchUploadForm, is_protected: e.target.checked})}
+                          checked={batchUploadForm.is_protected || false}
+                          onChange={(e) => {
+                            console.log('批量上传加密选项变化:', e.target.checked);
+                            setBatchUploadForm({...batchUploadForm, is_protected: e.target.checked});
+                          }}
                           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="text-sm text-gray-700">启用隐私保护</span>
@@ -1120,15 +1196,7 @@ const PhotoManagement = () => {
                   type="button"
                   onClick={() => {
                     setShowBatchUploadModal(false);
-                    setBatchUploadForm({
-                      film_roll_id: '',
-                      camera_id: '',
-                      location_name: '',
-                      tags: '',
-                      is_protected: false,
-                      protection_level: '',
-                      files: []
-                    });
+                    resetBatchUploadForm(); // 重置批量上传表单
                     setBatchFileRotations({});
                   }}
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"

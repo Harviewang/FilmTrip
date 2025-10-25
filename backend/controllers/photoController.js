@@ -91,7 +91,6 @@ const getAllPhotos = async (req, res) => {
         c.brand AS camera_brand,
         fr.roll_number AS film_roll_number,
         fr.roll_number AS film_roll_name,
-        fr.is_private AS roll_is_private,
         fr.is_protected AS roll_is_protected,
         fr.protection_level AS roll_protection_level,
         fs.brand AS film_roll_brand,
@@ -263,6 +262,20 @@ const getOriginalPhoto = (req, res) => {
   }
 };
 
+const normalizeBoolean = (value) => {
+  // 如果值为 undefined 或 null，返回 false（默认不加密）
+  if (value === undefined || value === null) return false;
+  
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    return ['true', '1', 'yes', 'on'].includes(normalized);
+  }
+  return false;
+};
+
 const uploadPhotosBatch = async (req, res) => {
   try {
     console.log('=== 批量上传开始 ===');
@@ -285,6 +298,9 @@ const uploadPhotosBatch = async (req, res) => {
       is_protected,
       protection_level
     } = req.body;
+    const isProtectedFlag = normalizeBoolean(is_protected);
+    console.log('[批量上传] is_protected 原始值:', is_protected, '=>', isProtectedFlag ? 1 : 0);
+    const resolvedProtectionLevel = isProtectedFlag ? (protection_level || null) : null;
     if (!film_roll_id) {
       return res.status(400).json({ success: false, message: '胶卷实例为必填字段' });
     }
@@ -446,8 +462,8 @@ const uploadPhotosBatch = async (req, res) => {
           trip_start_date || null,
           trip_end_date || null,
           tags || '',
-          is_protected ? 1 : 0,
-          protection_level || null,
+          isProtectedFlag ? 1 : 0,
+          resolvedProtectionLevel,
           imageWidth,
           imageHeight,
           imageOrientation, // EXIF orientation
@@ -879,6 +895,9 @@ const uploadPhoto = async (req, res) => {
       is_protected,
       protection_level
     } = req.body;
+    const isProtectedFlag = normalizeBoolean(is_protected);
+    console.log('[单张上传] is_protected 原始值:', is_protected, '=>', isProtectedFlag ? 1 : 0);
+    const resolvedProtectionLevel = isProtectedFlag ? (protection_level || null) : null;
 
     // 验证必填字段
     if (!title || !film_roll_id) {
@@ -1099,8 +1118,8 @@ const uploadPhoto = async (req, res) => {
         trip_start_date || null,
         trip_end_date || null,
         tags || '',
-        is_protected ? 1 : 0,
-        protection_level || null,
+        isProtectedFlag ? 1 : 0,
+        resolvedProtectionLevel,
         imageWidth,
         imageHeight,
         imageOrientation, // EXIF orientation
