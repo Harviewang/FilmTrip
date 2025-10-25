@@ -181,7 +181,7 @@ const PhotoPreview = ({
 
   // 生成短链接
   const generateShortLink = useCallback(() => {
-    if (!photo) return '';
+    if (!photo || typeof window === 'undefined') return '';
     return `${window.location.origin}/photo/${photo.id}`;
   }, [photo]);
 
@@ -371,11 +371,11 @@ const PhotoPreview = ({
         className="relative flex-1 grid place-items-center"
         style={{
           paddingTop: showChrome ? (() => {
-            // 简化逻辑：直接使用视口高度的5%作为上边距
+            if (typeof window === 'undefined') return chromePadding.top;
             return Math.max(chromePadding.top, window.innerHeight * 0.05);
           })() : 0,
           paddingBottom: showChrome ? (() => {
-            // 简化逻辑：直接使用视口高度的15%作为下边距
+            if (typeof window === 'undefined') return chromePadding.bottom;
             return Math.max(chromePadding.bottom, window.innerHeight * 0.15);
           })() : 0
         }}
