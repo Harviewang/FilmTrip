@@ -139,6 +139,8 @@ const PhotoPreview = ({
       setIsClosing(true);
       // 关闭时重置状态
       setFittedSize({ width: 0, height: 0 });
+      setViewMode('standard'); // 重置为标准模式
+      setUiVisible(showUI); // 重置UI可见性
       const timer = setTimeout(() => {
         setIsVisible(false);
         setIsClosing(false);
@@ -303,7 +305,7 @@ const PhotoPreview = ({
       {showChrome && (
         <div
           ref={toolbarRef}
-          className={`absolute top-4 right-4 z-10 flex items-center space-x-2 transition-all duration-500 ease-out ${
+          className={`absolute top-4 right-4 z-10 flex items-center space-x-2 transition-all duration-200 ease-out ${
             showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
           }`}
         >
@@ -433,7 +435,7 @@ const PhotoPreview = ({
         />
 
         {/* 照片信息区域 - 绝对定位在底部，不会与图片重叠 */}
-        <div ref={infoRef} className={`absolute bottom-4 left-0 right-0 flex justify-center transition-all duration-500 ease-out ${
+        <div ref={infoRef} className={`absolute bottom-4 left-0 right-0 flex justify-center transition-all duration-200 ease-out ${
           showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
         }`}>
             {/* 照片信息 - 上下布局，参考 camarts.cn 设计 */}
