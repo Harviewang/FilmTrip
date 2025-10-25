@@ -55,7 +55,7 @@ const PhotoPreview = ({
       viewMode,
       {
         width: baseWidth,
-        height: Math.max(0, baseHeight - symmetricPadding * 2)
+        height: baseHeight
       },
       photo?.orientation
     );

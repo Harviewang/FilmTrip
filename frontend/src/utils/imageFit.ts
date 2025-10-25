@@ -32,8 +32,8 @@ export function getFittedSizeAfterRotate(
   const vw = viewport?.width ?? (typeof window !== 'undefined' ? window.innerWidth : 0);
   const vh = viewport?.height ?? (typeof window !== 'undefined' ? window.innerHeight : 0);
 
-  // 确定图片是横图还是竖图
-  const isHorizontal = displayWidth > displayHeight;
+  // 确定图片是横图还是竖图（基于原始尺寸）
+  const isHorizontal = imgWidth > imgHeight;
 
   // 根据模式和图片方向计算尺寸
   let finalWidth: number;
