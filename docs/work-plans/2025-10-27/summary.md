@@ -28,7 +28,15 @@
 **验收状态**：⏳ 待用户验证  
 **Git提交**：待提交
 
+## 5. 审计结论（Codex）- 已修复
+- ✅ **已修复**: 地图容器样式已补充 `.maplibregl-map`、`.maplibregl-canvas-container` 和 `.maplibregl-canvas` 的 `width/height:100%` 样式
+- ✅ **已修复**: 创建 `README-MAP-FILES.md` 明确标注当前入口和备份文件用途
+
+**修复内容**：
+- `frontend/src/pages/Map/Map.css`: 添加 MapLibre 容器和画布样式
+- `frontend/src/pages/Map/README-MAP-FILES.md`: 新建文件说明
+- `docs/work-plans/2025-10-27/commits/CMT-20251027-001.md`: 更新修改记录
+
 ## 5. 遗留问题
 - 需要用户确认定位标记样式显示是否正确
-
 
