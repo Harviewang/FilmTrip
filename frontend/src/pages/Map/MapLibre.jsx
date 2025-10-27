@@ -40,24 +40,8 @@ const MapLibre = () => {
         // MapTiler PNG 栅格瓦片（备选）
         return `https://api.maptiler.com/maps/basic-v2/style.json?key=${maptilerKey}`;
       case 'osm-raster':
-        // OSM 栅格瓦片（最终备选）
-        return {
-          version: 8,
-          sources: {
-            'osm-tiles': {
-              type: 'raster',
-              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-              tileSize: 256,
-              attribution: '© OpenStreetMap contributors',
-              maxzoom: 19
-            }
-          },
-          layers: [{
-            id: 'osm-tiles-layer',
-            type: 'raster',
-            source: 'osm-tiles'
-          }]
-        };
+        // OSM 栅格瓦片（最终备选）- 使用 MapTiler 的 OSM 样式避免 CORS 问题
+        return `https://api.maptiler.com/maps/openstreetmap/style.json?key=${maptilerKey}`;
       default:
         return `https://api.maptiler.com/maps/dataviz/style.json?key=${maptilerKey}`;
     }
@@ -194,7 +178,8 @@ const MapLibre = () => {
         maxZoom: 22,
       });
 
-      map.addControl(new maplibregl.NavigationControl(), 'top-right');
+      // 使用自定义控件，不使用 MapLibre 自带控件
+      // map.addControl(new maplibregl.NavigationControl(), 'top-right');
       
       map.on('load', () => {
         console.log('Map loaded successfully');
@@ -223,6 +208,59 @@ const MapLibre = () => {
       };
     }
   }, []);
+
+  // 监听 mapStyle 变化，更新地图样式
+  useEffect(() => {
+    if (mapInstanceRef.current && mapStyle) {
+      const newStyleUrl = getMapStyleUrl(mapStyle);
+      
+      // 移除现有标记
+      markersRef.current.forEach(marker => marker.remove());
+      markersRef.current = [];
+      if (userMarkerRef.current) {
+        userMarkerRef.current.remove();
+      }
+      
+      // 更新地图样式
+      mapInstanceRef.current.setStyle(newStyleUrl);
+      
+      // 地图样式加载完成后重新添加标记
+      mapInstanceRef.current.once('style.load', () => {
+        if (userLocation) {
+          const el = document.createElement('div');
+          el.className = 'user-location-marker';
+          el.innerHTML = '<div class="user-location-dot"><div class="user-location-pulse"></div></div>';
+          el.style.width = '24px';
+          el.style.height = '24px';
+
+          const marker = new maplibregl.Marker({
+            element: el,
+            anchor: 'center'
+          })
+            .setLngLat([userLocation.longitude, userLocation.latitude])
+            .addTo(mapInstanceRef.current);
+          userMarkerRef.current = marker;
+        }
+        
+        // 重新添加照片标记
+        if (photos.length) {
+          photos.forEach(photo => {
+            if (photo.latitude && photo.longitude) {
+              const el = document.createElement('div');
+              el.className = 'photo-marker';
+              const marker = new maplibregl.Marker(el)
+                .setLngLat([photo.longitude, photo.latitude])
+                .addTo(mapInstanceRef.current);
+              markersRef.current.push(marker);
+              marker.getElement().addEventListener('click', () => {
+                setSelectedPhoto(photo);
+              });
+            }
+          });
+        }
+      });
+    }
+  }, [mapStyle]);
 
   // 添加照片标记
   useEffect(() => {
