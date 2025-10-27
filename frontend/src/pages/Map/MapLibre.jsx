@@ -39,9 +39,6 @@ const MapLibre = () => {
       case 'maptiler-raster':
         // MapTiler PNG 栅格瓦片（备选）
         return `https://api.maptiler.com/maps/basic-v2/style.json?key=${maptilerKey}`;
-      case 'osm-raster':
-        // OSM 栅格瓦片（最终备选）- 使用 MapTiler 的 OSM 样式避免 CORS 问题
-        return `https://api.maptiler.com/maps/openstreetmap/style.json?key=${maptilerKey}`;
       default:
         return `https://api.maptiler.com/maps/dataviz/style.json?key=${maptilerKey}`;
     }
@@ -218,8 +215,7 @@ const MapLibre = () => {
       
       const styleNames = {
         'maptiler-vector': 'MapTiler 矢量',
-        'maptiler-raster': 'MapTiler 栅格',
-        'osm-raster': 'OSM 栅格（MapTiler 代理）'
+        'maptiler-raster': 'MapTiler 栅格'
       };
       
       console.log(`📦 开始切换地图样式到: ${styleNames[mapStyle]} (${mapStyle})`);
@@ -358,11 +354,10 @@ const MapLibre = () => {
           {/* 地图样式切换按钮 */}
           <button 
             onClick={() => {
-              const styles = ['maptiler-vector', 'maptiler-raster', 'osm-raster'];
+              const styles = ['maptiler-vector', 'maptiler-raster'];
               const styleNames = {
                 'maptiler-vector': 'MapTiler 矢量',
-                'maptiler-raster': 'MapTiler 栅格',
-                'osm-raster': 'OSM 栅格（MapTiler 代理）'
+                'maptiler-raster': 'MapTiler 栅格'
               };
               const currentIndex = styles.indexOf(mapStyle);
               const nextIndex = (currentIndex + 1) % styles.length;
@@ -371,7 +366,7 @@ const MapLibre = () => {
               setMapStyle(nextStyle);
             }}
             className="control-btn"
-            title={`当前: ${mapStyle === 'maptiler-vector' ? 'MapTiler 矢量' : mapStyle === 'maptiler-raster' ? 'MapTiler 栅格' : 'OSM 栅格'}`}
+            title={`当前: ${mapStyle === 'maptiler-vector' ? 'MapTiler 矢量' : 'MapTiler 栅格'}`}
           >
             🗺️
           </button>
