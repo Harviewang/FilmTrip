@@ -343,6 +343,20 @@ const MapLibre = () => {
             <MapPinIcon className="icon" />
           </button>
 
+          {/* 地图样式切换按钮 */}
+          <button 
+            onClick={() => {
+              const styles = ['maptiler-vector', 'maptiler-raster', 'osm-raster'];
+              const currentIndex = styles.indexOf(mapStyle);
+              const nextIndex = (currentIndex + 1) % styles.length;
+              setMapStyle(styles[nextIndex]);
+            }}
+            className="control-btn"
+            title="切换地图样式"
+          >
+            🗺️
+          </button>
+
           <button className="zoom-btn zoom-in" onClick={handleZoomIn}>+</button>
           <div className="zoom-display">
             <span className="zoom-value">{getZoomLevelDisplay(Math.round(currentZoom))}x</span>
