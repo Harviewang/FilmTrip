@@ -183,6 +183,8 @@ const MapLibre = () => {
       
       map.on('load', () => {
         console.log('Map loaded successfully');
+        // 确保地图尺寸正确
+        map.resize();
       });
 
       map.on('error', (e) => {
