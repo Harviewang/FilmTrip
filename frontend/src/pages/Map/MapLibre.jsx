@@ -216,6 +216,15 @@ const MapLibre = () => {
     if (mapInstanceRef.current && mapStyle) {
       const newStyleUrl = getMapStyleUrl(mapStyle);
       
+      const styleNames = {
+        'maptiler-vector': 'MapTiler 矢量',
+        'maptiler-raster': 'MapTiler 栅格',
+        'osm-raster': 'OSM 栅格（MapTiler 代理）'
+      };
+      
+      console.log(`📦 开始切换地图样式到: ${styleNames[mapStyle]} (${mapStyle})`);
+      console.log(`📋 样式 URL: ${newStyleUrl}`);
+      
       // 移除现有标记
       markersRef.current.forEach(marker => marker.remove());
       markersRef.current = [];
@@ -228,6 +237,7 @@ const MapLibre = () => {
       
       // 地图样式加载完成后重新添加标记
       mapInstanceRef.current.once('style.load', () => {
+        console.log(`✅ 地图样式加载完成: ${styleNames[mapStyle]}`);
         if (userLocation) {
           const el = document.createElement('div');
           el.className = 'user-location-marker';
@@ -349,12 +359,19 @@ const MapLibre = () => {
           <button 
             onClick={() => {
               const styles = ['maptiler-vector', 'maptiler-raster', 'osm-raster'];
+              const styleNames = {
+                'maptiler-vector': 'MapTiler 矢量',
+                'maptiler-raster': 'MapTiler 栅格',
+                'osm-raster': 'OSM 栅格（MapTiler 代理）'
+              };
               const currentIndex = styles.indexOf(mapStyle);
               const nextIndex = (currentIndex + 1) % styles.length;
-              setMapStyle(styles[nextIndex]);
+              const nextStyle = styles[nextIndex];
+              console.log(`🗺️ 切换到: ${styleNames[nextStyle]} (${nextStyle})`);
+              setMapStyle(nextStyle);
             }}
             className="control-btn"
-            title="切换地图样式"
+            title={`当前: ${mapStyle === 'maptiler-vector' ? 'MapTiler 矢量' : mapStyle === 'maptiler-raster' ? 'MapTiler 栅格' : 'OSM 栅格'}`}
           >
             🗺️
           </button>
