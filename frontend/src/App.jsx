@@ -13,7 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 // 用户端页面
 import Gallery from './pages/Gallery';
 import FilmRolls from './pages/FilmRolls';
-import Map from './pages/Map';
+import Map from './pages/Map/MapLibre';
 import More from './pages/More';
 import PhotoDetail from './pages/PhotoDetail';
 import NotFound from './pages/NotFound';
