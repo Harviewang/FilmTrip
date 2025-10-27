@@ -15,6 +15,9 @@ const MapLibre = () => {
   const [userLocation, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(3);
+  
+  // 地图样式状态（支持切换）
+  const [mapStyle, setMapStyle] = useState('maptiler-vector'); // maptiler-vector | maptiler-raster | osm-raster
 
   // 缩放等级映射函数：3-22 映射到显示 1-20
   const getZoomLevelDisplay = (zoom) => {
@@ -24,6 +27,42 @@ const MapLibre = () => {
     };
     return zoomMap[zoom] || zoom;
   };
+  
+  // 获取地图样式URL
+  const getMapStyleUrl = (style) => {
+    const maptilerKey = import.meta.env.VITE_MAPTILER_KEY;
+    
+    switch (style) {
+      case 'maptiler-vector':
+        // MapTiler 矢量瓦片（首选）
+        return `https://api.maptiler.com/maps/dataviz/style.json?key=${maptilerKey}`;
+      case 'maptiler-raster':
+        // MapTiler PNG 栅格瓦片（备选）
+        return `https://api.maptiler.com/maps/basic-v2/style.json?key=${maptilerKey}`;
+      case 'osm-raster':
+        // OSM 栅格瓦片（最终备选）
+        return {
+          version: 8,
+          sources: {
+            'osm-tiles': {
+              type: 'raster',
+              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+              tileSize: 256,
+              attribution: '© OpenStreetMap contributors',
+              maxzoom: 19
+            }
+          },
+          layers: [{
+            id: 'osm-tiles-layer',
+            type: 'raster',
+            source: 'osm-tiles'
+          }]
+        };
+      default:
+        return `https://api.maptiler.com/maps/dataviz/style.json?key=${maptilerKey}`;
+    }
+  };
+  
   const [photoIndex, setPhotoIndex] = useState(0);
   
   const mapRef = useRef(null);
@@ -144,9 +183,11 @@ const MapLibre = () => {
       // 设置初始loading为false，让地图先显示
       setLoading(false);
       
+      const styleUrl = getMapStyleUrl(mapStyle);
+      
       const map = new maplibregl.Map({
         container: mapRef.current,
-        style: `https://api.maptiler.com/maps/dataviz/style.json?key=${import.meta.env.VITE_MAPTILER_KEY}`,
+        style: styleUrl,
         center: [113.9, 22.5],
         zoom: 3,
         minZoom: 3,
