@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -8,14 +8,22 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
   const marker = useRef(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    // 如果容器不存在，不初始化地图
+    if (!mapContainer.current) {
+      console.log('MapContainer ref not ready');
+      return;
+    }
+
     // 初始化地图
     if (!map.current) {
       const maptilerKey = import.meta.env.VITE_MAPTILER_KEY;
       
       if (!maptilerKey) {
         console.error('VITE_MAPTILER_KEY is not defined');
+        setError('地图API密钥未配置');
         return;
       }
 
@@ -23,65 +31,83 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
 
       console.log('Initializing MapPicker with style:', styleUrl);
 
-      map.current = new maplibregl.Map({
-        container: mapContainer.current,
-        style: styleUrl,
-        center: initialLongitude && initialLatitude 
-          ? [initialLongitude, initialLatitude] 
-          : [113.9, 22.5], // 默认深圳
-        zoom: initialLongitude && initialLatitude ? 12 : 10,
-        minZoom: 1,
-        maxZoom: 15,
-      });
+      try {
+        map.current = new maplibregl.Map({
+          container: mapContainer.current,
+          style: styleUrl,
+          center: initialLongitude && initialLatitude 
+            ? [initialLongitude, initialLatitude] 
+            : [113.9, 22.5], // 默认深圳
+          zoom: initialLongitude && initialLatitude ? 12 : 10,
+          minZoom: 1,
+          maxZoom: 15,
+        });
 
-      // 监听错误事件
-      map.current.on('error', (e) => {
-        console.error('Map error:', e);
-      });
+        // 监听错误事件
+        map.current.on('error', (e) => {
+          console.error('Map error:', e);
+          setError('地图加载失败');
+        });
 
-      // 等待地图加载
-      map.current.once('load', () => {
-        console.log('MapPicker loaded successfully');
-        // 如果有初始坐标，添加marker
-        if (initialLongitude && initialLatitude) {
-          marker.current = new maplibregl.Marker({
-            draggable: true,
-            color: '#ef4444'
-          })
-            .setLngLat([initialLongitude, initialLatitude])
-            .addTo(map.current);
+        // 等待地图加载
+        map.current.once('load', () => {
+          console.log('MapPicker loaded successfully');
+          // 如果有初始坐标，添加marker
+          if (initialLongitude && initialLatitude) {
+            marker.current = new maplibregl.Marker({
+              draggable: true,
+              color: '#ef4444'
+            })
+              .setLngLat([initialLongitude, initialLatitude])
+              .addTo(map.current);
 
-          marker.current.on('dragend', () => {
-            const lngLat = marker.current.getLngLat();
-            handleLocationChange(lngLat.lat, lngLat.lng);
-          });
-        }
+            marker.current.on('dragend', () => {
+              const lngLat = marker.current.getLngLat();
+              handleLocationChange(lngLat.lat, lngLat.lng);
+            });
+          }
 
-        // 添加点击事件
-        map.current.on('click', handleMapClick);
-      });
+          // 添加点击事件
+          const handleMapClick = async (e) => {
+            const { lng, lat } = e.lngLat;
+            await handleLocationChange(lat, lng);
+          };
+          
+          map.current.on('click', handleMapClick);
+        });
+      } catch (err) {
+        console.error('Failed to initialize map:', err);
+        setError('地图初始化失败: ' + err.message);
+      }
     }
 
     return () => {
+      // 清理函数
       if (map.current) {
-        map.current.remove();
+        try {
+          // 移除事件监听器
+          if (marker.current) {
+            marker.current.remove();
+            marker.current = null;
+          }
+          // 移除地图
+          map.current.remove();
+          map.current = null;
+        } catch (err) {
+          console.error('Error cleaning up map:', err);
+        }
       }
     };
   }, [initialLatitude, initialLongitude]);
 
-  const handleMapClick = async (e) => {
-    const { lng, lat } = e.lngLat;
-    handleLocationChange(lat, lng);
-  };
-
-  const handleLocationChange = async (lat, lng) => {
+  const handleLocationChange = useCallback(async (lat, lng) => {
     setIsLoading(true);
     setSelectedLocation({ latitude: lat, longitude: lng });
 
     // 更新或创建marker
     if (marker.current) {
       marker.current.setLngLat([lng, lat]);
-    } else {
+    } else if (map.current) {
       marker.current = new maplibregl.Marker({
         draggable: true,
         color: '#ef4444'
@@ -132,7 +158,7 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
     }
 
     setIsLoading(false);
-  };
+  }, [onLocationSelect]);
 
   const handleCurrentLocation = () => {
     if (navigator.geolocation) {
@@ -147,10 +173,6 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
       );
     }
   };
-
-  if (!mapContainer) {
-    return null;
-  }
 
   return (
     <div className="w-full">
