@@ -102,11 +102,11 @@ const MapLibre = () => {
     }
   }, [mapStyle]);
 
-  // 缩放等级映射函数：1-15 映射到显示 1-15
+  // 缩放等级映射函数：3-17 映射到显示 1-15
   const getZoomLevelDisplay = (zoom) => {
     const zoomMap = {
-      1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12,
-      13: 13, 14: 14, 15: 15
+      3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9: 7, 10: 8, 11: 9, 12: 10, 13: 11, 14: 12,
+      15: 13, 16: 14, 17: 15
     };
     return zoomMap[zoom] || zoom;
   };
@@ -224,10 +224,10 @@ const MapLibre = () => {
           const currentZoom = mapInstanceRef.current.getZoom();
           let targetZoom = currentZoom;
           
-          // 如果当前缩放太远（< 6x），定位时自动放大到城市级别（10x）
-          if (currentZoom < 6) {
-            targetZoom = 10;
-            console.log('当前视图太远，定位时自动放大到10x');
+          // 如果当前缩放太远（< 8级），定位时自动放大到城市级别（12级，显示8x）
+          if (currentZoom < 12) {
+            targetZoom = 12;
+            console.log('当前视图太远，定位时自动放大到8x');
           }
           
           mapInstanceRef.current.flyTo({
@@ -272,7 +272,7 @@ const MapLibre = () => {
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
       const currentZoom = mapInstanceRef.current.getZoom();
-      if (currentZoom < 15) {  // 最大限制到Zoom 15
+      if (currentZoom < 17) {  // 最大限制到Zoom 17（显示15x）
         mapInstanceRef.current.zoomIn();
       }
     }
@@ -281,7 +281,7 @@ const MapLibre = () => {
   const handleZoomOut = () => {
     if (mapInstanceRef.current) {
       const currentZoom = mapInstanceRef.current.getZoom();
-      if (currentZoom > 1) {
+      if (currentZoom > 3) {
         mapInstanceRef.current.zoomOut();
       }
     }
@@ -298,9 +298,9 @@ const MapLibre = () => {
         container: mapRef.current,
         style: styleUrl,
         center: [113.9, 22.5],  // 直接设置深圳为中心
-        zoom: 3,                 // 直接设置为3x，避免跳转
-        minZoom: 1,
-        maxZoom: 15,
+        zoom: 3,                 // 直接设置为Zoom 3，显示为3x
+        minZoom: 3,
+        maxZoom: 17,
       });
 
       // 使用自定义控件，不使用 MapLibre 自带控件
