@@ -101,7 +101,7 @@
 **技术细节**:
 - OSM瓦片URL: `https://tile.openstreetmap.org/{z}/{x}/{y}.png`
 - 瓦片大小: 256px
-- 最大缩放: 19级
+- 最大缩放: 15级（显示15x）
 - 格式: MapLibre GL style object
 
 ## 5. 验收清单
@@ -139,7 +139,7 @@
       tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
       tileSize: 256,
       attribution: '© OpenStreetMap contributors',
-      maxzoom: 19
+      maxzoom: 15
     }
   },
   layers: [{
