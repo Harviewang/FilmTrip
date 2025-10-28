@@ -67,6 +67,16 @@ function parseAmapResult(result) {
     city = '';
   }
   
+  // 如果city为空，且province包含"市"，则从province提取
+  if (!city && addrComp.province) {
+    if (addrComp.province.includes('市')) {
+      city = addrComp.province;
+    } else if (addrComp.province.includes('省')) {
+      // 省级城市在district中
+      city = addrComp.district || '';
+    }
+  }
+  
   return {
     country: addrComp.country || '',
     province: addrComp.province || '',
