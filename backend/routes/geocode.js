@@ -265,23 +265,31 @@ router.post('/reverse-maptiler', async (req, res) => {
         const placeDesignation = item.place_designation || '';
         const id = item.id || '';
         
-        // 使用 place_designation 作为主判断
-        if (placeDesignation === 'country') {
+        // 根据id前缀和designation综合判断
+        if (id.startsWith('country.') || placeDesignation === 'country') {
           country = text;
-        } else if (placeDesignation === 'state') {
+        } else if (id.startsWith('region.') || placeDesignation === 'state') {
           province = text;
-        } else if (placeDesignation === 'city' && !city) {
-          city = text;
-        } else if (placeType === 'county' && placeDesignation === 'city' && !city) {
-          city = text;
-        } else if (placeType === 'joint_municipality') {
+        } else if (id.startsWith('subregion.') && placeDesignation === 'state' && !province) {
+          province = text;
+        } else if (id.startsWith('joint_municipality.') || id.startsWith('joint_submunicipality.')) {
+          // 这里可能是district或city
+          if (!district && (placeDesignation === 'city' || id.includes('joint_municipality'))) {
+            // 如果是designation='city'，可能是district级别
+            const prevItem = context[context.indexOf(item) - 1];
+            if (prevItem && prevItem.id?.startsWith('municipality.')) {
+              district = prevItem.text;
+            }
+          }
+        } else if (id.startsWith('municipality.') && !city) {
+          // municipality可能是城市或区域
+          if (placeDesignation === 'city') {
+            city = text;
+          } else if (placeDesignation === 'suburb') {
+            district = text;
+          }
+        } else if (id.startsWith('county.') && !city && !district) {
           district = text;
-        } else if (placeType === 'municipality' && !district) {
-          district = text;
-        } else if (placeType === 'neighbourhood' && !township) {
-          township = text;
-        } else if (placeType === 'municipality' && township === '') {
-          township = text;
         }
       });
       
