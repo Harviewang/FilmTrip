@@ -48,14 +48,8 @@ function parseMapTilerContext(context) {
       }
     } else if (id.includes('county.') && designation === 'city' && !tempData.city) {
       tempData.city = text;  // 深圳市
-    } else if (id.includes('joint_municipality.') && designation === 'city' && !tempData.city) {
-      // 对于北京：subregion=北京市, joint_municipality=东城区(city designation)
-      // 这种情况city实际上就是区（因为直辖市）
-      if (!tempData.city) {
-        tempData.city = text;
-      }
-    } else if (id.includes('joint_municipality.') && !tempData.district) {
-      tempData.district = text;  // 南山区
+    } else if (id.includes('joint_municipality.') && !tempData.jointMunicipality) {
+      tempData.jointMunicipality = text;  // 可能是区（南山区）或直辖市区（东城区）
     } else if (id.includes('municipality.') && designation === 'suburb') {
       tempData.township = text;  // 粤海街道
     } else if (id.includes('neighbourhood.')) {
@@ -63,11 +57,25 @@ function parseMapTilerContext(context) {
     }
   });
   
-  // 赋值
+  // 判断层级结构
+  // 深圳：county=深圳市(city), joint_municipality=南山区(district)
+  // 北京：subregion=北京市(province), joint_municipality=东城区(city)
+  
+  if (tempData.city && tempData.jointMunicipality) {
+    // 有county和joint_municipality → 多层结构（省/市/区）
+    city = tempData.city;
+    district = tempData.jointMunicipality;
+  } else if (tempData.jointMunicipality && !tempData.city) {
+    // 只有joint_municipality → 直辖市结构（市/区）
+    city = tempData.jointMunicipality;
+  } else {
+    // 其他情况
+    city = tempData.city || '';
+    district = tempData.jointMunicipality || '';
+  }
+  
   country = tempData.country || '';
   province = tempData.province || '';
-  city = tempData.city || '';
-  district = tempData.district || '';
   township = tempData.township || '';
   
   return { country, province, city, district, township };
