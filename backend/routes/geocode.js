@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const https = require('https');
+const { translateAddress, getCountryTranslation } = require('./geocode-translations');
 
 // API密钥
 const API_KEYS = {
