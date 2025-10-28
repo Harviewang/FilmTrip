@@ -77,6 +77,7 @@ const Gallery = () => {
     try {
       if (!append && !isRefresh) {
         setLoading(true);
+      
         setError(null);
         setPhotos([]);
         setCurrentPage(1);
@@ -90,9 +91,12 @@ const Gallery = () => {
         setLoadingMore(true);
       }
       
+      // 确保page是数字类型
+      const pageNum = typeof page === 'object' ? 1 : (typeof page === 'number' ? page : parseInt(page)) || 1;
+      
       // 构建筛选参数
       const params = new URLSearchParams({
-        page: page.toString(),
+        page: pageNum.toString(),
         limit: pageSize.toString()
       });
       
