@@ -788,7 +788,7 @@ const PhotoManagement = () => {
                       <div className="text-sm text-gray-800">
                         {[uploadForm.country, uploadForm.province, uploadForm.city, uploadForm.district, uploadForm.township]
                           .filter(Boolean)
-                          .join(' / ')}
+                          .join('')}
                       </div>
                     </div>
                   )}

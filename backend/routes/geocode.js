@@ -38,18 +38,29 @@ function parseMapTilerContext(context) {
       }
     } else if (id.includes('county.') && designation === 'city' && !tempData.city) {
       tempData.city = text;  // 深圳市
+    } else if (id.includes('municipality.')) {
+      // 对于日本和其他国家，municipality可能是city或district
+      if (!tempData.city && designation === 'city') {
+        tempData.city = text;  // 城市
+      } else if (designation === 'suburb' || designation === 'municipality') {
+        tempData.township = text;  // 镇/区
+      } else if (!tempData.district) {
+        tempData.district = text;  // 可能作为district使用
+      }
     } else if (id.includes('joint_municipality.') && !tempData.jointMunicipality) {
       tempData.jointMunicipality = text;  // 可能是区（南山区）或直辖市区（东城区）
-    } else if (id.includes('municipality.') && designation === 'suburb') {
-      tempData.township = text;  // 粤海街道
     } else if (id.includes('neighbourhood.')) {
       tempData.township = text;
+    } else if (id.includes('locality.') && !tempData.city) {
+      // 日本等国家，locality可能是城市名
+      tempData.city = text;
     }
   });
   
   // 判断层级结构
   // 深圳：county=深圳市(city), joint_municipality=南山区(district)
   // 北京：subregion=北京市(province), joint_municipality=东城区(city)
+  // 日本：region=東京都/県(province), municipality=市区町村(city/district), neighbourhood=街区(township)
   
   if (tempData.city && tempData.jointMunicipality) {
     // 有county和joint_municipality → 多层结构（省/市/区）
@@ -58,10 +69,17 @@ function parseMapTilerContext(context) {
   } else if (tempData.jointMunicipality && !tempData.city) {
     // 只有joint_municipality → 直辖市结构（市/区）
     city = tempData.jointMunicipality;
+  } else if (tempData.city) {
+    // 有city → 普通城市结构
+    city = tempData.city;
+    district = tempData.district || '';
+  } else if (tempData.municipality) {
+    // 只有municipality → 可能是小城市或镇
+    city = tempData.municipality;
   } else {
     // 其他情况
     city = tempData.city || '';
-    district = tempData.jointMunicipality || '';
+    district = tempData.jointMunicipality || tempData.district || '';
   }
   
   country = tempData.country || '';
