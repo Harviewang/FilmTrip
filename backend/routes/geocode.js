@@ -201,5 +201,111 @@ router.post('/reverse', async (req, res) => {
   }
 });
 
+// POST /api/geocode/reverse-maptiler
+// MapTiler反向地理编码：坐标 → 地址（支持国内外）
+router.post('/reverse-maptiler', async (req, res) => {
+  try {
+    const { latitude, longitude } = req.body;
+    
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少坐标参数'
+      });
+    }
+    
+    const MAPTILER_KEY = 'DKuhLqblnLLkKdQ88ScQ';
+    const url = `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`;
+    
+    const response = await new Promise((resolve, reject) => {
+      https.get(url, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            resolve(result);
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on('error', reject);
+    });
+    
+    if (!response.features || response.features.length === 0) {
+      return res.json({
+        success: true,
+        data: {
+          country: '',
+          province: '',
+          city: '',
+          district: '',
+          township: '',
+          formatted_address: '',
+          message: '无法解析该坐标'
+        }
+      });
+    }
+    
+    // 解析MapTiler返回的context数组
+    const parseMaptilerContext = (features) => {
+      let country = '';
+      let province = '';
+      let city = '';
+      let district = '';
+      let township = '';
+      
+      // 从第一个feature的context中提取信息
+      const firstFeature = features[0];
+      const context = firstFeature.context || [];
+      
+      context.forEach(item => {
+        const text = item.text || '';
+        const placeType = item.place_type?.[0] || '';
+        
+        if (placeType === 'country') {
+          country = text;
+        } else if (placeType === 'state' || placeType === 'subregion') {
+          province = text;
+        } else if (placeType === 'city' || placeType === 'county') {
+          city = text;
+        } else if (placeType === 'joint_municipality') {
+          district = text;
+        } else if (placeType === 'municipality' || placeType === 'postcode') {
+          township = text;
+        }
+      });
+      
+      return { country, province, city, district, township };
+    };
+    
+    const { country, province, city, district, township } = parseMaptilerContext(response.features);
+    const formatted_address = response.features[0]?.place_name || '';
+    
+    res.json({
+      success: true,
+      data: {
+        country,
+        province,
+        city,
+        district,
+        township,
+        formatted_address,
+        latitude,
+        longitude,
+        source: 'maptiler'
+      }
+    });
+    
+  } catch (error) {
+    console.error('MapTiler逆地理编码错误:', error);
+    res.status(500).json({
+      success: false,
+      message: '服务器错误',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 
