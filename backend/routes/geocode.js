@@ -77,12 +77,23 @@ function parseAmapResult(result) {
     }
   }
   
+  // 处理district和township可能为空数组的问题
+  let district = addrComp.district || '';
+  if (Array.isArray(district)) {
+    district = '';
+  }
+  
+  let township = addrComp.township || '';
+  if (Array.isArray(township)) {
+    township = '';
+  }
+  
   return {
     country: addrComp.country || '',
     province: addrComp.province || '',
     city: city,
-    district: addrComp.district || '',
-    township: addrComp.township || '',
+    district: district,
+    township: township,
     formatted_address: result.regeocode.formatted_address || ''
   };
 }
