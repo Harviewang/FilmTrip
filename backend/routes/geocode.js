@@ -27,6 +27,7 @@ function parseMapTilerContext(context) {
   
   // MapTiler的context是倒序的（从详细到宏观）
   // 顺序通常是：postal_code -> neighbourhood -> municipality -> county -> subregion -> region -> country
+  // 但需要注意：对于中国，county可能是市（如深圳市），joint_municipality可能是区（如南山区）
   
   context.forEach(item => {
     const text = item.text || '';
@@ -42,18 +43,28 @@ function parseMapTilerContext(context) {
       province = text;
     } 
     else if (id.includes('subregion.') && !province) {
-      province = text;
+      // 特殊处理：中国的subregion可能是直辖市（北京市、上海市）
+      if (text.includes('市') && !text.includes('省')) {
+        province = text;
+      } else if (!province) {
+        province = text;
+      }
     }
     // 3. City - 城市级
     else if (id.includes('county.') && designation === 'city' && !city) {
       city = text;
     }
+    // 4. District - 区级（需要特殊处理中国的层级）
+    else if (id.includes('joint_municipality.') && designation === 'city' && city) {
+      // 如果已经有city（如深圳市），joint_municipality（南山区）就是district
+      district = text;
+    }
     else if (id.includes('joint_municipality.') && designation === 'city' && !city) {
+      // 如果没有city，joint_municipality就是city
       city = text;
     }
-    // 4. District - 区级
-    else if (id.includes('municipality.') && designation === 'city' && !district && !city) {
-      district = text;
+    else if (id.includes('municipality.') && designation === 'city' && !city) {
+      city = text;
     }
     else if (id.includes('joint_municipality.') && !city && !district) {
       district = text;
