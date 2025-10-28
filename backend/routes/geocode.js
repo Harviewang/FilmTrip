@@ -88,6 +88,33 @@ function parseMapTilerContext(context) {
     if (province) {
       province = translateAddress(countryCode, province, 'province');
     }
+    
+    // 翻译城市（city需要补充到映射表）
+    if (city && countryCode.toLowerCase() === 'au') {
+      const cityTranslations = {
+        'Sydney': '悉尼',
+        'Melbourne': '墨尔本',
+        'Brisbane': '布里斯班',
+        'Perth': '珀斯',
+        'Adelaide': '阿德莱德',
+        'Canberra': '堪培拉',
+        'Hobart': '霍巴特',
+        'Darwin': '达尔文'
+      };
+      city = cityTranslations[city] || city;
+    }
+    
+    // 翻译区/区域（district需要补充到映射表）
+    if (district && countryCode.toLowerCase() === 'au') {
+      const districtTranslations = {
+        'Surry Hills': '萨里山',
+        'CBD': '中央商务区',
+        'Bondi': '邦迪',
+        'Kings Cross': '国王十字',
+        'Paddington': '帕丁顿'
+      };
+      district = districtTranslations[district] || district;
+    }
   }
   
   return { country, province, city, district, township };

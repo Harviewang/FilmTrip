@@ -27,7 +27,23 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
         return;
       }
 
-      const styleUrl = `https://api.maptiler.com/maps/dataviz/style.json?key=${maptilerKey}`;
+      // 改用OSM瓦片避免MapTiler额度消耗
+      const styleUrl = {
+        version: 8,
+        sources: {
+          'osm-tiles': {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap'
+          }
+        },
+        layers: [{
+          id: 'osm-tiles-layer',
+          type: 'raster',
+          source: 'osm-tiles'
+        }]
+      };
 
       console.log('Initializing MapPicker with style:', styleUrl);
 
@@ -53,8 +69,12 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
         map.current.once('load', () => {
           console.log('MapPicker loaded successfully');
           
-          // 添加导航控件
-          map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+          // 添加导航控件（禁用旋转）
+          const nav = new maplibregl.NavigationControl({
+            showCompass: false,  // 隐藏指南针（旋转控制）
+            visualizePitch: false  // 隐藏俯仰控制
+          });
+          map.current.addControl(nav, 'top-right');
           
           // 添加定位控件（有定位图标）
           map.current.addControl(new maplibregl.GeolocateControl({

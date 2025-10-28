@@ -690,7 +690,7 @@ const PhotoManagement = () => {
                     name="description"
                     value={uploadForm.description}
                     onChange={(e) => setUploadForm({...uploadForm, description: e.target.value})}
-                    rows={3}
+                    rows={1}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="请输入照片描述"
                   />
