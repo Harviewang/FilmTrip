@@ -3,17 +3,6 @@ const router = express.Router();
 const https = require('https');
 const { translateAddress, getCountryTranslation } = require('./geocode-translations');
 
-// API密钥
-const API_KEYS = {
-  amap: 'f82dbd3f01c1f3622f964dd2deb99ccc',
-  tencent: 'UYFBZ-FPQKL-YSAPN-MGEZB-RQ3AF-Q7BSW'
-};
-
-// 判断是否为国内坐标
-function isChinaCoordinate(lat, lng) {
-  return lat >= 18 && lat <= 54 && lng >= 73 && lng <= 135;
-}
-
 // 统一解析MapTiler返回的context
 function parseMapTilerContext(context) {
   let country = '';
@@ -102,110 +91,6 @@ function parseMapTilerContext(context) {
   }
   
   return { country, province, city, district, township };
-}
-
-// 查询高德API
-function queryAmap(lat, lng) {
-  return new Promise((resolve, reject) => {
-    const url = `https://restapi.amap.com/v3/geocode/regeo?key=${API_KEYS.amap}&location=${lng},${lat}&output=json`;
-    
-    https.get(url, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const result = JSON.parse(data);
-          resolve(result);
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }).on('error', reject);
-  });
-}
-
-// 查询腾讯API
-function queryTencent(lat, lng) {
-  return new Promise((resolve, reject) => {
-    const url = `https://apis.map.qq.com/ws/geocoder/v1/?location=${lat},${lng}&key=${API_KEYS.tencent}&get_poi=0`;
-    
-    https.get(url, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const result = JSON.parse(data);
-          resolve(result);
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }).on('error', reject);
-  });
-}
-
-// 解析高德返回结果
-function parseAmapResult(result) {
-  if (!result.status || result.status !== '1') {
-    return null;
-  }
-  
-  const addrComp = result.regeocode.addressComponent;
-  
-  // 处理city字段可能为空数组的问题
-  let city = addrComp.city || '';
-  if (Array.isArray(city)) {
-    city = '';
-  }
-  
-  // 如果city为空，且province包含"市"，则从province提取
-  if (!city && addrComp.province) {
-    if (addrComp.province.includes('市')) {
-      city = addrComp.province;
-    } else if (addrComp.province.includes('省')) {
-      // 省级城市在district中
-      city = addrComp.district || '';
-    }
-  }
-  
-  // 处理district和township可能为空数组的问题
-  let district = addrComp.district || '';
-  if (Array.isArray(district)) {
-    district = '';
-  }
-  
-  let township = addrComp.township || '';
-  if (Array.isArray(township)) {
-    township = '';
-  }
-  
-  return {
-    country: addrComp.country || '',
-    province: addrComp.province || '',
-    city: city,
-    district: district,
-    township: township,
-    formatted_address: result.regeocode.formatted_address || ''
-  };
-}
-
-// 解析腾讯返回结果
-function parseTencentResult(result) {
-  if (result.status !== 0) {
-    return null;
-  }
-  
-  const addrComp = result.result.address_component;
-  const formatted_addresses = result.result.formatted_addresses;
-  
-  return {
-    country: addrComp.nation || '',
-    province: addrComp.province || '',
-    city: addrComp.city || '',
-    district: addrComp.district || '',
-    township: addrComp.street || '',
-    formatted_address: formatted_addresses ? (formatted_addresses.recommend || formatted_addresses.rough || '') : ''
-  };
 }
 
 // POST /api/geocode/reverse
@@ -298,7 +183,7 @@ router.post('/reverse', async (req, res) => {
   }
 });
 
-// POST /api/geocode/reverse-maptiler
+// POST /api/geocode/reverse-maptiler (已废弃，统一使用/reverse)
 // MapTiler反向地理编码：坐标 → 地址（支持国内外）
 router.post('/reverse-maptiler', async (req, res) => {
   try {

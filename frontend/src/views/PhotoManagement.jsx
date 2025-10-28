@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { photoApi } from '../services/api';
 import ImageRotateControl from '../components/ImageRotateControl';
+import MapPicker from '../components/MapPicker';
 
 const PhotoManagement = () => {
   const [photos, setPhotos] = useState([]);
@@ -33,6 +34,13 @@ const PhotoManagement = () => {
     camera_id: '',
     taken_date: '',
     location_name: '',
+    latitude: '',
+    longitude: '',
+    country: '',
+    province: '',
+    city: '',
+    district: '',
+    township: '',
     tags: '',
     file: null,
     is_protected: false,
@@ -47,6 +55,13 @@ const PhotoManagement = () => {
     camera_id: '',
     taken_date: '',
     location_name: '',
+    latitude: '',
+    longitude: '',
+    country: '',
+    province: '',
+    city: '',
+    district: '',
+    township: '',
     tags: '',
     file: null,
     is_protected: false,
@@ -75,6 +90,13 @@ const PhotoManagement = () => {
       camera_id: '',
       taken_date: '',
       location_name: '',
+      latitude: '',
+      longitude: '',
+      country: '',
+      province: '',
+      city: '',
+      district: '',
+      township: '',
       tags: '',
       file: null,
       is_protected: false,
@@ -209,6 +231,14 @@ const PhotoManagement = () => {
       formData.append('camera_id', uploadForm.camera_id || '');
       formData.append('taken_date', uploadForm.taken_date || '');
       formData.append('location_name', uploadForm.location_name || '');
+      // 新增：地址相关字段
+      if (uploadForm.latitude) formData.append('latitude', uploadForm.latitude);
+      if (uploadForm.longitude) formData.append('longitude', uploadForm.longitude);
+      if (uploadForm.country) formData.append('country', uploadForm.country);
+      if (uploadForm.province) formData.append('province', uploadForm.province);
+      if (uploadForm.city) formData.append('city', uploadForm.city);
+      if (uploadForm.district) formData.append('district', uploadForm.district);
+      if (uploadForm.township) formData.append('township', uploadForm.township);
       formData.append('tags', uploadForm.tags || '');
       formData.append('photo', uploadForm.file);
       formData.append('is_protected', uploadForm.is_protected ? '1' : '0');
@@ -238,6 +268,13 @@ const PhotoManagement = () => {
         camera_id: '',
         taken_date: '',
         location_name: '',
+        latitude: '',
+        longitude: '',
+        country: '',
+        province: '',
+        city: '',
+        district: '',
+        township: '',
         tags: '',
         file: null,
         is_protected: false,
@@ -729,8 +766,44 @@ const PhotoManagement = () => {
                     value={uploadForm.location_name}
                     onChange={(e) => setUploadForm({...uploadForm, location_name: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="请输入拍摄地点"
+                    placeholder="请输入拍摄地点（或使用地图选点）"
                   />
+                </div>
+
+                {/* 地图选点器 */}
+                <div className="border-t pt-4">
+                  <h3 className="text-sm font-medium text-gray-900 mb-3">
+                    地图选点
+                  </h3>
+                  <MapPicker
+                    onLocationSelect={(addressData) => {
+                      setUploadForm({
+                        ...uploadForm,
+                        latitude: addressData.latitude || '',
+                        longitude: addressData.longitude || '',
+                        country: addressData.country || '',
+                        province: addressData.province || '',
+                        city: addressData.city || '',
+                        district: addressData.district || '',
+                        township: addressData.township || '',
+                        location_name: addressData.location_name || uploadForm.location_name
+                      });
+                    }}
+                    initialLatitude={uploadForm.latitude || null}
+                    initialLongitude={uploadForm.longitude || null}
+                  />
+                  
+                  {/* 显示解析的地址 */}
+                  {(uploadForm.country || uploadForm.province || uploadForm.city) && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                      <div className="text-xs text-gray-600 mb-1">解析的地址：</div>
+                      <div className="text-sm text-gray-800">
+                        {[uploadForm.country, uploadForm.province, uploadForm.city, uploadForm.district, uploadForm.township]
+                          .filter(Boolean)
+                          .join(' / ')}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div>
