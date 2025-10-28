@@ -208,7 +208,7 @@ fix(MapLibre): 修复地图切换、栅格实现和缩放级别
 - ✅ 样式切换添加loading反馈
 
 ### UI优化
-- ✅ 完全移除地图attribution显示
+- ✅ 恢复地图attribution显示（符合使用条款）
 - ✅ 界面更加简洁美观
 
 
