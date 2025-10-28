@@ -47,10 +47,15 @@ function parseMapTilerContext(context) {
       } else if (!tempData.district) {
         tempData.district = text;  // 可能作为district使用
       }
+    } else if (id.includes('municipal_district.')) {
+      // 日本等国家，municipal_district是区
+      if (!tempData.district) {
+        tempData.district = text;  // 中央区
+      }
     } else if (id.includes('joint_municipality.') && !tempData.jointMunicipality) {
       tempData.jointMunicipality = text;  // 可能是区（南山区）或直辖市区（东城区）
-    } else if (id.includes('neighbourhood.')) {
-      tempData.township = text;
+    } else if (id.includes('neighbourhood.') || id.includes('place.') && designation === 'quarter') {
+      tempData.township = text;  // 街区
     } else if (id.includes('locality.') && !tempData.city) {
       // 日本等国家，locality可能是城市名
       tempData.city = text;
