@@ -52,6 +52,25 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
         // 等待地图加载
         map.current.once('load', () => {
           console.log('MapPicker loaded successfully');
+          
+          // 添加导航控件
+          map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+          
+          // 添加定位控件（有定位图标）
+          map.current.addControl(new maplibregl.GeolocateControl({
+            positionOptions: {
+              enableHighAccuracy: true
+            },
+            trackUserLocation: false,
+            showUserHeading: false
+          }), 'top-right');
+          
+          // 隐藏版权标识
+          const copyright = map.current.getContainer().querySelector('.maplibregl-ctrl-attrib');
+          if (copyright) {
+            copyright.style.display = 'none';
+          }
+          
           // 如果有初始坐标，添加marker
           if (initialLongitude && initialLatitude) {
             marker.current = new maplibregl.Marker({
@@ -63,14 +82,31 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
 
             marker.current.on('dragend', () => {
               const lngLat = marker.current.getLngLat();
-              handleLocationChange(lngLat.lat, lngLat.lng);
+              setSelectedLocation({ latitude: lngLat.lat, longitude: lngLat.lng });
             });
           }
 
-          // 添加点击事件
+          // 添加点击事件（只更新marker，不自动解析）
           const handleMapClick = async (e) => {
             const { lng, lat } = e.lngLat;
-            await handleLocationChange(lat, lng);
+            // 只更新marker位置，不自动解析
+            if (marker.current) {
+              marker.current.setLngLat([lng, lat]);
+            } else {
+              marker.current = new maplibregl.Marker({
+                draggable: true,
+                color: '#ef4444'
+              })
+                .setLngLat([lng, lat])
+                .addTo(map.current);
+              
+              marker.current.on('dragend', () => {
+                const lngLat = marker.current.getLngLat();
+                setSelectedLocation({ latitude: lngLat.lat, longitude: lngLat.lng });
+              });
+            }
+            
+            setSelectedLocation({ latitude: lat, longitude: lng });
           };
           
           map.current.on('click', handleMapClick);
@@ -142,7 +178,6 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
           city: result.data.city || '',
           district: result.data.district || '',
           township: result.data.township || '',
-          location_name: result.data.formatted_address || '',
         };
         
         // 调用父组件回调
@@ -164,7 +199,33 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          handleLocationChange(position.coords.latitude, position.coords.longitude);
+          const { latitude, longitude } = position.coords;
+          setSelectedLocation({ latitude, longitude });
+          
+          // 更新marker
+          if (marker.current) {
+            marker.current.setLngLat([longitude, latitude]);
+          } else if (map.current) {
+            marker.current = new maplibregl.Marker({
+              draggable: true,
+              color: '#ef4444'
+            })
+              .setLngLat([longitude, latitude])
+              .addTo(map.current);
+            
+            marker.current.on('dragend', () => {
+              const lngLat = marker.current.getLngLat();
+              setSelectedLocation({ latitude: lngLat.lat, longitude: lngLat.lng });
+            });
+          }
+          
+          // 自动飞到用户位置
+          if (map.current) {
+            map.current.flyTo({
+              center: [longitude, latitude],
+              zoom: 12
+            });
+          }
         },
         (error) => {
           console.error('获取当前位置失败:', error);
@@ -174,19 +235,28 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
     }
   };
 
+  const handleParseLocation = async () => {
+    if (selectedLocation) {
+      await handleLocationChange(selectedLocation.latitude, selectedLocation.longitude);
+    } else {
+      alert('请先在地图上选择一个位置');
+    }
+  };
+
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-2">
-        <label className="block text-sm font-medium text-gray-700">
+        <span className="text-sm font-medium text-gray-700">
           地图选点
-        </label>
+        </span>
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={handleCurrentLocation}
-            className="text-sm text-blue-600 hover:text-blue-800"
+            onClick={handleParseLocation}
+            disabled={!selectedLocation || isLoading}
+            className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            当前位置
+            解析地址
           </button>
         </div>
       </div>
@@ -204,9 +274,15 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
         )}
       </div>
       
+      {error && (
+        <div className="mt-2 text-xs text-red-600">
+          {error}
+        </div>
+      )}
+      
       {selectedLocation && (
         <div className="mt-2 text-xs text-gray-500">
-          坐标：{selectedLocation.latitude.toFixed(6)}, {selectedLocation.longitude.toFixed(6)}
+          已选择坐标：{selectedLocation.latitude.toFixed(6)}, {selectedLocation.longitude.toFixed(6)}
         </div>
       )}
     </div>

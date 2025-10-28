@@ -659,12 +659,14 @@ const PhotoManagement = () => {
       {/* 上传照片模态框 */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             {/* 弹窗内容区域 */}
             <div className="p-6 space-y-4">
               <h2 className="text-xl font-bold mb-4">上传照片</h2>
               <form id="upload-form" onSubmit={handleUpload}>
                 <div className="space-y-4">
+                {/* 第一行：标题和描述 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     标题 <span className="text-red-500">*</span>
@@ -693,7 +695,10 @@ const PhotoManagement = () => {
                     placeholder="请输入照片描述"
                   />
                 </div>
+                </div>
                 
+                {/* 第二行：胶卷和日期 */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     胶卷实例 <span className="text-red-500">*</span>
@@ -724,7 +729,7 @@ const PhotoManagement = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    相机 <span className="text-gray-500 text-xs">(自动从胶卷实例获取)</span>
+                    相机 <span className="text-gray-500 text-xs">(自动)</span>
                   </label>
                   <input
                     type="text"
@@ -755,26 +760,10 @@ const PhotoManagement = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    拍摄地点
-                  </label>
-                  <input
-                    type="text"
-                    name="location_name"
-                    value={uploadForm.location_name}
-                    onChange={(e) => setUploadForm({...uploadForm, location_name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="请输入拍摄地点（或使用地图选点）"
-                  />
                 </div>
-
+                
                 {/* 地图选点器 */}
                 <div className="border-t pt-4">
-                  <h3 className="text-sm font-medium text-gray-900 mb-3">
-                    地图选点
-                  </h3>
                   <MapPicker
                     onLocationSelect={(addressData) => {
                       setUploadForm({
@@ -785,8 +774,7 @@ const PhotoManagement = () => {
                         province: addressData.province || '',
                         city: addressData.city || '',
                         district: addressData.district || '',
-                        township: addressData.township || '',
-                        location_name: addressData.location_name || uploadForm.location_name
+                        township: addressData.township || ''
                       });
                     }}
                     initialLatitude={uploadForm.latitude || null}
