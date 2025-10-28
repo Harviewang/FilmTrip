@@ -224,10 +224,10 @@ const MapLibre = () => {
           const currentZoom = mapInstanceRef.current.getZoom();
           let targetZoom = currentZoom;
           
-          // 如果当前缩放太远（< 8级），定位时自动放大到城市级别（8级，显示8x）
-          if (currentZoom < 8) {
-            targetZoom = 8;
-            console.log('当前视图太远，定位时自动放大到8x');
+          // 如果当前缩放太远（< 10级），定位时自动放大到城市级别（10级，显示10x）
+          if (currentZoom < 10) {
+            targetZoom = 10;
+            console.log('当前视图太远，定位时自动放大到10x');
           }
           
           mapInstanceRef.current.flyTo({
