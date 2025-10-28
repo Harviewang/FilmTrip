@@ -465,11 +465,15 @@ const PhotoPreview = ({
                   </div>
                 )}
 
-                {/* 拍摄地点 */}
-                {photo.location_name && (
+                {/* 拍摄地点 - 显示完整的5级地址 */}
+                {(photo.country || photo.province || photo.city || photo.district || photo.township) && (
                   <div className="text-center">
                     <div className="text-gray-600 font-medium mb-1">拍摄地点</div>
-                    <div className="text-gray-900">{photo.location_name}</div>
+                    <div className="text-gray-900">
+                      {[photo.country, photo.province, photo.city, photo.district, photo.township]
+                        .filter(Boolean)
+                        .join('')}
+                    </div>
                   </div>
                 )}
 
@@ -509,7 +513,7 @@ const PhotoPreview = ({
               {/* 第二行：增强元数据信息 */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                 {/* 地理信息 */}
-                {(photo.country || photo.province || photo.city) && (
+                {(photo.country || photo.province || photo.city || photo.district || photo.township) && (
                   <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 shadow-sm border">
                     <div className="text-gray-600 font-medium mb-2 flex items-center">
                       <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -518,10 +522,12 @@ const PhotoPreview = ({
                       </svg>
                       地理信息
                     </div>
-                    <div className="space-y-1 text-xs">
-                      {photo.country && <div>国家: {photo.country}</div>}
-                      {photo.province && <div>省份: {photo.province}</div>}
-                      {photo.city && <div>城市: {photo.city}</div>}
+                    <div className="text-xs">
+                      <div className="text-gray-900 font-medium">
+                        {[photo.country, photo.province, photo.city, photo.district, photo.township]
+                          .filter(Boolean)
+                          .join('')}
+                      </div>
                     </div>
                   </div>
                 )}
