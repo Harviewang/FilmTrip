@@ -262,16 +262,25 @@ router.post('/reverse-maptiler', async (req, res) => {
       context.forEach(item => {
         const text = item.text || '';
         const placeType = item.place_type?.[0] || '';
+        const placeDesignation = item.place_designation || '';
+        const id = item.id || '';
         
-        if (placeType === 'country') {
+        // 使用 place_designation 作为主判断
+        if (placeDesignation === 'country') {
           country = text;
-        } else if (placeType === 'state' || placeType === 'subregion') {
+        } else if (placeDesignation === 'state') {
           province = text;
-        } else if (placeType === 'city' || placeType === 'county') {
+        } else if (placeDesignation === 'city' && !city) {
+          city = text;
+        } else if (placeType === 'county' && placeDesignation === 'city' && !city) {
           city = text;
         } else if (placeType === 'joint_municipality') {
           district = text;
-        } else if (placeType === 'municipality' || placeType === 'postcode') {
+        } else if (placeType === 'municipality' && !district) {
+          district = text;
+        } else if (placeType === 'neighbourhood' && !township) {
+          township = text;
+        } else if (placeType === 'municipality' && township === '') {
           township = text;
         }
       });
