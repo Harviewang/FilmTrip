@@ -86,6 +86,7 @@ const filmStockRoutes = require('./routes/filmStocks');
 const filmRollRoutes = require('./routes/filmRolls');
 const rollPhotosRoutes = require('./routes/rollPhotos');
 const mapRoutes = require('./routes/map');
+const geocodeRoutes = require('./routes/geocode');
 
 // 根路径路由
 app.get('/', (req, res) => {
@@ -119,6 +120,7 @@ app.use('/api/filmStocks', filmStockRoutes);
 app.use('/api/filmRolls', filmRollRoutes);
 app.use('/api/rollPhotos', rollPhotosRoutes);
 app.use('/api/map', mapRoutes);
+app.use('/api/geocode', geocodeRoutes);
 
 // 错误处理中间件
 app.use((err, req, res, next) => {
