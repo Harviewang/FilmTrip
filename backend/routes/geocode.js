@@ -79,6 +79,28 @@ function parseMapTilerContext(context) {
   province = tempData.province || '';
   township = tempData.township || '';
   
+  // 获取country_code用于翻译
+  let countryCode = '';
+  context.forEach(item => {
+    if (item.country_code) {
+      countryCode = item.country_code;
+    }
+  });
+  
+  // 翻译国外地址
+  if (countryCode && countryCode.toLowerCase() !== 'cn') {
+    // 翻译国家名
+    const countryTranslated = getCountryTranslation(countryCode.toLowerCase());
+    if (countryTranslated) {
+      country = countryTranslated;
+    }
+    
+    // 翻译省份/州
+    if (province) {
+      province = translateAddress(countryCode, province, 'province');
+    }
+  }
+  
   return { country, province, city, district, township };
 }
 
