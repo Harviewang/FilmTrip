@@ -16,14 +16,97 @@ const MapLibre = () => {
   const [locationLoading, setLocationLoading] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(3);
   
-  // 地图样式状态（支持切换）
-  const [mapStyle, setMapStyle] = useState('maptiler-vector'); // maptiler-vector | maptiler-raster | osm-raster
+  // 自动降级：检查月初重置和配额限制
+  const getAutoMapStyle = () => {
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const resetKey = `${currentYear}-${currentMonth}`;
+    
+    const lastResetDate = localStorage.getItem('mapStyleResetDate');
+    
+    // 检查是否需要重置（每月1号重置为矢量）
+    if (lastResetDate !== resetKey) {
+      // 新月份，重置为矢量
+      localStorage.setItem('mapStyle', 'maptiler-vector');
+      localStorage.setItem('mapStyleResetDate', resetKey);
+      localStorage.removeItem('mapStyleDowngrade'); // 清除降级记录
+      console.log('📅 新月份，自动重置为MapTiler矢量');
+      return 'maptiler-vector';
+    }
+    
+    // 检查是否有降级记录（使用较低优先级的方案）
+    const downgradeLevel = localStorage.getItem('mapStyleDowngrade');
+    
+    if (downgradeLevel === 'raster') {
+      console.log('📉 使用栅格降级方案');
+      return 'maptiler-raster';
+    } else if (downgradeLevel === 'osm') {
+      console.log('📉 使用OSM降级方案');
+      return 'osm-raster';
+    }
+    
+    // 默认使用矢量（首选）
+    return 'maptiler-vector';
+  };
+  
+  // 地图样式状态（自动降级方案，默认maptiler-vector）
+  const [mapStyle, setMapStyle] = useState(() => getAutoMapStyle());
+  
+  // 地图加载成功后，注册自动降级监听
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    
+    // 监听数据加载错误（可能是配额问题）
+    const handleDataEvent = (e) => {
+      if (e.error && e.error.message) {
+        const errorMsg = e.error.message.toLowerCase();
+        if (errorMsg.includes('403') || errorMsg.includes('quota')) {
+          console.warn('⚠️ 检测到配额问题，准备降级');
+          
+          const currentStyle = mapStyle;
+          if (currentStyle === 'maptiler-vector') {
+            console.log('📉 自动降级：MapTiler矢量 → 栅格');
+            setMapStyle('maptiler-raster');
+            localStorage.setItem('mapStyleDowngrade', 'raster');
+          } else if (currentStyle === 'maptiler-raster') {
+            console.log('📉 自动降级：MapTiler栅格 → OSM');
+            setMapStyle('osm-raster');
+            localStorage.setItem('mapStyleDowngrade', 'osm');
+          }
+        }
+      }
+    };
+    
+    // 注册监听器
+    const setupListener = () => {
+      map.on('data', handleDataEvent);
+    };
+    
+    // 清理函数
+    const cleanup = () => {
+      map.off('data', handleDataEvent);
+    };
+    
+    // 如果地图已加载，立即注册
+    if (map.loaded()) {
+      setupListener();
+      return cleanup;
+    } else {
+      // 否则等待加载完成
+      map.once('load', () => {
+        setupListener();
+      });
+      return cleanup;
+    }
+  }, [mapStyle]);
 
-  // 缩放等级映射函数：3-22 映射到显示 1-20
+  // 缩放等级映射函数：1-15 映射到显示 1-15
   const getZoomLevelDisplay = (zoom) => {
     const zoomMap = {
-      3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9: 7, 10: 8, 11: 9, 12: 10, 13: 11, 14: 12,
-      15: 13, 16: 14, 17: 15, 18: 16, 19: 17, 20: 18, 21: 19, 22: 20
+      1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12,
+      13: 13, 14: 14, 15: 15
     };
     return zoomMap[zoom] || zoom;
   };
@@ -34,11 +117,49 @@ const MapLibre = () => {
     
     switch (style) {
       case 'maptiler-vector':
-        // MapTiler 矢量瓦片（首选）
+        // MapTiler 矢量瓦片（首选，PBF格式）
         return `https://api.maptiler.com/maps/dataviz/style.json?key=${maptilerKey}`;
       case 'maptiler-raster':
-        // MapTiler PNG 栅格瓦片（备选）
-        return `https://api.maptiler.com/maps/basic-v2/style.json?key=${maptilerKey}`;
+        // MapTiler 栅格瓦片（真实PNG格式）
+        // 使用WGS84作为底图，PNG栅格瓦片
+        return {
+          version: 8,
+          sources: {
+            'maptiler-raster': {
+              type: 'raster',
+              tiles: [
+                `https://api.maptiler.com/maps/dataviz/{z}/{x}/{y}.png?key=${maptilerKey}`
+              ],
+              tileSize: 256,
+              attribution: '© MapTiler © OpenStreetMap contributors',
+              maxzoom: 17
+            }
+          },
+          layers: [{
+            id: 'maptiler-raster-layer',
+            type: 'raster',
+            source: 'maptiler-raster'
+          }]
+        };
+      case 'osm-raster':
+        // OSM 栅格瓦片（最终备选，免费，真实PNG格式）
+        return {
+          version: 8,
+          sources: {
+            'osm-tiles': {
+              type: 'raster',
+              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+              tileSize: 256,
+              attribution: '© OpenStreetMap contributors',
+              maxzoom: 17
+            }
+          },
+          layers: [{
+            id: 'osm-tiles-layer',
+            type: 'raster',
+            source: 'osm-tiles'
+          }]
+        };
       default:
         return `https://api.maptiler.com/maps/dataviz/style.json?key=${maptilerKey}`;
     }
@@ -99,9 +220,19 @@ const MapLibre = () => {
         setUserLocation({ latitude, longitude });
         
         if (mapInstanceRef.current) {
+          // 智能定位：如果缩放太远，自动放大到合适的级别
+          const currentZoom = mapInstanceRef.current.getZoom();
+          let targetZoom = currentZoom;
+          
+          // 如果当前缩放太远（< 6x），定位时自动放大到城市级别（10x）
+          if (currentZoom < 6) {
+            targetZoom = 10;
+            console.log('当前视图太远，定位时自动放大到10x');
+          }
+          
           mapInstanceRef.current.flyTo({
             center: [longitude, latitude],
-            zoom: 12
+            zoom: targetZoom
           });
         }
         
@@ -141,7 +272,7 @@ const MapLibre = () => {
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
       const currentZoom = mapInstanceRef.current.getZoom();
-      if (currentZoom < 22) {
+      if (currentZoom < 15) {  // 最大限制到Zoom 15
         mapInstanceRef.current.zoomIn();
       }
     }
@@ -150,7 +281,7 @@ const MapLibre = () => {
   const handleZoomOut = () => {
     if (mapInstanceRef.current) {
       const currentZoom = mapInstanceRef.current.getZoom();
-      if (currentZoom > 3) {
+      if (currentZoom > 1) {
         mapInstanceRef.current.zoomOut();
       }
     }
@@ -161,18 +292,15 @@ const MapLibre = () => {
     if (mapRef.current && !mapInstanceRef.current) {
       console.log('Initializing MapLibre map...');
       
-      // 设置初始loading为false，让地图先显示
-      setLoading(false);
-      
       const styleUrl = getMapStyleUrl(mapStyle);
       
       const map = new maplibregl.Map({
         container: mapRef.current,
         style: styleUrl,
-        center: [113.9, 22.5],
-        zoom: 3,
-        minZoom: 3,
-        maxZoom: 22,
+        center: [113.9, 22.5],  // 直接设置深圳为中心
+        zoom: 3,                 // 直接设置为3x，避免跳转
+        minZoom: 1,
+        maxZoom: 15,
       });
 
       // 使用自定义控件，不使用 MapLibre 自带控件
@@ -182,10 +310,13 @@ const MapLibre = () => {
         console.log('Map loaded successfully');
         // 确保地图尺寸正确
         map.resize();
+        // 隐藏loading
+        setLoading(false);
       });
 
       map.on('error', (e) => {
         console.error('Map error:', e);
+        setLoading(false);
       });
 
       map.on('zoom', () => {
@@ -196,8 +327,10 @@ const MapLibre = () => {
 
       mapInstanceRef.current = map;
 
-      // 立即获取照片数据
-      fetchMapPhotos();
+      // 地图加载完成后获取照片数据
+      map.once('load', () => {
+        fetchMapPhotos();
+      });
 
       return () => {
         if (mapInstanceRef.current) {
@@ -208,18 +341,21 @@ const MapLibre = () => {
     }
   }, []);
 
-  // 监听 mapStyle 变化，更新地图样式
+  // 监听 mapStyle 变化，更新地图样式（自动降级触发）
   useEffect(() => {
-    if (mapInstanceRef.current && mapStyle) {
+    if (mapInstanceRef.current && mapStyle && mapInstanceRef.current.loaded()) {
       const newStyleUrl = getMapStyleUrl(mapStyle);
       
       const styleNames = {
         'maptiler-vector': 'MapTiler 矢量',
-        'maptiler-raster': 'MapTiler 栅格'
+        'maptiler-raster': 'MapTiler 栅格',
+        'osm-raster': 'OSM 栅格'
       };
       
-      console.log(`📦 开始切换地图样式到: ${styleNames[mapStyle]} (${mapStyle})`);
-      console.log(`📋 样式 URL: ${newStyleUrl}`);
+      console.log(`📦 自动切换地图样式到: ${styleNames[mapStyle]} (${mapStyle})`);
+      
+      // 显示loading状态
+      setLoading(true);
       
       // 移除现有标记
       markersRef.current.forEach(marker => marker.remove());
@@ -234,6 +370,9 @@ const MapLibre = () => {
       // 地图样式加载完成后重新添加标记
       mapInstanceRef.current.once('style.load', () => {
         console.log(`✅ 地图样式加载完成: ${styleNames[mapStyle]}`);
+        // 隐藏loading
+        setLoading(false);
+        
         if (userLocation) {
           const el = document.createElement('div');
           el.className = 'user-location-marker';
@@ -349,26 +488,6 @@ const MapLibre = () => {
             disabled={locationLoading}
           >
             <MapPinIcon className="icon" />
-          </button>
-
-          {/* 地图样式切换按钮 */}
-          <button 
-            onClick={() => {
-              const styles = ['maptiler-vector', 'maptiler-raster'];
-              const styleNames = {
-                'maptiler-vector': 'MapTiler 矢量',
-                'maptiler-raster': 'MapTiler 栅格'
-              };
-              const currentIndex = styles.indexOf(mapStyle);
-              const nextIndex = (currentIndex + 1) % styles.length;
-              const nextStyle = styles[nextIndex];
-              console.log(`🗺️ 切换到: ${styleNames[nextStyle]} (${nextStyle})`);
-              setMapStyle(nextStyle);
-            }}
-            className="control-btn"
-            title={`当前: ${mapStyle === 'maptiler-vector' ? 'MapTiler 矢量' : 'MapTiler 栅格'}`}
-          >
-            🗺️
           </button>
 
           <button className="zoom-btn zoom-in" onClick={handleZoomIn}>+</button>

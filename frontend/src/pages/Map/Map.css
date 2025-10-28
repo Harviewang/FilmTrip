@@ -384,9 +384,47 @@
   height: 100%;
 }
 
+/* 显示默认的attribution控件以符合使用条款 */
+.maplibregl-ctrl-attrib,
+.mapboxgl-ctrl-attrib {
+  display: block;
+}
+
 .map-page.fullscreen .map-container {
   height: 100vh;
   width: 100vw;
+}
+
+/* 自定义attribution */
+.custom-attribution {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 999;
+}
+
+.attribution-btn {
+  background: white;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  font-size: 18px;
+  transition: all 0.2s ease;
+}
+
+.attribution-btn:hover {
+  background: #f5f5f5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.attribution-btn:active {
+  transform: scale(0.95);
 }
 
 /* Leaflet地图容器 */
