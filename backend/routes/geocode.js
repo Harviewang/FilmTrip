@@ -29,54 +29,50 @@ function parseMapTilerContext(context) {
   // 顺序通常是：postal_code -> neighbourhood -> municipality -> county -> subregion -> region -> country
   // 但需要注意：对于中国，county可能是市（如深圳市），joint_municipality可能是区（如南山区）
   
+  // 按顺序遍历context（从详细到宏观）
+  const tempData = {};
+  
   context.forEach(item => {
     const text = item.text || '';
     const id = item.id || '';
     const designation = item.place_designation || '';
     
-    // 1. Country - 最高层级
+    // 存储所有可能的数据
     if (id.includes('country.') || designation === 'country') {
-      country = text;
-    }
-    // 2. Province - 省/州级
-    else if (id.includes('region.') && designation === 'state') {
-      province = text;
-    } 
-    else if (id.includes('subregion.') && !province) {
-      // 特殊处理：中国的subregion可能是直辖市（北京市、上海市）
-      if (text.includes('市') && !text.includes('省')) {
-        province = text;
-      } else if (!province) {
-        province = text;
+      tempData.country = text;
+    } else if (id.includes('region.') && designation === 'state') {
+      tempData.province = text;
+    } else if (id.includes('subregion.')) {
+      if (!tempData.province) {
+        tempData.province = text;
       }
-    }
-    // 3. City - 城市级
-    else if (id.includes('county.') && designation === 'city' && !city) {
-      city = text;
-    }
-    // 4. District - 区级（需要特殊处理中国的层级）
-    else if (id.includes('joint_municipality.') && designation === 'city' && city) {
-      // 如果已经有city（如深圳市），joint_municipality（南山区）就是district
-      district = text;
-    }
-    else if (id.includes('joint_municipality.') && designation === 'city' && !city) {
-      // 如果没有city，joint_municipality就是city
-      city = text;
-    }
-    else if (id.includes('municipality.') && designation === 'city' && !city) {
-      city = text;
-    }
-    else if (id.includes('joint_municipality.') && !city && !district) {
-      district = text;
-    }
-    // 5. Township - 街道/社区级
-    else if (id.includes('municipality.') && designation === 'suburb') {
-      township = text;
-    }
-    else if (id.includes('neighbourhood.')) {
-      township = text;
+    } else if (id.includes('county.') && designation === 'city') {
+      tempData.city = text;  // 深圳市
+    } else if (id.includes('joint_municipality.')) {
+      if (!tempData.district) {
+        tempData.district = text;  // 南山区
+      }
+    } else if (id.includes('municipality.') && designation === 'suburb') {
+      tempData.township = text;  // 粤海街道
+    } else if (id.includes('neighbourhood.')) {
+      tempData.township = text;
     }
   });
+  
+  // 特殊处理中国的层级
+  // 如果city和district都存在，说明是中国的结构（如：深圳市/南山区）
+  if (tempData.city && tempData.district) {
+    city = tempData.city;
+    district = tempData.district;
+  } else {
+    // 国际标准结构
+    city = tempData.city || tempData.district;
+    district = tempData.district || '';
+  }
+  
+  country = tempData.country || '';
+  province = tempData.province || '';
+  township = tempData.township || '';
   
   return { country, province, city, district, township };
 }
