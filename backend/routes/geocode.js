@@ -13,6 +13,63 @@ function isChinaCoordinate(lat, lng) {
   return lat >= 18 && lat <= 54 && lng >= 73 && lng <= 135;
 }
 
+// 统一解析MapTiler返回的context
+function parseMapTilerContext(context) {
+  let country = '';
+  let province = '';
+  let city = '';
+  let district = '';
+  let township = '';
+  
+  if (!context || context.length === 0) {
+    return { country, province, city, district, township };
+  }
+  
+  // MapTiler的context是倒序的（从详细到宏观）
+  // 顺序通常是：postal_code -> neighbourhood -> municipality -> county -> subregion -> region -> country
+  
+  context.forEach(item => {
+    const text = item.text || '';
+    const id = item.id || '';
+    const designation = item.place_designation || '';
+    
+    // 1. Country - 最高层级
+    if (id.includes('country.') || designation === 'country') {
+      country = text;
+    }
+    // 2. Province - 省/州级
+    else if (id.includes('region.') && designation === 'state') {
+      province = text;
+    } 
+    else if (id.includes('subregion.') && !province) {
+      province = text;
+    }
+    // 3. City - 城市级
+    else if (id.includes('county.') && designation === 'city' && !city) {
+      city = text;
+    }
+    else if (id.includes('joint_municipality.') && designation === 'city' && !city) {
+      city = text;
+    }
+    // 4. District - 区级
+    else if (id.includes('municipality.') && designation === 'city' && !district && !city) {
+      district = text;
+    }
+    else if (id.includes('joint_municipality.') && !city && !district) {
+      district = text;
+    }
+    // 5. Township - 街道/社区级
+    else if (id.includes('municipality.') && designation === 'suburb') {
+      township = text;
+    }
+    else if (id.includes('neighbourhood.')) {
+      township = text;
+    }
+  });
+  
+  return { country, province, city, district, township };
+}
+
 // 查询高德API
 function queryAmap(lat, lng) {
   return new Promise((resolve, reject) => {
@@ -130,53 +187,59 @@ router.post('/reverse', async (req, res) => {
       });
     }
     
-    // 判断是否为国内坐标
-    const isChina = isChinaCoordinate(latitude, longitude);
+        // 统一使用MapTiler API（支持全球）
+    const MAPTILER_KEY = 'DKuhLqblnLLkKdQ88ScQ';
+    const url = `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`;
     
-    if (!isChina) {
-      return res.json({
-        success: true,
-        data: {
-          country: '',
-          province: '',
-          city: '',
-          district: '',
-          township: '',
-          formatted_address: '',
-          message: '暂仅支持国内地点'
-        }
-      });
-    }
-    
-    // 优先使用高德API
     let result = null;
-    let source = 'unknown';
     
     try {
-      const amapResult = await queryAmap(latitude, longitude);
-      result = parseAmapResult(amapResult);
-      source = 'amap';
-    } catch (error) {
-      console.warn('高德API调用失败:', error.message);
+      const maptilerResponse = await new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            try {
+              const jsonResult = JSON.parse(data);
+              resolve(jsonResult);
+            } catch (e) {
+              reject(e);
+            }
+          });
+        }).on('error', reject);
+      });
       
-      // 降级到腾讯API
-      try {
-        const tencentResult = await queryTencent(latitude, longitude);
-        result = parseTencentResult(tencentResult);
-        source = 'tencent';
-      } catch (error2) {
-        console.error('腾讯API调用失败:', error2.message);
-        return res.status(500).json({
-          success: false,
-          message: '地址解析失败'
+      if (!maptilerResponse.features || maptilerResponse.features.length === 0) {
+        return res.json({
+          success: true,
+          data: {
+            country: '',
+            province: '',
+            city: '',
+            district: '',
+            township: '',
+            formatted_address: '',
+            message: '无法解析该坐标'
+          }
         });
       }
-    }
-    
-    if (!result) {
+      
+      // 解析context
+      const firstFeature = maptilerResponse.features[0];
+      const context = firstFeature.context || [];
+      const parsed = parseMapTilerContext(context);
+      
+      result = {
+        ...parsed,
+        formatted_address: maptilerResponse.features[0]?.place_name || ''
+      };
+      
+    } catch (error) {
+      console.error('MapTiler API调用失败:', error.message);
       return res.status(500).json({
         success: false,
-        message: '无法解析该坐标'
+        message: '地址解析失败',
+        error: error.message
       });
     }
     
@@ -187,7 +250,7 @@ router.post('/reverse', async (req, res) => {
         ...result,
         latitude,
         longitude,
-        source // API来源标识
+        source: 'maptiler'
       }
     });
     
