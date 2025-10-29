@@ -172,14 +172,23 @@ const MapLibre = () => {
   const markersRef = useRef([]);
   const userMarkerRef = useRef(null);
 
-  // 获取地图照片数据
+  // 获取地图照片数据（分页获取全部可见照片）
   const fetchMapPhotos = async () => {
     try {
-      // 地图需要显示全部可见照片，使用最大limit值（后端限制最大100）
-      // 如果照片数量超过100，后续可以改为分页请求或使用专门的地图接口
-      const response = await fetch('/api/photos?limit=100');
-      
-      if (response.ok) {
+      // 地图需要显示全部可见照片，由于后端限制最大limit=100，需要分页请求
+      const allPhotos = [];
+      let page = 1;
+      const limit = 100; // 后端API最大限制
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await fetch(`/api/photos?page=${page}&limit=${limit}`);
+        
+        if (!response.ok) {
+          console.error('获取照片失败:', response.status);
+          break;
+        }
+
         const result = await response.json();
         let photoArray = [];
         
@@ -187,15 +196,29 @@ const MapLibre = () => {
           photoArray = result.data;
         }
         
-        const mappedPhotos = photoArray
-          .filter(photo => {
-            // 只显示有图片路径的照片（后端已根据权限过滤）
-            // 未登录用户可以查看不受保护的照片
-            // 管理员可以查看所有照片
-            // 受保护照片对未登录用户会返回 null 的图片路径
-            return photo.thumbnail || photo.original || photo.size1024 || photo.size2048;
-          })
-          .map((photo, index) => ({
+        // 过滤并添加到总数组
+        const filteredPhotos = photoArray.filter(photo => {
+          // 只显示有图片路径的照片（后端已根据权限过滤）
+          // 未登录用户可以查看不受保护的照片
+          // 管理员可以查看所有照片
+          // 受保护照片对未登录用户会返回 null 的图片路径
+          return photo.thumbnail || photo.original || photo.size1024 || photo.size2048;
+        });
+        
+        allPhotos.push(...filteredPhotos);
+        
+        // 检查是否还有更多数据
+        if (result.pagination) {
+          hasMore = page < result.pagination.pages;
+          page++;
+        } else {
+          // 如果没有分页信息，当返回的数据少于limit时认为没有更多了
+          hasMore = photoArray.length === limit;
+          page++;
+        }
+      }
+      
+      const mappedPhotos = allPhotos.map((photo, index) => ({
             id: photo.id || `photo-${index}`,
             title: photo.title || photo.filename || '无标题',
             description: photo.description || '',
