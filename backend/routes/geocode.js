@@ -172,24 +172,23 @@ function parseMapTilerContext(context) {
     }
     
     // 翻译城市（city需要补充到映射表）
-    if (city) {
-      // 澳大利亚城市使用内联映射
-      if (countryCode.toLowerCase() === 'au') {
-        const cityTranslations = {
-          'Sydney': '悉尼',
-          'Melbourne': '墨尔本',
-          'Brisbane': '布里斯班',
-          'Perth': '珀斯',
-          'Adelaide': '阿德莱德',
-          'Canberra': '堪培拉',
-          'Hobart': '霍巴特',
-          'Darwin': '达尔文'
-        };
-        city = cityTranslations[city] || city;
-      } else {
-        // 其他国家/地区使用translateAddress，明确指定level='city'
-        city = translateAddress(countryCode, city, 'city');
-      }
+    if (city && countryCode.toLowerCase() === 'au') {
+      const cityTranslations = {
+        'Sydney': '悉尼',
+        'Melbourne': '墨尔本',
+        'Brisbane': '布里斯班',
+        'Perth': '珀斯',
+        'Adelaide': '阿德莱德',
+        'Canberra': '堪培拉',
+        'Hobart': '霍巴特',
+        'Darwin': '达尔文'
+      };
+      city = cityTranslations[city] || city;
+    }
+    
+    // 翻译香港、澳门、台湾的城市和区域
+    if (city && ['hk', 'mo', 'tw'].includes(countryCode.toLowerCase())) {
+      city = translateAddress(countryCode, city, 'city');
     }
     
     // 翻译区/区域
