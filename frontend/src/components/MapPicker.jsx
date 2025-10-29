@@ -56,7 +56,7 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
           center: initialLongitude && initialLatitude 
             ? [initialLongitude, initialLatitude] 
             : [113.9, 22.5], // 默认深圳
-          zoom: initialLongitude && initialLatitude ? 12 : 10,
+          zoom: initialLongitude && initialLatitude ? 5 : 5,
           minZoom: 1,
           maxZoom: 15,
         });
@@ -243,7 +243,7 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
           if (map.current) {
             map.current.flyTo({
               center: [longitude, latitude],
-              zoom: 12
+              zoom: 5
             });
           }
         },
