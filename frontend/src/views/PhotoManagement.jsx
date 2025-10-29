@@ -1479,6 +1479,7 @@ const PhotoManagement = () => {
         </div>
       )}
     </div>
+    </div>
   );
 };
 
