@@ -191,12 +191,17 @@ const MapLibre = () => {
           description: photo.description || '',
           thumbnail: photo.thumbnail || photo.original,
           original: photo.original,
-          camera: photo.camera_name || photo.camera_model || '未知相机',
-          film: photo.film_roll_name || photo.film_roll_number || '无',
-          date: photo.taken_date || photo.uploaded_at || '未知日期',
+          camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
+          film: photo.film || (photo.film_roll_name || photo.film_roll_number || '无'),
+          date: photo.date || (photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期')),
           latitude: photo.latitude,
           longitude: photo.longitude,
           location_name: photo.location_name,
+          country: photo.country,
+          province: photo.province,
+          city: photo.city,
+          district: photo.district,
+          township: photo.township,
         }));
         
         setPhotos(mappedPhotos);
