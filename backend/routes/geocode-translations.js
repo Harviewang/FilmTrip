@@ -339,6 +339,92 @@ const translations = {
     'Gladstone': '格拉德斯通',
     'Mildura': '米尔杜拉',
     'Bundaberg': '班达伯格'
+  },
+  
+  // 越南主要城市翻译
+  vietnamCities: {
+    'Ho Chi Minh City': '胡志明市',
+    'Hanoi': '河内',
+    'Da Nang': '岘港',
+    'Hai Phong': '海防',
+    'Can Tho': '芹苴',
+    'Nha Trang': '芽庄',
+    'Hue': '顺化',
+    'Hoi An': '会安',
+    'Da Lat': '大叻',
+    'Phu Quoc': '富国岛',
+    'Ha Long': '下龙',
+    'Sa Pa': '沙坝',
+    'Mui Ne': '美奈',
+    'Vung Tau': '头顿',
+    'Quy Nhon': '归仁',
+    'Tam Coc': '三谷',
+    'My Son': '美山',
+    'Ban Gioc': '板约',
+    'Mekong Delta': '湄公河三角洲',
+    'Sapa': '沙坝',
+    'Ha Long Bay': '下龙湾'
+  },
+  
+  // 马来西亚主要城市翻译
+  malaysiaCities: {
+    'Kuala Lumpur': '吉隆坡',
+    'Penang': '槟城',
+    'Malacca': '马六甲',
+    'Johor Bahru': '新山',
+    'Kota Kinabalu': '哥打京那巴鲁',
+    'Kuching': '古晋',
+    'Ipoh': '怡保',
+    'Klang': '巴生',
+    'Kuantan': '关丹',
+    'Kota Bharu': '哥打巴鲁',
+    'Langkawi': '兰卡威',
+    'Cameron Highlands': '金马伦高原',
+    'Taman Negara': '大汉山国家公园',
+    'Perhentian Islands': '停泊岛',
+    'Tioman': '刁曼岛',
+    'Kuching': '古晋',
+    'Sandakan': '山打根',
+    'Tawau': '斗湖',
+    'Miri': '美里',
+    'Semporna': '仙本那',
+    'Georgetown': '乔治市',
+    'Batu Caves': '黑风洞',
+    'Mount Kinabalu': '京那巴鲁山'
+  },
+  
+  // 印度尼西亚主要城市翻译
+  indonesiaCities: {
+    'Jakarta': '雅加达',
+    'Bali': '巴厘岛',
+    'Yogyakarta': '日惹',
+    'Bandung': '万隆',
+    'Surabaya': '泗水',
+    'Medan': '棉兰',
+    'Makassar': '望加锡',
+    'Denpasar': '登巴萨',
+    'Semarang': '三宝垄',
+    'Padang': '巴东',
+    'Balikpapan': '巴厘巴板',
+    'Manado': '万鸦老',
+    'Ubud': '乌布',
+    'Kuta': '库塔',
+    'Seminyak': '水明漾',
+    'Sanur': '沙努尔',
+    'Nusa Dua': '努沙杜瓦',
+    'Lombok': '龙目岛',
+    'Gili Islands': '吉利群岛',
+    'Mount Bromo': '布罗莫火山',
+    'Borobudur': '婆罗浮屠',
+    'Prambanan': '普兰巴南',
+    'Raja Ampat': '四王群岛',
+    'Komodo': '科莫多',
+    'Flores': '弗洛雷斯',
+    'Bintan': '民丹岛',
+    'Batam': '巴淡岛',
+    'Surakarta': '梭罗',
+    'Malang': '玛琅',
+    'Bogor': '茂物'
   }
 };
 
@@ -448,6 +534,21 @@ function getAustraliaCityTranslation(cityName) {
   return normalizeCityName(cityName, translations.australiaCities);
 }
 
+// 获取越南城市中文名（增强版）
+function getVietnamCityTranslation(cityName) {
+  return normalizeCityName(cityName, translations.vietnamCities);
+}
+
+// 获取马来西亚城市中文名（增强版）
+function getMalaysiaCityTranslation(cityName) {
+  return normalizeCityName(cityName, translations.malaysiaCities);
+}
+
+// 获取印度尼西亚城市中文名（增强版）
+function getIndonesiaCityTranslation(cityName) {
+  return normalizeCityName(cityName, translations.indonesiaCities);
+}
+
 // 根据国家代码和地区名获取翻译
 function translateAddress(countryCode, regionName, level) {
   if (!countryCode || !regionName) return regionName;
@@ -477,6 +578,12 @@ function translateAddress(countryCode, regionName, level) {
         return getKoreaCityTranslation(regionName);
       case 'au':
         return getAustraliaCityTranslation(regionName);
+      case 'vn':
+        return getVietnamCityTranslation(regionName);
+      case 'my':
+        return getMalaysiaCityTranslation(regionName);
+      case 'id':
+        return getIndonesiaCityTranslation(regionName);
       default:
         return regionName;
     }
@@ -530,6 +637,9 @@ module.exports = {
   getSingaporeRegionTranslation,
   getKoreaCityTranslation,
   getAustraliaCityTranslation,
+  getVietnamCityTranslation,
+  getMalaysiaCityTranslation,
+  getIndonesiaCityTranslation,
   translations
 };
 
