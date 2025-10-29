@@ -581,9 +581,11 @@ const PhotoPreview = ({
                 
                 {/* 迷你地图 - 使用 MapPicker，只读显示模式 */}
                 {/* 如果没有坐标，使用关塔那摩监狱坐标 (22.4642, -82.4397) */}
+                {/* 预览页迷你地图默认zoom=12，符合需求文档要求 */}
                 <MapPicker
                   initialLatitude={photo.latitude || 22.4642}
                   initialLongitude={photo.longitude || -82.4397}
+                  initialZoom={12}
                   readOnly={true}
                   onLocationSelect={() => {}} // 预览模式下不允许修改
                 />

@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import '../pages/Map/Map.css';
 
-const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongitude, readOnly = false }, ref) => {
+const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongitude, readOnly = false, initialZoom }, ref) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const marker = useRef(null);
@@ -57,7 +57,7 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
           center: initialLongitude && initialLatitude 
             ? [initialLongitude, initialLatitude] 
             : [113.9, 22.5], // 默认深圳
-          zoom: initialLongitude && initialLatitude ? 5 : 5,
+          zoom: initialZoom || (initialLongitude && initialLatitude ? 5 : 5), // 支持自定义初始缩放级别
           minZoom: 1,
           maxZoom: 15,
         });
