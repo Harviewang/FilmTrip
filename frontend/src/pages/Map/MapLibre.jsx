@@ -445,10 +445,8 @@ const MapLibre = () => {
 
         el.addEventListener('click', () => {
           setSelectedPhoto(photo);
-          mapInstanceRef.current.flyTo({
-            center: [photo.longitude, photo.latitude],
-            zoom: 14
-          });
+          // 移除自动flyTo，避免干扰图片预览加载
+          // 如果用户想查看位置，可以在预览中点击位置信息打开迷你地图
         });
 
         markersRef.current.push(marker);
