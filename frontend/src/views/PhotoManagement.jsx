@@ -1207,13 +1207,13 @@ const PhotoManagement = () => {
                     />
                   </div>
 
-                <div className="border-t pt-4">
-                  <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    🔒 隐私保护设置
-                    <span className="text-xs text-gray-500">(可选)</span>
-                  </h3>
+                  <div className="border-t pt-4">
+                    <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
+                      🔒 隐私保护设置
+                      <span className="text-xs text-gray-500">(可选)</span>
+                    </h3>
 
-                  <div className="space-y-3">
+                    <div className="space-y-3">
                     <div>
                       <label className="flex items-center gap-2">
                         <input
@@ -1256,23 +1256,23 @@ const PhotoManagement = () => {
                         </p>
                       </div>
                     )}
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    照片文件 <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="file"
-                    name="files"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => setBatchUploadForm({...batchUploadForm, files: Array.from(e.target.files)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                  {batchUploadForm.files && batchUploadForm.files.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      照片文件 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="file"
+                      name="files"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => setBatchUploadForm({...batchUploadForm, files: Array.from(e.target.files)})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                    {batchUploadForm.files && batchUploadForm.files.length > 0 && (
                     <div className="mt-4 space-y-4">
                       <p className="text-sm font-medium text-gray-700">
                         已选择 {batchUploadForm.files.length} 张照片
