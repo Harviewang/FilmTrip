@@ -72,7 +72,8 @@ const PhotoPreview = ({
     imageDimensions.height,
     viewMode,
     showChrome,
-    // chromePadding 作为内部值使用，不加入依赖
+    chromePadding.top,
+    chromePadding.bottom
   ]);
 
   useEffect(() => {
@@ -116,13 +117,9 @@ const PhotoPreview = ({
         bottom = rect.height + offset;
       }
 
-      setChromePadding((prev) => {
-        // 只有值真正变化时才更新，避免无限循环
-        if (prev.top === top && prev.bottom === bottom) {
-          return prev;
-        }
-        return { top, bottom };
-      });
+      if (top !== chromePadding.top || bottom !== chromePadding.bottom) {
+        setChromePadding({ top, bottom });
+      }
     };
 
     measure();
@@ -131,7 +128,7 @@ const PhotoPreview = ({
     return () => {
       window.removeEventListener('resize', measure);
     };
-  }, [showChrome, imageLoaded, viewMode, photo]);
+  }, [showChrome, imageLoaded, viewMode, photo, chromePadding]);
 
   // 控制组件显示动画
   useEffect(() => {
@@ -375,7 +372,6 @@ const PhotoPreview = ({
 
       {/* 照片显示区域 */}
       <div
-        ref={infoRef}
         className="relative flex-1 grid place-items-center"
         style={{
           paddingTop: showChrome ? (() => {
@@ -442,88 +438,102 @@ const PhotoPreview = ({
           }}
         />
 
-        {/* 照片信息区域 - 绝对定位在底部，不会与图片重叠 */}
-        {showChrome && (
-          <div className={`absolute bottom-0 left-0 right-0 transition-all duration-200 ease-out`}>
-            {/* 照片信息 - 添加底边和阴影 */}
-            <div className="bg-white border-t border-gray-200 shadow-lg">
-              <div className="max-w-6xl mx-auto px-6 py-4">
-                {/* 展示字段：评分、胶卷、相机、地点、拍摄时间 */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 text-sm">
-                  {/* 评分 */}
-                  {photo.rating && (
-                    <div className="text-center">
-                      <div className="text-gray-600 font-medium mb-1">评级</div>
-                      <div className="flex items-center justify-center">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <span key={star} className={`${
-                            (photo.rating || 0) >= star ? 'text-yellow-400' : 'text-gray-300'
-                          }`}>★</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+        {/* 照片信息区域 - 固定在底部，居中显示 */}
+        <div ref={infoRef} className={`absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 transition-all duration-200 ease-out ${
+          showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'
+        }`}>
+          <div className="max-w-6xl mx-auto px-6 py-4">
+            {/* 固定显示6个字段：评分、胶卷、相机、地点、拍摄时间、加密状态 */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 text-sm">
+              {/* 1. 评分 */}
+              <div className="text-center">
+                <div className="text-gray-600 font-medium mb-1">评级</div>
+                {photo.rating ? (
+                  <div className="flex items-center justify-center">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span key={star} className={`${
+                        (photo.rating || 0) >= star ? 'text-yellow-400' : 'text-gray-300'
+                      }`}>★</span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-gray-400">-</div>
+                )}
+              </div>
 
-                  {/* 胶卷信息 */}
-                  {(photo.film_roll_brand || photo.film_roll_name) && (
-                    <div className="text-center">
-                      <div className="text-gray-600 font-medium mb-1">胶卷</div>
-                      <div className="text-gray-900">
-                        {photo.film_roll_brand && photo.film_roll_name
-                          ? `${photo.film_roll_brand} ${photo.film_roll_name}`
-                          : photo.film_roll_name || photo.film_roll_brand
-                        }
-                      </div>
-                      {photo.film_roll_iso && (
-                        <div className="text-gray-500 text-xs">ISO {photo.film_roll_iso}</div>
-                      )}
-                    </div>
-                  )}
+              {/* 2. 胶卷 */}
+              <div className="text-center">
+                <div className="text-gray-600 font-medium mb-1">胶卷</div>
+                {(photo.film_roll_brand || photo.film_roll_name) ? (
+                  <div className="text-gray-900">
+                    {photo.film_roll_brand && photo.film_roll_name
+                      ? `${photo.film_roll_brand} ${photo.film_roll_name}`
+                      : photo.film_roll_name || photo.film_roll_brand
+                    }
+                  </div>
+                ) : (
+                  <div className="text-gray-400">-</div>
+                )}
+              </div>
 
-                  {/* 相机 */}
-                  {photo.camera && (
-                    <div className="text-center">
-                      <div className="text-gray-600 font-medium mb-1">相机</div>
-                      <div className="text-gray-900">{photo.camera}</div>
-                    </div>
-                  )}
+              {/* 3. 相机 */}
+              <div className="text-center">
+                <div className="text-gray-600 font-medium mb-1">相机</div>
+                {photo.camera ? (
+                  <div className="text-gray-900">{photo.camera}</div>
+                ) : (
+                  <div className="text-gray-400">-</div>
+                )}
+              </div>
 
-                  {/* 拍摄地点 - 显示完整的5级地址 */}
-                  {(photo.country || photo.province || photo.city || photo.district || photo.township) && (
-                    <div className="text-center">
-                      <div className="text-gray-600 font-medium mb-1">拍摄地点</div>
-                      <div 
-                        className="text-gray-900 cursor-pointer hover:text-blue-600 transition-colors border border-gray-300 rounded-lg px-2 py-1 bg-gray-50 hover:bg-blue-50 hover:border-blue-400"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (photo.latitude && photo.longitude) {
-                            setShowMiniMap(true);
-                          }
-                        }}
-                      >
-                        {[photo.country, photo.province, photo.city, photo.district, photo.township]
-                          .filter(Boolean)
-                          .join('')}
-                      </div>
-                    </div>
-                  )}
+              {/* 4. 地点 */}
+              <div className="text-center">
+                <div className="text-gray-600 font-medium mb-1">拍摄地点</div>
+                {(photo.country || photo.province || photo.city || photo.district || photo.township) ? (
+                  <div 
+                    className="text-gray-900 cursor-pointer hover:text-blue-600 transition-colors border border-gray-300 rounded-lg px-2 py-1 bg-white hover:bg-blue-50 hover:border-blue-400"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (photo.latitude && photo.longitude) {
+                        setShowMiniMap(true);
+                      }
+                    }}
+                  >
+                    {[photo.country, photo.province, photo.city, photo.district, photo.township]
+                      .filter(Boolean)
+                      .join('')}
+                  </div>
+                ) : (
+                  <div className="text-gray-400">-</div>
+                )}
+              </div>
 
-                  {/* 拍摄时间 */}
-                  {photo.date && (
-                    <div className="text-center">
-                      <div className="text-gray-600 font-medium mb-1">拍摄时间</div>
-                      <div className="text-gray-900">{photo.date}</div>
-                    </div>
-                  )}
-                </div>
+              {/* 5. 拍摄时间 */}
+              <div className="text-center">
+                <div className="text-gray-600 font-medium mb-1">拍摄时间</div>
+                {photo.date ? (
+                  <div className="text-gray-900">{photo.date}</div>
+                ) : (
+                  <div className="text-gray-400">-</div>
+                )}
+              </div>
+
+              {/* 6. 加密状态 */}
+              <div className="text-center">
+                <div className="text-gray-600 font-medium mb-1">加密状态</div>
+                {photo.is_protected ? (
+                  <div className="text-red-600">🔒 已加密</div>
+                ) : (
+                  <div className="text-gray-400">未加密</div>
+                )}
               </div>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* 迷你地图弹窗 */}
-        {showMiniMap && photo.latitude && photo.longitude && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {/* 迷你地图弹窗 */}
+      {showMiniMap && photo.latitude && photo.longitude && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -564,6 +574,6 @@ const PhotoPreview = ({
       </div>
     </div>
   );
-  };
+};
 
 export default PhotoPreview;
