@@ -1,14 +1,16 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
+const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongitude }, ref) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const marker = useRef(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     // 如果容器不存在，不初始化地图
@@ -84,12 +86,6 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
             trackUserLocation: false,
             showUserHeading: false
           }), 'top-right');
-          
-          // 隐藏版权标识
-          const copyright = map.current.getContainer().querySelector('.maplibregl-ctrl-attrib');
-          if (copyright) {
-            copyright.style.display = 'none';
-          }
           
           // 如果有初始坐标，添加marker
           if (initialLongitude && initialLatitude) {
@@ -255,28 +251,114 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
     }
   };
 
-  const handleParseLocation = async () => {
+  const handleParseLocation = useCallback(async () => {
     if (selectedLocation) {
       await handleLocationChange(selectedLocation.latitude, selectedLocation.longitude);
     } else {
       alert('请先在地图上选择一个位置');
     }
-  };
+  }, [selectedLocation, handleLocationChange]);
+
+  // 搜索地点
+  const handleSearch = useCallback(async (e) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    
+    if (!searchQuery.trim()) {
+      alert('请输入搜索关键词');
+      return;
+    }
+
+    if (!map.current) {
+      alert('地图尚未初始化');
+      return;
+    }
+
+    setIsSearching(true);
+    setIsLoading(true);
+
+    try {
+      const maptilerKey = import.meta.env.VITE_MAPTILER_KEY;
+      const response = await fetch(
+        `https://api.maptiler.com/geocoding/${encodeURIComponent(searchQuery)}.json?key=${maptilerKey}&language=zh,en`
+      );
+      
+      if (!response.ok) {
+        throw new Error('搜索失败');
+      }
+
+      const data = await response.json();
+      
+      if (data.features && data.features.length > 0) {
+        // 获取第一个结果
+        const feature = data.features[0];
+        const [lng, lat] = feature.geometry.coordinates;
+        
+        // 跳转到搜索结果
+        map.current.flyTo({
+          center: [lng, lat],
+          zoom: 15,
+          duration: 1000
+        });
+        
+        // 更新marker位置
+        if (marker.current) {
+          marker.current.setLngLat([lng, lat]);
+        } else {
+          marker.current = new maplibregl.Marker({
+            draggable: true,
+            color: '#ef4444'
+          })
+            .setLngLat([lng, lat])
+            .addTo(map.current);
+        }
+        
+        // 更新选中位置
+        setSelectedLocation({ latitude: lat, longitude: lng });
+      } else {
+        alert('未找到相关地点');
+      }
+    } catch (error) {
+      console.error('搜索失败:', error);
+      alert('搜索失败，请重试');
+    } finally {
+      setIsSearching(false);
+      setIsLoading(false);
+    }
+  }, [searchQuery]);
+
+  // 暴露解析函数给父组件
+  useImperativeHandle(ref, () => ({
+    parseLocation: handleParseLocation
+  }));
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-gray-700">
-          地图选点
-        </span>
+      {/* 搜索框 */}
+      <div className="mb-2">
         <div className="flex gap-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSearch(e);
+              }
+            }}
+            placeholder="搜索地点（支持中文/英文）"
+            className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            disabled={isSearching}
+          />
           <button
             type="button"
-            onClick={handleParseLocation}
-            disabled={!selectedLocation || isLoading}
-            className="text-sm px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
+            onClick={handleSearch}
+            disabled={isSearching}
+            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
           >
-            解析地址
+            {isSearching ? '搜索中...' : '搜索'}
           </button>
         </div>
       </div>
@@ -284,7 +366,7 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
       <div className="relative">
         <div
           ref={mapContainer}
-          style={{ width: '100%', height: '400px' }}
+          style={{ width: '100%', height: '300px' }}
           className="rounded-lg border border-gray-300"
         />
         {isLoading && (
@@ -307,7 +389,7 @@ const MapPicker = ({ onLocationSelect, initialLatitude, initialLongitude }) => {
       )}
     </div>
   );
-};
+});
 
 export default MapPicker;
 

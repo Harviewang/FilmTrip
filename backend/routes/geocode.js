@@ -3,6 +3,20 @@ const router = express.Router();
 const https = require('https');
 const { translateAddress, getCountryTranslation } = require('./geocode-translations');
 
+// 清理中英文混合文本，提取中文或保留翻译结果
+function cleanBilingualText(text) {
+  if (!text) return text;
+  
+  // 如果包含中文，提取所有中文部分（移除所有英文）
+  const chineseMatch = text.match(/[\u4e00-\u9fa5]+/g);
+  if (chineseMatch) {
+    return chineseMatch.join('');
+  }
+  
+  // 如果不包含中文，尝试移除重复的英文（如 "Hong Kong Hong Kong"）
+  return text.replace(/\b([a-zA-Z\s]+)\s+\1\b/gi, '$1').trim();
+}
+
 // 统一解析MapTiler返回的context
 function parseMapTilerContext(context) {
   let country = '';
@@ -99,8 +113,53 @@ function parseMapTilerContext(context) {
     }
   });
   
-  // 翻译国外地址
+  // 特殊处理：中国地区的港澳台地址（country_code是"cn"但实际是港澳台）
+  if (countryCode && countryCode.toLowerCase() === 'cn') {
+    // 检查原始的text字段是否包含香港、澳门、台湾关键词
+    let isHKMOTW = false;
+    let regionCode = '';
+    
+    context.forEach(item => {
+      const text = (item.text || '').toLowerCase();
+      if (text.includes('hong kong') || text.includes('香港')) {
+        isHKMOTW = true;
+        regionCode = 'hk';
+      } else if (text.includes('macau') || text.includes('macao') || text.includes('澳门')) {
+        isHKMOTW = true;
+        regionCode = 'mo';
+      } else if (text.includes('taiwan') || text.includes('台湾')) {
+        isHKMOTW = true;
+        regionCode = 'tw';
+      }
+    });
+    
+    if (isHKMOTW) {
+      // 清理中英文混合
+      country = cleanBilingualText(country);
+      province = cleanBilingualText(province);
+      city = cleanBilingualText(city);
+      district = cleanBilingualText(district);
+      
+      // 应用地区翻译
+      if (district) {
+        district = translateAddress(regionCode, district, 'district');
+      }
+      if (city) {
+        city = translateAddress(regionCode, city, 'city');
+      }
+    }
+  }
+  
+  // 翻译国外地址和中国特别行政区（香港、澳门、台湾）
   if (countryCode && countryCode.toLowerCase() !== 'cn') {
+    // 清理港澳台地区的中英文混合文本（在翻译之前）
+    if (['hk', 'mo', 'tw'].includes(countryCode.toLowerCase())) {
+      country = cleanBilingualText(country);
+      province = cleanBilingualText(province);
+      city = cleanBilingualText(city);
+      district = cleanBilingualText(district);
+    }
+    
     // 翻译国家名
     const countryTranslated = getCountryTranslation(countryCode.toLowerCase());
     if (countryTranslated) {
@@ -127,7 +186,12 @@ function parseMapTilerContext(context) {
       city = cityTranslations[city] || city;
     }
     
-    // 翻译区/区域（district需要补充到映射表）
+    // 翻译香港、澳门、台湾的城市和区域
+    if (city && ['hk', 'mo', 'tw'].includes(countryCode.toLowerCase())) {
+      city = translateAddress(countryCode, city, 'city');
+    }
+    
+    // 翻译区/区域
     if (district && countryCode.toLowerCase() === 'au') {
       const districtTranslations = {
         'Surry Hills': '萨里山',
@@ -137,6 +201,11 @@ function parseMapTilerContext(context) {
         'Paddington': '帕丁顿'
       };
       district = districtTranslations[district] || district;
+    }
+    
+    // 翻译香港、澳门、台湾的区域
+    if (district && ['hk', 'mo', 'tw'].includes(countryCode.toLowerCase())) {
+      district = translateAddress(countryCode, district, 'district');
     }
   }
   

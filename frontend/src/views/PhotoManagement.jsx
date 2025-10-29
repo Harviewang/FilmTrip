@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   PlusIcon, 
   PencilIcon, 
@@ -77,9 +77,14 @@ const PhotoManagement = () => {
   });
   const [batchFileRotations, setBatchFileRotations] = useState({}); // 批量上传时每个文件的旋转角度 {fileIndex: rotation}
   const [batchFileLocations, setBatchFileLocations] = useState({}); // 批量上传时每个文件的位置信息 {fileIndex: {latitude, longitude, country, province, city, district, township}}
+  const [batchFileTags, setBatchFileTags] = useState({}); // 批量上传时每个文件的标签 {fileIndex: tags}
+  const [batchFileProtection, setBatchFileProtection] = useState({}); // 批量上传时每个文件的隐私保护设置 {fileIndex: {is_protected, protection_level}}
   const [showLocationPicker, setShowLocationPicker] = useState(false); // 控制地图选点弹窗
   const [currentFileIndex, setCurrentFileIndex] = useState(null); // 当前正在选点的文件索引
   const [previewUrl, setPreviewUrl] = useState(null); // 图片预览 URL
+  const mapPickerRef = useRef(null); // MapPicker 组件的 ref
+  const uploadMapPickerRef = useRef(null); // 单张上传的 MapPicker ref
+  const editMapPickerRef = useRef(null); // 编辑表单的 MapPicker ref
 
   // 重置表单的辅助函数
   const resetUploadForm = () => {
@@ -374,7 +379,7 @@ const PhotoManagement = () => {
       formData.append('is_protected', batchUploadForm.is_protected ? '1' : '0');
       formData.append('protection_level', batchUploadForm.protection_level || '');
       
-      // 添加多个文件和对应的旋转角度、位置信息
+      // 添加多个文件和对应的旋转角度、位置信息、标签、隐私保护
       batchUploadForm.files.forEach((file, index) => {
         formData.append('photos', file);
         formData.append(`rotation_${index}`, batchFileRotations[index] || 0);
@@ -390,6 +395,18 @@ const PhotoManagement = () => {
           formData.append(`district_${index}`, location.district || '');
           formData.append(`township_${index}`, location.township || '');
         }
+        
+        // 添加每张照片的标签
+        if (batchFileTags[index]) {
+          formData.append(`tags_${index}`, batchFileTags[index]);
+        }
+        
+        // 添加每张照片的隐私保护设置
+        const protection = batchFileProtection[index] || {};
+        formData.append(`is_protected_${index}`, protection.is_protected ? '1' : '0');
+        if (protection.protection_level) {
+          formData.append(`protection_level_${index}`, protection.protection_level);
+        }
       });
       
       console.log('批量上传FormData文件数量:', batchUploadForm.files.length);
@@ -401,6 +418,8 @@ const PhotoManagement = () => {
       resetBatchUploadForm(); // 重置批量上传表单
       setBatchFileRotations({}); // 清理旋转状态
       setBatchFileLocations({}); // 清理位置信息
+      setBatchFileTags({}); // 清理标签信息
+      setBatchFileProtection({}); // 清理隐私保护信息
       
       console.log('刷新照片列表...');
       await fetchPhotos();
@@ -770,6 +789,7 @@ const PhotoManagement = () => {
                 {/* 地图选点器 */}
                 <div className="border-t pt-4">
                   <MapPicker
+                    ref={uploadMapPickerRef}
                     onLocationSelect={(addressData) => {
       setUploadForm((prev) => ({
         ...prev,
@@ -797,6 +817,21 @@ const PhotoManagement = () => {
                       </div>
                     </div>
                   )}
+                  
+                  {/* 解析地址按钮 - 始终显示 */}
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (uploadMapPickerRef.current && uploadMapPickerRef.current.parseLocation) {
+                          uploadMapPickerRef.current.parseLocation();
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+                    >
+                      解析地址
+                    </button>
+                  </div>
                 </div>
                 
                 <div>
@@ -814,53 +849,34 @@ const PhotoManagement = () => {
                 </div>
 
                 <div className="border-t pt-4">
-                  <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    🔒 隐私保护设置
-                    <span className="text-xs text-gray-500">(可选)</span>
-                  </h3>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          name="is_protected"
-                          checked={uploadForm.is_protected || false}
-                          onChange={(e) => {
-                            console.log('加密选项变化:', e.target.checked);
-                            setUploadForm({...uploadForm, is_protected: e.target.checked});
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">启用隐私保护</span>
-                      </label>
-                      <p className="text-xs text-gray-500 mt-1 ml-6">
-                        启用后普通用户无法查看原图，管理员可正常访问
-                      </p>
-                    </div>
-
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        name="is_protected"
+                        checked={uploadForm.is_protected || false}
+                        onChange={(e) => {
+                          console.log('加密选项变化:', e.target.checked);
+                          setUploadForm({...uploadForm, is_protected: e.target.checked});
+                        }}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-900">🔒 启用隐私保护</span>
+                    </label>
                     {uploadForm.is_protected && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          保护级别
-                        </label>
-                        <select
-                          name="protection_level"
-                          value={uploadForm.protection_level}
-                          onChange={(e) => setUploadForm({...uploadForm, protection_level: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">选择保护级别</option>
-                          <option value="personal">个人隐私</option>
-                          <option value="sensitive">敏感内容</option>
-                          <option value="restricted">严格限制</option>
-                          <option value="portrait">他人肖像权</option>
-                          <option value="other">其他原因</option>
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          选择合适的保护级别，帮助管理员更好地管理内容
-                        </p>
-                      </div>
+                      <select
+                        name="protection_level"
+                        value={uploadForm.protection_level}
+                        onChange={(e) => setUploadForm({...uploadForm, protection_level: e.target.value})}
+                        className="text-sm px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">选择保护级别</option>
+                        <option value="personal">个人隐私</option>
+                        <option value="sensitive">敏感内容</option>
+                        <option value="restricted">严格限制</option>
+                        <option value="portrait">他人肖像权</option>
+                        <option value="other">其他原因</option>
+                      </select>
                     )}
                   </div>
                 </div>
@@ -936,7 +952,7 @@ const PhotoManagement = () => {
           <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 space-y-4">
               <h2 className="text-xl font-bold mb-4">编辑照片</h2>
-              <form onSubmit={handleEdit}>
+              <form id="edit-form" onSubmit={handleEdit}>
                 <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">标题</label>
@@ -986,6 +1002,7 @@ const PhotoManagement = () => {
                 {/* 地图选点器 - 编辑表单 */}
                 <div className="border-t pt-4">
                   <MapPicker
+                    ref={editMapPickerRef}
                     onLocationSelect={(addressData) => {
                       setEditForm({
                         ...editForm,
@@ -1013,6 +1030,21 @@ const PhotoManagement = () => {
                       </div>
                     </div>
                   )}
+                  
+                  {/* 解析地址按钮 - 始终显示 */}
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editMapPickerRef.current && editMapPickerRef.current.parseLocation) {
+                          editMapPickerRef.current.parseLocation();
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+                    >
+                      解析地址
+                    </button>
+                  </div>
                 </div>
                 
                 <div>
@@ -1038,76 +1070,69 @@ const PhotoManagement = () => {
                 </div>
 
                 <div className="border-t pt-4">
-                  <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                    🔒 隐私保护设置
-                  </h3>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={editForm.is_protected}
-                          onChange={(e) => setEditForm({...editForm, is_protected: e.target.checked})}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">启用隐私保护</span>
-                      </label>
-                    </div>
-
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={editForm.is_protected}
+                        onChange={(e) => setEditForm({...editForm, is_protected: e.target.checked})}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-900">🔒 启用隐私保护</span>
+                    </label>
                     {editForm.is_protected && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          保护级别
-                        </label>
-                        <select
-                          value={editForm.protection_level}
-                          onChange={(e) => setEditForm({...editForm, protection_level: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">选择保护级别</option>
-                          <option value="personal">个人隐私</option>
-                          <option value="sensitive">敏感内容</option>
-                          <option value="restricted">严格限制</option>
-                          <option value="portrait">他人肖像权</option>
-                          <option value="other">其他原因</option>
-                        </select>
-                      </div>
+                      <select
+                        value={editForm.protection_level}
+                        onChange={(e) => setEditForm({...editForm, protection_level: e.target.value})}
+                        className="text-sm px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">选择保护级别</option>
+                        <option value="personal">个人隐私</option>
+                        <option value="sensitive">敏感内容</option>
+                        <option value="restricted">严格限制</option>
+                        <option value="portrait">他人肖像权</option>
+                        <option value="other">其他原因</option>
+                      </select>
                     )}
                   </div>
                 </div>
-              </div>
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg"
-                >
-                  保存
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPreviewUrl(null);
-                    setShowEditModal(false);
-                    resetEditForm(); // 重置编辑表单
-                  }}
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
-                >
-                  取消
-                </button>
-              </div>
-            </form>
+                </div>
+              </form>
+            </div>
+            
+            {/* 固定底部按钮 */}
+            <div className="sticky bottom-0 bg-white border-t p-4 flex gap-3">
+              <button
+                type="submit"
+                form="edit-form"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg"
+              >
+                保存
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewUrl(null);
+                  setShowEditModal(false);
+                  resetEditForm(); // 重置编辑表单
+                }}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
+              >
+                取消
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* 批量上传地图选点弹窗 */}
       {showLocationPicker && currentFileIndex !== null && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 space-y-4">
               <h2 className="text-xl font-bold mb-4">为照片 {currentFileIndex + 1} 选择位置</h2>
               <MapPicker
+                ref={mapPickerRef}
                 onLocationSelect={(addressData) => {
                   setBatchFileLocations({
                     ...batchFileLocations,
@@ -1119,14 +1144,40 @@ const PhotoManagement = () => {
                 initialLatitude={batchFileLocations[currentFileIndex]?.latitude || null}
                 initialLongitude={batchFileLocations[currentFileIndex]?.longitude || null}
               />
-              <div className="flex gap-3 mt-4">
+            </div>
+            
+            {/* 固定底部按钮 */}
+            <div className="sticky bottom-0 bg-white border-t p-4">
+              {batchFileLocations[currentFileIndex] && (() => {
+                const loc = batchFileLocations[currentFileIndex];
+                return loc.country || loc.province || loc.city ? (
+                  <div className="mb-3">
+                    <div className="text-xs text-gray-600 mb-1">解析的地址：</div>
+                    <div className="bg-blue-50 px-3 py-1.5 rounded text-sm text-gray-800 truncate">
+                      {loc.country}{loc.province}{loc.city}{loc.district}{loc.township}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (mapPickerRef.current) {
+                      await mapPickerRef.current.parseLocation();
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg whitespace-nowrap"
+                >
+                  解析地址
+                </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowLocationPicker(false);
                     setCurrentFileIndex(null);
                   }}
-                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-lg"
+                  className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg whitespace-nowrap"
                 >
                   取消
                 </button>
@@ -1142,8 +1193,9 @@ const PhotoManagement = () => {
           <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 space-y-4">
               <h2 className="text-xl font-bold mb-4">批量上传照片</h2>
-              <form onSubmit={handleBatchUpload}>
-                <div className="space-y-4">
+              <form id="batch-upload-form" onSubmit={handleBatchUpload}>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       胶卷实例 <span className="text-red-500">*</span>
@@ -1174,7 +1226,7 @@ const PhotoManagement = () => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      相机 <span className="text-gray-500 text-xs">(自动从胶卷实例获取)</span>
+                      相机 <span className="text-gray-500 text-xs">(自动)</span>
                     </label>
                     <input
                       type="text"
@@ -1192,162 +1244,203 @@ const PhotoManagement = () => {
                       readOnly
                     />
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      标签
-                    </label>
-                    <input
-                      type="text"
-                      name="tags"
-                      value={batchUploadForm.tags}
-                      onChange={(e) => setBatchUploadForm({...batchUploadForm, tags: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="用逗号分隔多个标签"
-                    />
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                      🔒 隐私保护设置
-                      <span className="text-xs text-gray-500">(可选)</span>
-                    </h3>
-
-                    <div className="space-y-3">
-                    <div>
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          name="is_protected"
-                          checked={batchUploadForm.is_protected || false}
-                          onChange={(e) => {
-                            console.log('批量上传加密选项变化:', e.target.checked);
-                            setBatchUploadForm({...batchUploadForm, is_protected: e.target.checked});
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">启用隐私保护</span>
-                      </label>
-                      <p className="text-xs text-gray-500 mt-1 ml-6">
-                        启用后普通用户无法查看原图，管理员可正常访问
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    照片文件 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="file"
+                    name="files"
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => setBatchUploadForm({...batchUploadForm, files: Array.from(e.target.files)})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                  {batchUploadForm.files && batchUploadForm.files.length > 0 && (
+                    <div className="mt-4 space-y-4">
+                      <p className="text-sm font-medium text-gray-700">
+                        已选择 {batchUploadForm.files.length} 张照片
                       </p>
-                    </div>
-
-                    {batchUploadForm.is_protected && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          保护级别
-                        </label>
-                        <select
-                          name="protection_level"
-                          value={batchUploadForm.protection_level}
-                          onChange={(e) => setBatchUploadForm({...batchUploadForm, protection_level: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="">选择保护级别</option>
-                          <option value="personal">个人隐私</option>
-                          <option value="sensitive">敏感内容</option>
-                          <option value="restricted">严格限制</option>
-                          <option value="portrait">他人肖像权</option>
-                          <option value="other">其他原因</option>
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          选择合适的保护级别，帮助管理员更好地管理内容
-                        </p>
-                      </div>
-                    )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      照片文件 <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="file"
-                      name="files"
-                      multiple
-                      accept="image/*"
-                      onChange={(e) => setBatchUploadForm({...batchUploadForm, files: Array.from(e.target.files)})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      required
-                    />
-                    {batchUploadForm.files && batchUploadForm.files.length > 0 && (
-                      <div className="mt-4 space-y-4">
-                        <p className="text-sm font-medium text-gray-700">
-                          已选择 {batchUploadForm.files.length} 张照片
-                        </p>
-                        <div className="max-h-96 overflow-y-auto space-y-2 border p-3 rounded-lg">
-                          {batchUploadForm.files.map((file, index) => {
-                            const location = batchFileLocations[index];
-                            return (
-                              <div key={index} className="border rounded p-2 bg-gray-50">
-                                <div className="grid grid-cols-3 gap-2 items-start">
-                                  {/* 文件名和位置按钮 */}
-                                  <div className="flex-1">
-                                    <p className="text-xs text-gray-700 mb-1 truncate">
-                                      {file.name || `照片 ${index + 1}`}
-                                    </p>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setCurrentFileIndex(index);
-                                        setShowLocationPicker(true);
-                                      }}
-                                      className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded"
-                                    >
-                                      选择位置
-                                    </button>
-                                    {location && (
-                                      <div className="text-xs text-gray-600 bg-blue-50 p-1 rounded mt-1 line-clamp-2">
-                                        {location.country}{location.province}{location.city}{location.district}{location.township}
+                      <div className="max-h-96 overflow-y-auto space-y-3 border p-3 rounded-lg">
+                        {batchUploadForm.files.map((file, index) => {
+                          const location = batchFileLocations[index];
+                          return (
+                            <div key={index} className="border rounded bg-gray-50 overflow-hidden">
+                              <div className="flex items-start gap-3 p-2">
+                                <div className="flex-shrink-0">
+                                  <div className="bg-gray-50 rounded-lg">
+                                    {/* 图片预览 */}
+                                    <div className="flex justify-center bg-white rounded p-1">
+                                      <div 
+                                        className="relative flex items-center justify-center" 
+                                        style={{ 
+                                          width: '100px', 
+                                          height: '100px',
+                                          overflow: 'hidden'
+                                        }}
+                                      >
+                                        <img
+                                          src={URL.createObjectURL(file)}
+                                          alt="预览"
+                                          style={{
+                                            transform: `rotate(${batchFileRotations[index] || 0}deg)`,
+                                            transition: 'transform 0.3s ease',
+                                            maxWidth: (batchFileRotations[index] || 0) % 180 === 0 ? '100%' : '100px',
+                                            maxHeight: (batchFileRotations[index] || 0) % 180 === 0 ? '100px' : '100%',
+                                            objectFit: 'contain'
+                                          }}
+                                        />
                                       </div>
-                                    )}
+                                    </div>
                                   </div>
-                                  {/* 旋转控件 */}
-                                  <div className="col-span-2">
-                                    <ImageRotateControl
-                                      previewUrl={URL.createObjectURL(file)}
-                                      rotation={batchFileRotations[index] || 0}
-                                      onRotationChange={(newRotation) => {
-                                        setBatchFileRotations({
-                                          ...batchFileRotations,
-                                          [index]: newRotation
-                                        });
-                                      }}
-                                      fileName=""
+                                </div>
+                                <div className="flex-1 flex flex-col gap-2 min-w-0">
+                                  {/* 数据区域 - 数据和按钮在同一行 */}
+                                  <div className="space-y-1">
+                                    <div className="text-xs font-medium text-gray-700 truncate">
+                                      {file.name || `照片 ${index + 1}`}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-500">
+                                        角度：{batchFileRotations[index] || 0}°
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newRotation = ((batchFileRotations[index] || 0) - 90 + 360) % 360;
+                                          setBatchFileRotations({
+                                            ...batchFileRotations,
+                                            [index]: newRotation
+                                          });
+                                        }}
+                                        className="text-xs px-1 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
+                                        title="逆时针旋转90°"
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newRotation = ((batchFileRotations[index] || 0) + 90) % 360;
+                                          setBatchFileRotations({
+                                            ...batchFileRotations,
+                                            [index]: newRotation
+                                          });
+                                        }}
+                                        className="text-xs px-1 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
+                                        title="顺时针旋转90°"
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {location ? (
+                                        <span className="flex-1 text-xs text-gray-600 bg-blue-50 px-2 py-0.5 rounded truncate">
+                                          {location.country}{location.province}{location.city}{location.district}{location.township}
+                                        </span>
+                                      ) : (
+                                        <span className="flex-1 text-xs text-gray-400">未设置位置</span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCurrentFileIndex(index);
+                                          setShowLocationPicker(true);
+                                        }}
+                                        className="text-xs px-2 py-0.5 bg-blue-500 hover:bg-blue-600 text-white rounded whitespace-nowrap"
+                                      >
+                                        📍
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* 标签和隐私保护 */}
+                                  <div className="space-y-1 mt-2">
+                                    <input
+                                      type="text"
+                                      placeholder="标签（逗号分隔）"
+                                      value={batchFileTags[index] || ''}
+                                      onChange={(e) => setBatchFileTags({
+                                        ...batchFileTags,
+                                        [index]: e.target.value
+                                      })}
+                                      className="w-full text-xs px-2 py-0.5 border border-gray-300 rounded"
                                     />
+                                    <div className="flex items-center gap-2">
+                                      <label className="flex items-center gap-1">
+                                        <input
+                                          type="checkbox"
+                                          checked={batchFileProtection[index]?.is_protected || false}
+                                          onChange={(e) => setBatchFileProtection({
+                                            ...batchFileProtection,
+                                            [index]: {...batchFileProtection[index], is_protected: e.target.checked}
+                                          })}
+                                          className="w-3 h-3 rounded border-gray-300 text-blue-600"
+                                        />
+                                        <span className="text-xs text-gray-700">🔒</span>
+                                      </label>
+                                      {batchFileProtection[index]?.is_protected && (
+                                        <select
+                                          value={batchFileProtection[index]?.protection_level || ''}
+                                          onChange={(e) => setBatchFileProtection({
+                                            ...batchFileProtection,
+                                            [index]: {...batchFileProtection[index], protection_level: e.target.value}
+                                          })}
+                                          className="flex-1 text-xs px-1 py-0.5 border border-gray-300 rounded"
+                                        >
+                                          <option value="">级别</option>
+                                          <option value="personal">个人</option>
+                                          <option value="sensitive">敏感</option>
+                                          <option value="restricted">限制</option>
+                                          <option value="portrait">肖像</option>
+                                          <option value="other">其他</option>
+                                        </select>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
-                <div className="flex gap-3 mt-6">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg"
-                  >
-                    批量上传
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBatchUploadModal(false);
-                      resetBatchUploadForm(); // 重置批量上传表单
-                      setBatchFileRotations({});
-                      setBatchFileLocations({}); // 清理位置信息
-                    }}
-                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
-                  >
-                    取消
-                  </button>
-                </div>
-              </form>
+              </div>
+            </form>
+            </div>
+            
+            {/* 固定底部按钮 */}
+            <div className="sticky bottom-0 bg-white border-t p-4 flex gap-3">
+              <button
+                type="submit"
+                form="batch-upload-form"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg"
+              >
+                批量上传
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBatchUploadModal(false);
+                  resetBatchUploadForm(); // 重置批量上传表单
+                  setBatchFileRotations({});
+                  setBatchFileLocations({});
+                  setBatchFileTags({});
+                  setBatchFileProtection({});
+                }}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
+              >
+                取消
+              </button>
             </div>
           </div>
         </div>
@@ -1478,7 +1571,6 @@ const PhotoManagement = () => {
           </div>
         </div>
       )}
-    </div>
     </div>
   );
 };

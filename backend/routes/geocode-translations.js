@@ -45,7 +45,67 @@ const translations = {
     'ae': '阿联酋',
     'nz': '新西兰',
     'ie': '爱尔兰',
-    'cn': '中国'
+    'cn': '中国',
+    'hk': '中国香港',
+    'mo': '中国澳门',
+    'tw': '中国台湾'
+  },
+  
+  // 香港地区翻译
+  hkRegions: {
+    'Hong Kong Island': '香港岛',
+    'Kowloon': '九龙',
+    'New Territories': '新界',
+    'Central and Western District': '中西区',
+    'Wan Chai District': '湾仔区',
+    'Eastern District': '东区',
+    'Southern District': '南区',
+    'Yau Tsim Mong District': '油尖旺区',
+    'Sham Shui Po District': '深水埗区',
+    'Kowloon City District': '九龙城区',
+    'Wong Tai Sin District': '黄大仙区',
+    'Kwun Tong District': '观塘区',
+    'Kwai Tsing District': '葵青区',
+    'Tsuen Wan District': '荃湾区',
+    'Tuen Mun District': '屯门区',
+    'Yuen Long District': '元朗区',
+    'North District': '北区',
+    'Tai Po District': '大埔区',
+    'Sha Tin District': '沙田区',
+    'Sai Kung District': '西贡区',
+    'Islands District': '离岛区'
+  },
+  
+  // 澳门地区翻译
+  moRegions: {
+    'Macau Peninsula': '澳门半岛',
+    'Taipa': '氹仔',
+    'Coloane': '路环',
+    'Cotai': '路氹'
+  },
+  
+  // 台湾地区翻译
+  twRegions: {
+    'Taipei City': '台北市',
+    'New Taipei City': '新北市',
+    'Taoyuan City': '桃园市',
+    'Taichung City': '台中市',
+    'Tainan City': '台南市',
+    'Kaohsiung City': '高雄市',
+    'Hsinchu County': '新竹县',
+    'Miaoli County': '苗栗县',
+    'Changhua County': '彰化县',
+    'Nantou County': '南投县',
+    'Yunlin County': '云林县',
+    'Chiayi County': '嘉义县',
+    'Pingtung County': '屏东县',
+    'Yilan County': '宜兰县',
+    'Hualien County': '花莲县',
+    'Taitung County': '台东县',
+    'Penghu County': '澎湖县',
+    'Keelung City': '基隆市',
+    'Hsinchu City': '新竹市',
+    'Chiayi City': '嘉义市'
   },
   
   // 美国州翻译
@@ -145,6 +205,21 @@ function getAUStateTranslation(stateName) {
   return translations.auStates[stateName] || stateName;
 }
 
+// 获取香港地区中文名
+function getHKRegionTranslation(regionName) {
+  return translations.hkRegions[regionName] || regionName;
+}
+
+// 获取澳门地区中文名
+function getMORegionTranslation(regionName) {
+  return translations.moRegions[regionName] || regionName;
+}
+
+// 获取台湾地区中文名
+function getTWRegionTranslation(regionName) {
+  return translations.twRegions[regionName] || regionName;
+}
+
 // 根据国家代码和地区名获取翻译
 function translateAddress(countryCode, regionName, level) {
   if (!countryCode || !regionName) return regionName;
@@ -167,6 +242,12 @@ function translateAddress(countryCode, regionName, level) {
       return getJPRegionTranslation(regionName);
     case 'au':
       return getAUStateTranslation(cleanName);
+    case 'hk':
+      return getHKRegionTranslation(regionName);
+    case 'mo':
+      return getMORegionTranslation(regionName);
+    case 'tw':
+      return getTWRegionTranslation(regionName);
     default:
       return regionName;
   }
@@ -179,6 +260,9 @@ module.exports = {
   getUKRegionTranslation,
   getJPRegionTranslation,
   getAUStateTranslation,
+  getHKRegionTranslation,
+  getMORegionTranslation,
+  getTWRegionTranslation,
   translations
 };
 
