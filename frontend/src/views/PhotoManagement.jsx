@@ -1143,76 +1143,69 @@ const PhotoManagement = () => {
             <div className="p-6 space-y-4">
               <h2 className="text-xl font-bold mb-4">批量上传照片</h2>
               <form onSubmit={handleBatchUpload}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    胶卷实例 <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="film_roll_id"
-                    value={batchUploadForm.film_roll_id}
-                    onChange={(e) => {
-                      const selectedRollId = e.target.value;
-                      const selectedRoll = filmRolls.find(roll => roll.id === selectedRollId);
-                      setBatchUploadForm({
-                        ...batchUploadForm,
-                        film_roll_id: selectedRollId,
-                        camera_id: selectedRoll?.camera_id || ''
-                      });
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">选择胶卷实例</option>
-                    {Array.isArray(filmRolls) && filmRolls.map(roll => (
-                      <option key={roll.id} value={roll.id}>
-                        {roll.roll_number} - {roll.name} {roll.camera_id ? `(${roll.camera_name || '已选相机'})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      胶卷实例 <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="film_roll_id"
+                      value={batchUploadForm.film_roll_id}
+                      onChange={(e) => {
+                        const selectedRollId = e.target.value;
+                        const selectedRoll = filmRolls.find(roll => roll.id === selectedRollId);
+                        setBatchUploadForm({
+                          ...batchUploadForm,
+                          film_roll_id: selectedRollId,
+                          camera_id: selectedRoll?.camera_id || ''
+                        });
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">选择胶卷实例</option>
+                      {Array.isArray(filmRolls) && filmRolls.map(roll => (
+                        <option key={roll.id} value={roll.id}>
+                          {roll.roll_number} - {roll.name} {roll.camera_id ? `(${roll.camera_name || '已选相机'})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    相机 <span className="text-gray-500 text-xs">(自动从胶卷实例获取)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={(() => {
-                      if (!batchUploadForm.film_roll_id) return '';
-                      const selectedRoll = filmRolls.find(roll => roll.id === batchUploadForm.film_roll_id);
-                      if (selectedRoll?.camera_id) {
-                        const camera = cameras.find(c => c.id === selectedRoll.camera_id);
-                        return camera ? `${camera.brand} ${camera.model}` : '未知相机';
-                      }
-                      return '未选择相机';
-                    })()}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-                    disabled
-                    readOnly
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      相机 <span className="text-gray-500 text-xs">(自动从胶卷实例获取)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={(() => {
+                        if (!batchUploadForm.film_roll_id) return '';
+                        const selectedRoll = filmRolls.find(roll => roll.id === batchUploadForm.film_roll_id);
+                        if (selectedRoll?.camera_id) {
+                          const camera = cameras.find(c => c.id === selectedRoll.camera_id);
+                          return camera ? `${camera.brand} ${camera.model}` : '未知相机';
+                        }
+                        return '未选择相机';
+                      })()}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                      disabled
+                      readOnly
+                    />
+                  </div>
 
--                <div>
--                  <label className="block text-sm font-medium text-gray-700 mb-1">
--                    拍摄地点
--                  </label>
--                  <p className="text-sm text-gray-500">批量上传暂不支持自动选点，建议上传后在照片详情中补录。</p>
--                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    标签
-                  </label>
-                  <input
-                    type="text"
-                    name="tags"
-                    value={batchUploadForm.tags}
-                    onChange={(e) => setBatchUploadForm({...batchUploadForm, tags: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="用逗号分隔多个标签"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      标签
+                    </label>
+                    <input
+                      type="text"
+                      name="tags"
+                      value={batchUploadForm.tags}
+                      onChange={(e) => setBatchUploadForm({...batchUploadForm, tags: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="用逗号分隔多个标签"
+                    />
+                  </div>
 
                 <div className="border-t pt-4">
                   <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
@@ -1354,7 +1347,8 @@ const PhotoManagement = () => {
                   取消
                 </button>
               </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}
