@@ -248,6 +248,84 @@ const MapLibre = () => {
     }
   };
 
+  // 清除地图瓦片缓存
+  const clearMapTileCache = async () => {
+    try {
+      console.log('🗑️ 开始清除地图缓存...');
+      
+      // 1. 清除 Service Worker 缓存（如果有）
+      if ('serviceWorker' in navigator && 'caches' in window) {
+        try {
+          const cacheNames = await caches.keys();
+          const mapTileCaches = cacheNames.filter(name => 
+            name.includes('map') || name.includes('tile') || name.includes('maptiler')
+          );
+          
+          await Promise.all(
+            mapTileCaches.map(name => {
+              console.log(`清除 Service Worker 缓存: ${name}`);
+              return caches.delete(name);
+            })
+          );
+          console.log('✅ Service Worker 缓存已清除');
+        } catch (e) {
+          console.log('⚠️ Service Worker 缓存清除失败（可能不存在）:', e);
+        }
+      }
+      
+      // 2. 清除 IndexedDB 缓存（MapLibre/Mapbox 内部缓存）
+      if ('indexedDB' in window) {
+        try {
+          // MapLibre GL 可能使用的数据库名称
+          const dbNames = ['mapbox-tiles', 'maplibre-tiles'];
+          await Promise.all(
+            dbNames.map(dbName => {
+              return new Promise((resolve, reject) => {
+                const deleteReq = indexedDB.deleteDatabase(dbName);
+                deleteReq.onsuccess = () => {
+                  console.log(`✅ 已清除 IndexedDB: ${dbName}`);
+                  resolve();
+                };
+                deleteReq.onerror = () => {
+                  console.log(`⚠️ IndexedDB ${dbName} 不存在或清除失败`);
+                  resolve(); // 不存在也不算错误
+                };
+              });
+            })
+          );
+        } catch (e) {
+          console.log('⚠️ IndexedDB 操作失败:', e);
+        }
+      }
+      
+      // 3. 清除 localStorage 中的地图相关缓存
+      try {
+        const keys = Object.keys(localStorage);
+        keys.forEach(key => {
+          if (key.includes('map') || key.includes('tile') || key.includes('maptiler')) {
+            localStorage.removeItem(key);
+            console.log(`✅ 已清除 localStorage: ${key}`);
+          }
+        });
+      } catch (e) {
+        console.log('⚠️ localStorage 清除失败:', e);
+      }
+      
+      // 4. 重新加载地图样式（强制重新请求瓦片）
+      if (mapInstanceRef.current && mapInstanceRef.current.loaded()) {
+        const currentStyle = mapInstanceRef.current.getStyle();
+        mapInstanceRef.current.setStyle(currentStyle);
+        console.log('✅ 地图样式已重新加载，将强制重新获取瓦片');
+      }
+      
+      alert('✅ 地图缓存已清除！页面将刷新以应用更改。\n\n注意：HTTP缓存需要通过硬刷新清除（Ctrl+Shift+R 或 Cmd+Shift+R）');
+      window.location.reload();
+    } catch (error) {
+      console.error('❌ 清除地图缓存失败:', error);
+      alert('清除缓存时出错，请手动清除浏览器缓存');
+    }
+  };
+
   // 获取用户位置
   const getUserLocation = () => {
     if (!navigator.geolocation) {
@@ -328,6 +406,22 @@ const MapLibre = () => {
       }
     }
   };
+
+  // 键盘快捷键：Shift+R 清除地图缓存
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Shift+R: 清除地图缓存
+      if (e.shiftKey && e.key === 'R') {
+        e.preventDefault();
+        if (confirm('确定要清除地图缓存吗？这将清除所有瓦片缓存并刷新页面。')) {
+          clearMapTileCache();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 初始化地图
   useEffect(() => {
