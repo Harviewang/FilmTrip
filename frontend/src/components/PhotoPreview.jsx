@@ -486,7 +486,7 @@ const PhotoPreview = ({
                 <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">拍摄地点</div>
                 {(photo.country || photo.province || photo.city || photo.district || photo.township) ? (
                   <div 
-                    className="text-gray-900 cursor-pointer hover:text-blue-600 transition-colors border border-gray-300 rounded-lg px-2 py-1 bg-white hover:bg-blue-50 hover:border-blue-400"
+                    className="text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                       if (photo.latitude && photo.longitude) {
