@@ -472,8 +472,8 @@
 
 /* 新的简单点样式 */
 .photo-dot {
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   background: #1976d2;
   border: 2px solid white;
   border-radius: 50%;
