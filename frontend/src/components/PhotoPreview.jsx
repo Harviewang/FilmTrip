@@ -464,10 +464,8 @@ const PhotoPreview = ({
               {/* 2. 胶卷 */}
               <div className="text-center">
                 <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">胶卷</div>
-                {(photo.film || photo.film_roll_name || photo.film_roll_brand) ? (
-                  <div className="text-gray-900">
-                    {photo.film || photo.film_roll_name || photo.film_roll_brand}
-                  </div>
+                {photo.film ? (
+                  <div className="text-gray-900">{photo.film}</div>
                 ) : (
                   <div className="text-gray-400">-</div>
                 )}

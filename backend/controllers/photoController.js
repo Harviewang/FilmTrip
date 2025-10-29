@@ -188,7 +188,8 @@ const getAllPhotos = async (req, res) => {
       size2048: photo.size2048,
       filename: photo.filename,
       camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
-      film: photo.film_roll_name_display || photo.film_roll_number || '无',
+      // 优先显示胶卷规格（品牌+系列+ISO），其次显示实例名称
+      film: (photo.film_roll_brand && photo.film_roll_series ? `${photo.film_roll_brand} ${photo.film_roll_series}${photo.film_roll_iso ? ` ${photo.film_roll_iso}` : ''}` : null) || photo.film_roll_name_display || photo.film_roll_number || '无',
       date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
       rating: photo.rating || 0,
       location_name: photo.location_name,
@@ -220,8 +221,9 @@ const getAllPhotos = async (req, res) => {
       iso: photo.iso,
       camera_model: photo.camera_model,
       lens_model: photo.lens_model,
-      // 新增：胶卷品牌和名称
+      // 新增：胶卷品牌、系列和名称
       film_roll_brand: photo.film_roll_brand,
+      film_roll_series: photo.film_roll_series,
       film_roll_name: photo.film_roll_name_display,
       // 保留原始数据用于调试
       _raw: photo
@@ -613,7 +615,8 @@ const getPhotoById = (req, res) => {
       size2048: photo.size2048,
       filename: photo.filename,
       camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
-      film: photo.film_roll_name_display || photo.film_roll_number || '无',
+      // 优先显示胶卷规格（品牌+系列+ISO），其次显示实例名称
+      film: (photo.film_roll_brand && photo.film_roll_series ? `${photo.film_roll_brand} ${photo.film_roll_series}${photo.film_roll_iso ? ` ${photo.film_roll_iso}` : ''}` : null) || photo.film_roll_name_display || photo.film_roll_number || '无',
       date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
       rating: photo.rating || 0,
       location_name: photo.location_name,
@@ -1217,6 +1220,7 @@ const getRandomPhotos = (req, res) => {
         fr.is_protected AS roll_is_protected,
         fr.protection_level AS roll_protection_level,
         fs.brand AS film_roll_brand,
+        fs.series AS film_roll_series,
         fs.iso AS film_roll_iso,
         fs.type AS film_roll_type
       FROM photos p
@@ -1291,7 +1295,8 @@ const getRandomPhotos = (req, res) => {
       size2048: photo.size2048,
       filename: photo.filename,
       camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
-      film: photo.film_roll_name_display || photo.film_roll_number || '无',
+      // 优先显示胶卷规格（品牌+系列+ISO），其次显示实例名称
+      film: (photo.film_roll_brand && photo.film_roll_series ? `${photo.film_roll_brand} ${photo.film_roll_series}${photo.film_roll_iso ? ` ${photo.film_roll_iso}` : ''}` : null) || photo.film_roll_name_display || photo.film_roll_number || '无',
       date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
       rating: photo.rating || 0,
       location_name: photo.location_name,
