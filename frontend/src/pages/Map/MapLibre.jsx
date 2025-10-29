@@ -219,31 +219,30 @@ const MapLibre = () => {
       }
       
       const mappedPhotos = allPhotos.map((photo, index) => ({
-            id: photo.id || `photo-${index}`,
-            title: photo.title || photo.filename || '无标题',
-            description: photo.description || '',
-            thumbnail: photo.thumbnail || photo.original,
-            original: photo.original,
-            size1024: photo.size1024,
-            size2048: photo.size2048,
-            camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
-            film: photo.film || (photo.film_roll_name || photo.film_roll_number || '无'),
-            date: photo.date || (photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期')),
-            latitude: photo.latitude,
-            longitude: photo.longitude,
-            location_name: photo.location_name,
-            country: photo.country,
-            province: photo.province,
-            city: photo.city,
-            district: photo.district,
-            township: photo.township,
-            effective_protection: photo.effective_protection,
-            // 保留原始数据用于调试
-            _raw: photo
-          }));
-        
-        setPhotos(mappedPhotos);
-      }
+        id: photo.id || `photo-${index}`,
+        title: photo.title || photo.filename || '无标题',
+        description: photo.description || '',
+        thumbnail: photo.thumbnail || photo.original,
+        original: photo.original,
+        size1024: photo.size1024,
+        size2048: photo.size2048,
+        camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
+        film: photo.film || (photo.film_roll_name || photo.film_roll_number || '无'),
+        date: photo.date || (photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期')),
+        latitude: photo.latitude,
+        longitude: photo.longitude,
+        location_name: photo.location_name,
+        country: photo.country,
+        province: photo.province,
+        city: photo.city,
+        district: photo.district,
+        township: photo.township,
+        effective_protection: photo.effective_protection,
+        // 保留原始数据用于调试
+        _raw: photo
+      }));
+      
+      setPhotos(mappedPhotos);
     } catch (error) {
       console.error('获取地图照片出错:', error);
     }
