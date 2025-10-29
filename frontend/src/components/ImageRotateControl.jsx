@@ -31,8 +31,8 @@ const ImageRotateControl = ({ previewUrl, rotation = 0, onRotationChange, fileNa
         <div 
           className="relative flex items-center justify-center" 
           style={{ 
-            width: '200px', 
-            height: '200px',
+            width: '100px', 
+            height: '100px',
             overflow: 'hidden'
           }}
         >
@@ -42,8 +42,8 @@ const ImageRotateControl = ({ previewUrl, rotation = 0, onRotationChange, fileNa
             style={{
               transform: `rotate(${rotation}deg)`,
               transition: 'transform 0.3s ease',
-              maxWidth: rotation % 180 === 0 ? '100%' : '200px',
-              maxHeight: rotation % 180 === 0 ? '200px' : '100%',
+              maxWidth: rotation % 180 === 0 ? '100%' : '100px',
+              maxHeight: rotation % 180 === 0 ? '100px' : '100%',
               objectFit: 'contain'
             }}
           />
