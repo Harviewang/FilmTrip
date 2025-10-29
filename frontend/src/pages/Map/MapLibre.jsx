@@ -422,10 +422,8 @@ const MapLibre = () => {
               const markerElement = marker.getElement();
               markerElement.addEventListener('click', (e) => {
                 e.stopPropagation(); // 阻止事件冒泡到地图
-                // 只有当图片路径存在时才打开预览
-                if (photo.size2048 || photo.size1024 || photo.original || photo.thumbnail) {
-                  setSelectedPhoto(photo);
-                }
+                setSelectedPhoto(photo);
+                // 让PhotoPreview组件自己处理图片路径不可用的情况
               });
             }
           });
@@ -466,10 +464,8 @@ const MapLibre = () => {
         const markerElement = marker.getElement();
         markerElement.addEventListener('click', (e) => {
           e.stopPropagation(); // 阻止事件冒泡到地图
-          // 只有当图片路径存在时才打开预览
-          if (photo.size2048 || photo.size1024 || photo.original || photo.thumbnail) {
-            setSelectedPhoto(photo);
-          }
+          setSelectedPhoto(photo);
+          // 让PhotoPreview组件自己处理图片路径不可用的情况
         });
 
         markersRef.current.push(marker);
