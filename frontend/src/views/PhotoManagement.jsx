@@ -76,6 +76,9 @@ const PhotoManagement = () => {
     files: []
   });
   const [batchFileRotations, setBatchFileRotations] = useState({}); // 批量上传时每个文件的旋转角度 {fileIndex: rotation}
+  const [batchFileLocations, setBatchFileLocations] = useState({}); // 批量上传时每个文件的位置信息 {fileIndex: {latitude, longitude, country, province, city, district, township}}
+  const [showLocationPicker, setShowLocationPicker] = useState(false); // 控制地图选点弹窗
+  const [currentFileIndex, setCurrentFileIndex] = useState(null); // 当前正在选点的文件索引
   const [previewUrl, setPreviewUrl] = useState(null); // 图片预览 URL
 
   // 重置表单的辅助函数
@@ -371,10 +374,22 @@ const PhotoManagement = () => {
       formData.append('is_protected', batchUploadForm.is_protected ? '1' : '0');
       formData.append('protection_level', batchUploadForm.protection_level || '');
       
-      // 添加多个文件和对应的旋转角度
+      // 添加多个文件和对应的旋转角度、位置信息
       batchUploadForm.files.forEach((file, index) => {
         formData.append('photos', file);
         formData.append(`rotation_${index}`, batchFileRotations[index] || 0);
+        
+        // 添加每张照片的位置信息
+        const location = batchFileLocations[index] || {};
+        if (location.latitude && location.longitude) {
+          formData.append(`latitude_${index}`, location.latitude);
+          formData.append(`longitude_${index}`, location.longitude);
+          formData.append(`country_${index}`, location.country || '');
+          formData.append(`province_${index}`, location.province || '');
+          formData.append(`city_${index}`, location.city || '');
+          formData.append(`district_${index}`, location.district || '');
+          formData.append(`township_${index}`, location.township || '');
+        }
       });
       
       console.log('批量上传FormData文件数量:', batchUploadForm.files.length);
@@ -385,6 +400,7 @@ const PhotoManagement = () => {
       setShowBatchUploadModal(false);
       resetBatchUploadForm(); // 重置批量上传表单
       setBatchFileRotations({}); // 清理旋转状态
+      setBatchFileLocations({}); // 清理位置信息
       
       console.log('刷新照片列表...');
       await fetchPhotos();
@@ -1084,6 +1100,41 @@ const PhotoManagement = () => {
         </div>
       )}
 
+      {/* 批量上传地图选点弹窗 */}
+      {showLocationPicker && currentFileIndex !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 space-y-4">
+              <h2 className="text-xl font-bold mb-4">为照片 {currentFileIndex + 1} 选择位置</h2>
+              <MapPicker
+                onLocationSelect={(addressData) => {
+                  setBatchFileLocations({
+                    ...batchFileLocations,
+                    [currentFileIndex]: addressData
+                  });
+                  setShowLocationPicker(false);
+                  setCurrentFileIndex(null);
+                }}
+                initialLatitude={batchFileLocations[currentFileIndex]?.latitude || null}
+                initialLongitude={batchFileLocations[currentFileIndex]?.longitude || null}
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLocationPicker(false);
+                    setCurrentFileIndex(null);
+                  }}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-lg"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 批量上传照片模态框 */}
       {showBatchUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1227,25 +1278,51 @@ const PhotoManagement = () => {
                     required
                   />
                   {batchUploadForm.files && batchUploadForm.files.length > 0 && (
-                    <div className="mt-4">
-                      <p className="text-sm font-medium text-gray-700 mb-3">
-                        已选择 {batchUploadForm.files.length} 张照片，请逐个调整方向:
+                    <div className="mt-4 space-y-4">
+                      <p className="text-sm font-medium text-gray-700">
+                        已选择 {batchUploadForm.files.length} 张照片
                       </p>
-                      <div className="grid grid-cols-2 gap-4 max-h-96 overflow-y-auto">
-                        {batchUploadForm.files.map((file, index) => (
-                          <ImageRotateControl
-                            key={index}
-                            previewUrl={URL.createObjectURL(file)}
-                            rotation={batchFileRotations[index] || 0}
-                            onRotationChange={(newRotation) => {
-                              setBatchFileRotations({
-                                ...batchFileRotations,
-                                [index]: newRotation
-                              });
-                            }}
-                            fileName={file.name}
-                          />
-                        ))}
+                      <div className="max-h-96 overflow-y-auto space-y-3 border p-3 rounded-lg">
+                        {batchUploadForm.files.map((file, index) => {
+                          const location = batchFileLocations[index];
+                          return (
+                            <div key={index} className="border rounded p-2 bg-gray-50">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm text-gray-700">
+                                  {file.name || `照片 ${index + 1}`}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCurrentFileIndex(index);
+                                    setShowLocationPicker(true);
+                                  }}
+                                  className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded"
+                                >
+                                  选择位置
+                                </button>
+                              </div>
+                              {location && (
+                                <div className="text-xs text-gray-600 bg-blue-50 p-1 rounded">
+                                  已选：{location.country}{location.province}{location.city}{location.district}{location.township}
+                                </div>
+                              )}
+                              <div className="mt-2">
+                                <ImageRotateControl
+                                  previewUrl={URL.createObjectURL(file)}
+                                  rotation={batchFileRotations[index] || 0}
+                                  onRotationChange={(newRotation) => {
+                                    setBatchFileRotations({
+                                      ...batchFileRotations,
+                                      [index]: newRotation
+                                    });
+                                  }}
+                                  fileName={file.name}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -1264,6 +1341,7 @@ const PhotoManagement = () => {
                     setShowBatchUploadModal(false);
                     resetBatchUploadForm(); // 重置批量上传表单
                     setBatchFileRotations({});
+                    setBatchFileLocations({}); // 清理位置信息
                   }}
                   className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
                 >
