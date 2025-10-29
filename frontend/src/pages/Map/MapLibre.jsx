@@ -463,6 +463,7 @@ const MapLibre = () => {
         const markerElement = marker.getElement();
         markerElement.addEventListener('click', (e) => {
           e.stopPropagation(); // 阻止事件冒泡到地图
+          console.log('点击了地图标记:', photo.id, photo);
           setSelectedPhoto(photo);
           // 移除自动flyTo，避免干扰图片预览加载
           // 如果用户想查看位置，可以在预览中点击位置信息打开迷你地图
