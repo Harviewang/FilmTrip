@@ -163,6 +163,10 @@ const Gallery = () => {
           country: photo.country,
           province: photo.province,
           city: photo.city,
+          district: photo.district,
+          township: photo.township,
+          latitude: photo.latitude,
+          longitude: photo.longitude,
           categories: photo.categories,
           trip_name: photo.trip_name,
           trip_start_date: photo.trip_start_date,
@@ -607,6 +611,12 @@ const Gallery = () => {
                 threshold: 0.05
               }}
             />
+            {/* 缺少定位信息的照片标记 */}
+            {(!photo.latitude || !photo.longitude) && (
+              <div className="pointer-events-none absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded" title="由于该图片缺少定位，已被收监">
+                🏛️ 关塔那摩
+              </div>
+            )}
           </div>
         </div>
       );
@@ -668,6 +678,12 @@ const Gallery = () => {
           {!isProtectedForViewer && effectiveProtection && (
             <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">
               🔒
+            </div>
+          )}
+          {/* 缺少定位信息的照片标记 */}
+          {(!photo.latitude || !photo.longitude) && (
+            <div className="absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded" title="由于该图片缺少定位，已被收监">
+              🏛️ 关塔那摩
             </div>
           )}
         </div>
@@ -1000,6 +1016,12 @@ const Gallery = () => {
                                 )}
                                 {!isProtectedForViewer && effectiveProtection && (
                                   <div className="pointer-events-none absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">🔒</div>
+                                )}
+                                {/* 缺少定位信息的照片标记 */}
+                                {(!photo.latitude || !photo.longitude) && (
+                                  <div className="pointer-events-none absolute top-2 right-2 bg-red-600 text-white text-xs px-2 py-1 rounded" title="由于该图片缺少定位，已被收监">
+                                    🏛️ 关塔那摩
+                                  </div>
                                 )}
                               </div>
                             </div>

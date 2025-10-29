@@ -486,17 +486,33 @@ const PhotoPreview = ({
                 <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">拍摄地点</div>
                 {(photo.country || photo.province || photo.city || photo.district || photo.township) ? (
                   <div 
-                    className="text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
+                    className={`text-gray-900 transition-colors flex items-center justify-center gap-1 ${
+                      photo.latitude && photo.longitude 
+                        ? 'cursor-pointer hover:text-blue-600 underline decoration-dotted underline-offset-2' 
+                        : 'cursor-default'
+                    }`}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (photo.latitude && photo.longitude) {
                         setShowMiniMap(true);
+                      } else {
+                        // 显示提示信息
+                        alert('由于该图片缺少定位信息，无法显示地图预览。\n\n提示：请在管理后台为该照片添加拍摄地点坐标。');
                       }
                     }}
+                    title={photo.latitude && photo.longitude ? '点击查看地图' : '缺少定位信息'}
                   >
-                    {[photo.country, photo.province, photo.city, photo.district, photo.township]
-                      .filter(Boolean)
-                      .join('')}
+                    {photo.latitude && photo.longitude && (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    )}
+                    <span>
+                      {[photo.country, photo.province, photo.city, photo.district, photo.township]
+                        .filter(Boolean)
+                        .join('')}
+                    </span>
                   </div>
                 ) : (
                   <div className="text-gray-400">-</div>
