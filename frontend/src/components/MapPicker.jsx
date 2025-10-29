@@ -20,8 +20,28 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
       return;
     }
 
+    // 检查容器是否有尺寸（Modal中可能初始为0）
+    const containerRect = mapContainer.current.getBoundingClientRect();
+    if (containerRect.width === 0 || containerRect.height === 0) {
+      console.log('MapContainer has no dimensions, waiting...');
+      // 等待Modal完全打开后再初始化（延迟100ms确保DOM已渲染）
+      const timer = setTimeout(() => {
+        if (mapContainer.current && !map.current) {
+          const rect = mapContainer.current.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            initializeMap();
+          }
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+
     // 初始化地图
     if (!map.current) {
+      initializeMap();
+    }
+
+    function initializeMap() {
       const maptilerKey = import.meta.env.VITE_MAPTILER_KEY;
       
       if (!maptilerKey) {
@@ -71,6 +91,11 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
         // 等待地图加载
         map.current.once('load', () => {
           console.log('MapPicker loaded successfully');
+          
+          // 关键修复：如果是在Modal中，需要调用resize确保地图正确渲染
+          if (map.current) {
+            map.current.resize();
+          }
           
           // 添加导航控件（禁用旋转）
           const nav = new maplibregl.NavigationControl({
@@ -144,7 +169,19 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
       }
     }
 
+    // 监听容器尺寸变化（Modal打开后容器尺寸会变化）
+    const resizeObserver = new ResizeObserver(() => {
+      if (map.current && map.current.loaded()) {
+        map.current.resize();
+      }
+    });
+
+    if (mapContainer.current) {
+      resizeObserver.observe(mapContainer.current);
+    }
+
     return () => {
+      resizeObserver.disconnect();
       // 清理函数
       if (map.current) {
         try {
@@ -161,7 +198,7 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
         }
       }
     };
-    }, [initialLatitude, initialLongitude, readOnly]);
+    }, [initialLatitude, initialLongitude, readOnly, initialZoom]);
 
   const handleLocationChange = useCallback(async (lat, lng) => {
     setIsLoading(true);
