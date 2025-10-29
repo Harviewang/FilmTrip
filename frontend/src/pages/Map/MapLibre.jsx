@@ -354,13 +354,9 @@ const MapLibre = () => {
         map.resize();
         // 获取照片数据（样式加载完成后就可以开始获取了）
         fetchMapPhotos();
-      });
-
-      // 监听idle事件：所有瓦片加载完成，地图完全就绪
-      // 这比'load'事件更准确，因为'load'只表示样式加载，瓦片可能还在加载中
-      map.once('idle', () => {
-        console.log('Map fully loaded (all tiles ready)');
         // 隐藏loading状态
+        // 矢量地图的渲染机制：样式加载后地图就可以交互，瓦片会渐进式加载
+        // 这与PNG栅格地图不同，不需要等待所有瓦片
         setLoading(false);
       });
 
