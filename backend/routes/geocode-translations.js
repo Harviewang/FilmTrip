@@ -329,17 +329,34 @@ function translateAddress(countryCode, regionName, level) {
     .replace(/ County$/, '')
     .trim();
   
-  switch (countryCode.toLowerCase()) {
+  const country = countryCode.toLowerCase();
+  
+  // 根据level判断使用城市翻译还是地区翻译
+  if (level === 'city' || level === 'City') {
+    switch (country) {
+      case 'jp':
+        return getJapanCityTranslation(regionName);
+      case 'th':
+        return getThailandCityTranslation(regionName);
+      case 'ph':
+        return getPhilippinesCityTranslation(regionName);
+      case 'sg':
+        return getSingaporeRegionTranslation(regionName);
+      case 'kr':
+        return getKoreaCityTranslation(regionName);
+      default:
+        return regionName;
+    }
+  }
+  
+  // 省份/州级别的翻译
+  switch (country) {
     case 'us':
       return getUSStateTranslation(cleanName);
     case 'gb':
     case 'uk':
       return getUKRegionTranslation(cleanName);
     case 'jp':
-      // 根据level选择城市或省份翻译
-      if (level === 'city') {
-        return getJapanCityTranslation(cleanName) || getJPRegionTranslation(regionName);
-      }
       return getJPRegionTranslation(regionName);
     case 'au':
       return getAUStateTranslation(cleanName);
@@ -350,13 +367,13 @@ function translateAddress(countryCode, regionName, level) {
     case 'tw':
       return getTWRegionTranslation(regionName);
     case 'th':
-      return getThailandCityTranslation(regionName) || regionName;
+      return getThailandCityTranslation(regionName);
     case 'ph':
-      return getPhilippinesCityTranslation(regionName) || regionName;
+      return getPhilippinesCityTranslation(regionName);
     case 'sg':
-      return getSingaporeRegionTranslation(regionName) || regionName;
+      return getSingaporeRegionTranslation(regionName);
     case 'kr':
-      return getKoreaCityTranslation(regionName) || regionName;
+      return getKoreaCityTranslation(regionName);
     default:
       return regionName;
   }
