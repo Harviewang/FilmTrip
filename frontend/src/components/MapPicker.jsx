@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, f
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongitude }, ref) => {
+const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongitude, readOnly = false }, ref) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const marker = useRef(null);
@@ -90,42 +90,46 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
           // 如果有初始坐标，添加marker
           if (initialLongitude && initialLatitude) {
             marker.current = new maplibregl.Marker({
-              draggable: true,
+              draggable: !readOnly,  // 只读模式下不可拖动
               color: '#ef4444'
             })
               .setLngLat([initialLongitude, initialLatitude])
               .addTo(map.current);
 
-            marker.current.on('dragend', () => {
-              const lngLat = marker.current.getLngLat();
-              setSelectedLocation({ latitude: lngLat.lat, longitude: lngLat.lng });
-            });
-          }
-
-          // 添加点击事件（只更新marker，不自动解析）
-          const handleMapClick = async (e) => {
-            const { lng, lat } = e.lngLat;
-            // 只更新marker位置，不自动解析
-            if (marker.current) {
-              marker.current.setLngLat([lng, lat]);
-            } else {
-              marker.current = new maplibregl.Marker({
-                draggable: true,
-                color: '#ef4444'
-              })
-                .setLngLat([lng, lat])
-                .addTo(map.current);
-              
+            if (!readOnly) {
               marker.current.on('dragend', () => {
                 const lngLat = marker.current.getLngLat();
                 setSelectedLocation({ latitude: lngLat.lat, longitude: lngLat.lng });
               });
             }
+          }
+
+          // 只有在非只读模式才添加点击事件
+          if (!readOnly) {
+            const handleMapClick = async (e) => {
+              const { lng, lat } = e.lngLat;
+              // 只更新marker位置，不自动解析
+              if (marker.current) {
+                marker.current.setLngLat([lng, lat]);
+              } else {
+                marker.current = new maplibregl.Marker({
+                  draggable: true,
+                  color: '#ef4444'
+                })
+                  .setLngLat([lng, lat])
+                  .addTo(map.current);
+                
+                marker.current.on('dragend', () => {
+                  const lngLat = marker.current.getLngLat();
+                  setSelectedLocation({ latitude: lngLat.lat, longitude: lngLat.lng });
+                });
+              }
+              
+              setSelectedLocation({ latitude: lat, longitude: lng });
+            };
             
-            setSelectedLocation({ latitude: lat, longitude: lng });
-          };
-          
-          map.current.on('click', handleMapClick);
+            map.current.on('click', handleMapClick);
+          }
         });
       } catch (err) {
         console.error('Failed to initialize map:', err);
@@ -150,7 +154,7 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
         }
       }
     };
-  }, [initialLatitude, initialLongitude]);
+    }, [initialLatitude, initialLongitude, readOnly]);
 
   const handleLocationChange = useCallback(async (lat, lng) => {
     setIsLoading(true);
@@ -335,7 +339,8 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
 
   return (
     <div className="w-full">
-      {/* 搜索框 */}
+      {/* 搜索框 - 只读模式下隐藏 */}
+      {!readOnly && (
       <div className="mb-2">
         <div className="flex gap-2">
           <input
@@ -362,6 +367,7 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
           </button>
         </div>
       </div>
+      )}
       
       <div className="relative">
         <div

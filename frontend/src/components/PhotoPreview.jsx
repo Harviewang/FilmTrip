@@ -556,10 +556,11 @@ const PhotoPreview = ({
                   )}
                 </div>
                 
-                {/* 迷你地图 - 使用 MapPicker，但为只读模式 */}
+                {/* 迷你地图 - 使用 MapPicker，只读显示模式 */}
                 <MapPicker
                   initialLatitude={photo.latitude}
                   initialLongitude={photo.longitude}
+                  readOnly={true}
                   onLocationSelect={() => {}} // 预览模式下不允许修改
                 />
               </div>
