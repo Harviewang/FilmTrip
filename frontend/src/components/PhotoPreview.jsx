@@ -523,6 +523,47 @@ const PhotoPreview = ({
                 )}
               </div>
             </div>
+
+            {/* 第二行：EXIF信息、分类标签、行程信息 */}
+            {(photo.aperture || photo.shutter_speed || photo.iso || photo.categories || photo.trip_name) && (
+              <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                {/* EXIF信息 */}
+                {(photo.aperture || photo.shutter_speed || photo.iso) && (
+                  <div>
+                    <div className="text-gray-400 mb-1">EXIF</div>
+                    <div className="text-gray-900 space-y-1">
+                      {photo.aperture && <div>光圈: f/{photo.aperture}</div>}
+                      {photo.shutter_speed && <div>快门: {photo.shutter_speed}s</div>}
+                      {photo.iso && <div>ISO: {photo.iso}</div>}
+                      {photo.focal_length && <div>焦距: {photo.focal_length}mm</div>}
+                    </div>
+                  </div>
+                )}
+
+                {/* 分类标签 */}
+                {photo.categories && photo.categories.length > 0 && (
+                  <div>
+                    <div className="text-gray-400 mb-1">分类</div>
+                    <div className="text-gray-900">
+                      {Array.isArray(photo.categories) ? photo.categories.join(', ') : photo.categories}
+                    </div>
+                  </div>
+                )}
+
+                {/* 行程信息 */}
+                {photo.trip_name && (
+                  <div>
+                    <div className="text-gray-400 mb-1">行程</div>
+                    <div className="text-gray-900">{photo.trip_name}</div>
+                    {photo.trip_start_date && photo.trip_end_date && (
+                      <div className="text-gray-600 mt-1">
+                        {photo.trip_start_date} - {photo.trip_end_date}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

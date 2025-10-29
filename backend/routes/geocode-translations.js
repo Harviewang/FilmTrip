@@ -336,6 +336,10 @@ function translateAddress(countryCode, regionName, level) {
     case 'uk':
       return getUKRegionTranslation(cleanName);
     case 'jp':
+      // 根据level选择城市或省份翻译
+      if (level === 'city') {
+        return getJapanCityTranslation(cleanName) || getJPRegionTranslation(regionName);
+      }
       return getJPRegionTranslation(regionName);
     case 'au':
       return getAUStateTranslation(cleanName);
@@ -346,13 +350,13 @@ function translateAddress(countryCode, regionName, level) {
     case 'tw':
       return getTWRegionTranslation(regionName);
     case 'th':
-      return getThailandCityTranslation(regionName);
+      return getThailandCityTranslation(regionName) || regionName;
     case 'ph':
-      return getPhilippinesCityTranslation(regionName);
+      return getPhilippinesCityTranslation(regionName) || regionName;
     case 'sg':
-      return getSingaporeRegionTranslation(regionName);
+      return getSingaporeRegionTranslation(regionName) || regionName;
     case 'kr':
-      return getKoreaCityTranslation(regionName);
+      return getKoreaCityTranslation(regionName) || regionName;
     default:
       return regionName;
   }
