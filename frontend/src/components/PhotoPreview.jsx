@@ -402,9 +402,28 @@ const PhotoPreview = ({
           </div>
         )}
         
-        <img
-          src={photo.size2048 ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${stableVRef.current}` : (photo.size1024 ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${stableVRef.current}` : (photo.original ? `${API_CONFIG.BASE_URL}${photo.original}?v=${stableVRef.current}` : (photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${stableVRef.current}` : '')))}
-          alt={photo.title || '照片'}
+        {(() => {
+          const imageSrc = photo.size2048 ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${stableVRef.current}` 
+            : (photo.size1024 ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${stableVRef.current}` 
+            : (photo.original ? `${API_CONFIG.BASE_URL}${photo.original}?v=${stableVRef.current}` 
+            : (photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${stableVRef.current}` 
+            : null)));
+          
+          if (!imageSrc) {
+            return (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <p className="text-lg mb-2">⚠️</p>
+                  <p>图片路径不可用</p>
+                </div>
+              </div>
+            );
+          }
+          
+          return (
+            <img
+              src={imageSrc}
+              alt={photo.title || '照片'}
           className={`transition-all duration-400 ease-out ${
             imageLoaded ? 'opacity-100' : 'opacity-0'
           }`}
@@ -436,7 +455,9 @@ const PhotoPreview = ({
             e.target.style.display = 'none';
             setImageLoaded(true);
           }}
-        />
+            />
+          );
+        })()}
 
         {/* 照片信息区域 - 固定在底部，居中显示 */}
         <div ref={infoRef} className={`absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 transition-all duration-200 ease-out ${
