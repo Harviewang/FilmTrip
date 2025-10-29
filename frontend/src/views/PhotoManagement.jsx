@@ -1273,80 +1273,80 @@ const PhotoManagement = () => {
                       required
                     />
                     {batchUploadForm.files && batchUploadForm.files.length > 0 && (
-                    <div className="mt-4 space-y-4">
-                      <p className="text-sm font-medium text-gray-700">
-                        已选择 {batchUploadForm.files.length} 张照片
-                      </p>
-                      <div className="max-h-96 overflow-y-auto space-y-2 border p-3 rounded-lg">
-                        {batchUploadForm.files.map((file, index) => {
-                          const location = batchFileLocations[index];
-                          return (
-                            <div key={index} className="border rounded p-2 bg-gray-50">
-                              <div className="grid grid-cols-3 gap-2 items-start">
-                                {/* 文件名和位置按钮 */}
-                                <div className="flex-1">
-                                  <p className="text-xs text-gray-700 mb-1 truncate">
-                                    {file.name || `照片 ${index + 1}`}
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setCurrentFileIndex(index);
-                                      setShowLocationPicker(true);
-                                    }}
-                                    className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded"
-                                  >
-                                    选择位置
-                                  </button>
-                                  {location && (
-                                    <div className="text-xs text-gray-600 bg-blue-50 p-1 rounded mt-1 line-clamp-2">
-                                      {location.country}{location.province}{location.city}{location.district}{location.township}
-                                    </div>
-                                  )}
-                                </div>
-                                {/* 旋转控件 */}
-                                <div className="col-span-2">
-                                  <ImageRotateControl
-                                    previewUrl={URL.createObjectURL(file)}
-                                    rotation={batchFileRotations[index] || 0}
-                                    onRotationChange={(newRotation) => {
-                                      setBatchFileRotations({
-                                        ...batchFileRotations,
-                                        [index]: newRotation
-                                      });
-                                    }}
-                                    fileName=""
-                                  />
+                      <div className="mt-4 space-y-4">
+                        <p className="text-sm font-medium text-gray-700">
+                          已选择 {batchUploadForm.files.length} 张照片
+                        </p>
+                        <div className="max-h-96 overflow-y-auto space-y-2 border p-3 rounded-lg">
+                          {batchUploadForm.files.map((file, index) => {
+                            const location = batchFileLocations[index];
+                            return (
+                              <div key={index} className="border rounded p-2 bg-gray-50">
+                                <div className="grid grid-cols-3 gap-2 items-start">
+                                  {/* 文件名和位置按钮 */}
+                                  <div className="flex-1">
+                                    <p className="text-xs text-gray-700 mb-1 truncate">
+                                      {file.name || `照片 ${index + 1}`}
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setCurrentFileIndex(index);
+                                        setShowLocationPicker(true);
+                                      }}
+                                      className="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded"
+                                    >
+                                      选择位置
+                                    </button>
+                                    {location && (
+                                      <div className="text-xs text-gray-600 bg-blue-50 p-1 rounded mt-1 line-clamp-2">
+                                        {location.country}{location.province}{location.city}{location.district}{location.township}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* 旋转控件 */}
+                                  <div className="col-span-2">
+                                    <ImageRotateControl
+                                      previewUrl={URL.createObjectURL(file)}
+                                      rotation={batchFileRotations[index] || 0}
+                                      onRotationChange={(newRotation) => {
+                                        setBatchFileRotations({
+                                          ...batchFileRotations,
+                                          [index]: newRotation
+                                        });
+                                      }}
+                                      fileName=""
+                                    />
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="submit"
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg"
-                >
-                  批量上传
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowBatchUploadModal(false);
-                    resetBatchUploadForm(); // 重置批量上传表单
-                    setBatchFileRotations({});
-                    setBatchFileLocations({}); // 清理位置信息
-                  }}
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
-                >
-                  取消
-                </button>
-              </div>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg"
+                  >
+                    批量上传
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBatchUploadModal(false);
+                      resetBatchUploadForm(); // 重置批量上传表单
+                      setBatchFileRotations({});
+                      setBatchFileLocations({}); // 清理位置信息
+                    }}
+                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-lg"
+                  >
+                    取消
+                  </button>
+                </div>
               </form>
             </div>
           </div>
