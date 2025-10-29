@@ -401,11 +401,14 @@ const MapLibre = () => {
               const el = document.createElement('div');
               el.className = 'map-photo-marker';
               el.innerHTML = '<div class="photo-dot"></div>';
-              const marker = new maplibregl.Marker(el)
+              const marker = new maplibregl.Marker({
+                element: el,
+                anchor: 'center'
+              })
                 .setLngLat([photo.longitude, photo.latitude])
                 .addTo(mapInstanceRef.current);
               markersRef.current.push(marker);
-              marker.getElement().addEventListener('click', () => {
+              el.addEventListener('click', () => {
                 setSelectedPhoto(photo);
               });
             }
@@ -433,7 +436,10 @@ const MapLibre = () => {
         }
         el.innerHTML = '<div class="photo-dot"></div>';
 
-        const marker = new maplibregl.Marker(el)
+        const marker = new maplibregl.Marker({
+          element: el,
+          anchor: 'center'
+        })
           .setLngLat([photo.longitude, photo.latitude])
           .addTo(mapInstanceRef.current);
 
