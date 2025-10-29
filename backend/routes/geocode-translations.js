@@ -177,6 +177,78 @@ const translations = {
     'Tasmania': '塔斯马尼亚州',
     'Northern Territory': '北领地',
     'Australian Capital Territory': '澳大利亚首都领地'
+  },
+  
+  // 日本主要城市翻译
+  japanCities: {
+    'Tokyo': '东京',
+    'Osaka': '大阪',
+    'Kyoto': '京都',
+    'Yokohama': '横滨',
+    'Sapporo': '札幌',
+    'Fukuoka': '福冈',
+    'Nagoya': '名古屋',
+    'Hiroshima': '广岛',
+    'Sendai': '仙台',
+    'Nara': '奈良',
+    'Kamakura': '镰仓',
+    'Nikko': '日光',
+    'Hakone': '箱根',
+    'Kobe': '神户',
+    'Nagasaki': '长崎',
+    'Okinawa': '冲绳'
+  },
+  
+  // 泰国主要城市翻译
+  thailandCities: {
+    'Bangkok': '曼谷',
+    'Chiang Mai': '清迈',
+    'Phuket': '普吉岛',
+    'Pattaya': '芭堤雅',
+    'Ayutthaya': '大城',
+    'Sukhothai': '素可泰',
+    'Kanchanaburi': '北碧',
+    'Hua Hin': '华欣',
+    'Chiang Rai': '清莱',
+    'Krabi': '甲米'
+  },
+  
+  // 菲律宾主要城市翻译
+  philippinesCities: {
+    'Manila': '马尼拉',
+    'Cebu': '宿务',
+    'Boracay': '长滩岛',
+    'Davao': '达沃',
+    'Palawan': '巴拉望',
+    'Boracay': '长滩岛',
+    'Bohol': '薄荷岛',
+    'Siargao': '锡亚尔高',
+    'Coron': '科隆',
+    'El Nido': '爱妮岛'
+  },
+  
+  // 新加坡行政区翻译
+  singaporeRegions: {
+    'Singapore': '新加坡',
+    'Central Region': '中央区',
+    'East Region': '东区',
+    'North Region': '北区',
+    'North-East Region': '东北区',
+    'West Region': '西区'
+  },
+  
+  // 韩国主要城市翻译
+  koreaCities: {
+    'Seoul': '首尔',
+    'Busan': '釜山',
+    'Jeju': '济州岛',
+    'Incheon': '仁川',
+    'Daegu': '大邱',
+    'Gwangju': '光州',
+    'Daejeon': '大田',
+    'Ulsan': '蔚山',
+    'Suwon': '水原',
+    'Gyeongju': '庆州'
   }
 };
 
@@ -220,6 +292,31 @@ function getTWRegionTranslation(regionName) {
   return translations.twRegions[regionName] || regionName;
 }
 
+// 获取日本城市中文名
+function getJapanCityTranslation(cityName) {
+  return translations.japanCities[cityName] || cityName;
+}
+
+// 获取泰国城市中文名
+function getThailandCityTranslation(cityName) {
+  return translations.thailandCities[cityName] || cityName;
+}
+
+// 获取菲律宾城市中文名
+function getPhilippinesCityTranslation(cityName) {
+  return translations.philippinesCities[cityName] || cityName;
+}
+
+// 获取新加坡地区中文名
+function getSingaporeRegionTranslation(regionName) {
+  return translations.singaporeRegions[regionName] || regionName;
+}
+
+// 获取韩国城市中文名
+function getKoreaCityTranslation(cityName) {
+  return translations.koreaCities[cityName] || cityName;
+}
+
 // 根据国家代码和地区名获取翻译
 function translateAddress(countryCode, regionName, level) {
   if (!countryCode || !regionName) return regionName;
@@ -248,6 +345,14 @@ function translateAddress(countryCode, regionName, level) {
       return getMORegionTranslation(regionName);
     case 'tw':
       return getTWRegionTranslation(regionName);
+    case 'th':
+      return getThailandCityTranslation(regionName);
+    case 'ph':
+      return getPhilippinesCityTranslation(regionName);
+    case 'sg':
+      return getSingaporeRegionTranslation(regionName);
+    case 'kr':
+      return getKoreaCityTranslation(regionName);
     default:
       return regionName;
   }
@@ -263,6 +368,11 @@ module.exports = {
   getHKRegionTranslation,
   getMORegionTranslation,
   getTWRegionTranslation,
+  getJapanCityTranslation,
+  getThailandCityTranslation,
+  getPhilippinesCityTranslation,
+  getSingaporeRegionTranslation,
+  getKoreaCityTranslation,
   translations
 };
 

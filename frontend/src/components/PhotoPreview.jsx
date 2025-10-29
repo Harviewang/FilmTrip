@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import API_CONFIG from '../config/api';
 import { getFittedSize } from '../utils/imageFit.js';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, ShareIcon, LinkIcon, ArrowUturnRightIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
+import MapPicker from './MapPicker';
 
 /**
  * 全局通用照片预览组件
@@ -35,6 +36,8 @@ const PhotoPreview = ({
   const showChrome = viewMode === 'standard' && uiVisible;
   // 使用稳定时间戳避免每次渲染都破坏缓存
   const stableVRef = useRef(Date.now());
+  // 迷你地图弹窗状态
+  const [showMiniMap, setShowMiniMap] = useState(false);
 
   // 计算适配尺寸
   const recomputeFittedSize = useCallback(() => {
@@ -69,8 +72,7 @@ const PhotoPreview = ({
     imageDimensions.height,
     viewMode,
     showChrome,
-    chromePadding.top,
-    chromePadding.bottom
+    // chromePadding 作为内部值使用，不加入依赖
   ]);
 
   useEffect(() => {
@@ -114,9 +116,13 @@ const PhotoPreview = ({
         bottom = rect.height + offset;
       }
 
-      if (top !== chromePadding.top || bottom !== chromePadding.bottom) {
-        setChromePadding({ top, bottom });
-      }
+      setChromePadding((prev) => {
+        // 只有值真正变化时才更新，避免无限循环
+        if (prev.top === top && prev.bottom === bottom) {
+          return prev;
+        }
+        return { top, bottom };
+      });
     };
 
     measure();
@@ -125,7 +131,7 @@ const PhotoPreview = ({
     return () => {
       window.removeEventListener('resize', measure);
     };
-  }, [showChrome, imageLoaded, viewMode, photo, chromePadding]);
+  }, [showChrome, imageLoaded, viewMode, photo]);
 
   // 控制组件显示动画
   useEffect(() => {
@@ -369,6 +375,7 @@ const PhotoPreview = ({
 
       {/* 照片显示区域 */}
       <div
+        ref={infoRef}
         className="relative flex-1 grid place-items-center"
         style={{
           paddingTop: showChrome ? (() => {
@@ -436,175 +443,127 @@ const PhotoPreview = ({
         />
 
         {/* 照片信息区域 - 绝对定位在底部，不会与图片重叠 */}
-        <div ref={infoRef} className={`absolute bottom-4 left-0 right-0 flex justify-center transition-all duration-200 ease-out ${
-          showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
-        }`}>
-            {/* 照片信息 - 上下布局，参考 camarts.cn 设计 */}
-            <div className="max-w-6xl w-full px-4">
-              {/* 第一行：基本信息 */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 text-sm mb-4">
-                {/* 评分 */}
-                {photo.rating && (
-                  <div className="text-center">
-                    <div className="text-gray-600 font-medium mb-1">评级</div>
-                    <div className="flex items-center justify-center">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <span key={star} className={`${
-                          (photo.rating || 0) >= star ? 'text-yellow-400' : 'text-gray-300'
-                        }`}>★</span>
-                      ))}
+        {showChrome && (
+          <div className={`absolute bottom-0 left-0 right-0 transition-all duration-200 ease-out`}>
+            {/* 照片信息 - 添加底边和阴影 */}
+            <div className="bg-white border-t border-gray-200 shadow-lg">
+              <div className="max-w-6xl mx-auto px-6 py-4">
+                {/* 展示字段：评分、胶卷、相机、地点、拍摄时间 */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 text-sm">
+                  {/* 评分 */}
+                  {photo.rating && (
+                    <div className="text-center">
+                      <div className="text-gray-600 font-medium mb-1">评级</div>
+                      <div className="flex items-center justify-center">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <span key={star} className={`${
+                            (photo.rating || 0) >= star ? 'text-yellow-400' : 'text-gray-300'
+                          }`}>★</span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* 拍摄时间 */}
-                {photo.date && (
-                  <div className="text-center">
-                    <div className="text-gray-600 font-medium mb-1">拍摄时间</div>
-                    <div className="text-gray-900">{photo.date}</div>
-                  </div>
-                )}
-
-                {/* 拍摄地点 - 显示完整的5级地址 */}
-                {(photo.country || photo.province || photo.city || photo.district || photo.township) && (
-                  <div className="text-center">
-                    <div className="text-gray-600 font-medium mb-1">拍摄地点</div>
-                    <div className="text-gray-900">
-                      {[photo.country, photo.province, photo.city, photo.district, photo.township]
-                        .filter(Boolean)
-                        .join('')}
+                  {/* 胶卷信息 */}
+                  {(photo.film_roll_brand || photo.film_roll_name) && (
+                    <div className="text-center">
+                      <div className="text-gray-600 font-medium mb-1">胶卷</div>
+                      <div className="text-gray-900">
+                        {photo.film_roll_brand && photo.film_roll_name
+                          ? `${photo.film_roll_brand} ${photo.film_roll_name}`
+                          : photo.film_roll_name || photo.film_roll_brand
+                        }
+                      </div>
+                      {photo.film_roll_iso && (
+                        <div className="text-gray-500 text-xs">ISO {photo.film_roll_iso}</div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* 胶卷信息 */}
-                {(photo.film_roll_brand || photo.film_roll_name) && (
-                  <div className="text-center">
-                    <div className="text-gray-600 font-medium mb-1">胶卷</div>
-                    <div className="text-gray-900">
-                      {photo.film_roll_brand && photo.film_roll_name
-                        ? `${photo.film_roll_brand} ${photo.film_roll_name}`
-                        : photo.film_roll_name || photo.film_roll_brand
-                      }
+                  {/* 相机 */}
+                  {photo.camera && (
+                    <div className="text-center">
+                      <div className="text-gray-600 font-medium mb-1">相机</div>
+                      <div className="text-gray-900">{photo.camera}</div>
                     </div>
-                    {photo.film_roll_iso && (
-                      <div className="text-gray-500 text-xs">ISO {photo.film_roll_iso}</div>
-                    )}
-                  </div>
-                )}
+                  )}
 
-                {/* 胶卷编号 */}
-                {photo.photo_serial_number && (
-                  <div className="text-center">
-                    <div className="text-gray-600 font-medium mb-1">编号</div>
-                    <div className="text-gray-900 text-xs">{photo.photo_serial_number}</div>
-                  </div>
-                )}
-
-                {/* 相机 */}
-                {photo.camera && (
-                  <div className="text-center">
-                    <div className="text-gray-600 font-medium mb-1">相机</div>
-                    <div className="text-gray-900">{photo.camera}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* 第二行：增强元数据信息 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                {/* 地理信息 */}
-                {(photo.country || photo.province || photo.city || photo.district || photo.township) && (
-                  <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 shadow-sm border">
-                    <div className="text-gray-600 font-medium mb-2 flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      地理信息
-                    </div>
-                    <div className="text-xs">
-                      <div className="text-gray-900 font-medium">
+                  {/* 拍摄地点 - 显示完整的5级地址 */}
+                  {(photo.country || photo.province || photo.city || photo.district || photo.township) && (
+                    <div className="text-center">
+                      <div className="text-gray-600 font-medium mb-1">拍摄地点</div>
+                      <div 
+                        className="text-gray-900 cursor-pointer hover:text-blue-600 transition-colors border border-gray-300 rounded-lg px-2 py-1 bg-gray-50 hover:bg-blue-50 hover:border-blue-400"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (photo.latitude && photo.longitude) {
+                            setShowMiniMap(true);
+                          }
+                        }}
+                      >
                         {[photo.country, photo.province, photo.city, photo.district, photo.township]
                           .filter(Boolean)
                           .join('')}
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* 拍摄参数 */}
-                {(photo.aperture || photo.shutter_speed || photo.focal_length || photo.iso || photo.camera_model || photo.lens_model) && (
-                  <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 shadow-sm border">
-                    <div className="text-gray-600 font-medium mb-2 flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0017.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      拍摄参数
+                  {/* 拍摄时间 */}
+                  {photo.date && (
+                    <div className="text-center">
+                      <div className="text-gray-600 font-medium mb-1">拍摄时间</div>
+                      <div className="text-gray-900">{photo.date}</div>
                     </div>
-                    <div className="grid grid-cols-2 gap-1 text-xs">
-                      {photo.aperture && <div>光圈: {photo.aperture}</div>}
-                      {photo.shutter_speed && <div>快门: {photo.shutter_speed}</div>}
-                      {photo.focal_length && <div>焦距: {photo.focal_length}</div>}
-                      {photo.iso && <div>ISO: {photo.iso}</div>}
-                      {photo.camera_model && <div className="col-span-2">机型: {photo.camera_model}</div>}
-                      {photo.lens_model && <div className="col-span-2">镜头: {photo.lens_model}</div>}
-                    </div>
-                  </div>
-                )}
-
-                {/* 分类标签 */}
-                {photo.categories && (() => {
-                  try {
-                    const categories = JSON.parse(photo.categories);
-                    return categories && categories.length > 0 && (
-                      <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 shadow-sm border">
-                        <div className="text-gray-600 font-medium mb-2 flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                          </svg>
-                          分类标签
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {categories.map((category, index) => (
-                            <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                              {category}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  } catch (e) {
-                    return null;
-                  }
-                })()}
-
-                {/* 行程信息 */}
-                {photo.trip_name && (
-                  <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 shadow-sm border">
-                    <div className="text-gray-600 font-medium mb-2 flex items-center">
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 4v10a2 2 0 002 2h4a2 2 0 002-2V11M9 11h6" />
-                      </svg>
-                      行程信息
-                    </div>
-                    <div className="space-y-1 text-xs">
-                      <div className="font-medium">{photo.trip_name}</div>
-                      {photo.trip_start_date && (
-                        <div>开始: {photo.trip_start_date}</div>
-                      )}
-                      {photo.trip_end_date && (
-                        <div>结束: {photo.trip_end_date}</div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* 迷你地图弹窗 */}
+        {showMiniMap && photo.latitude && photo.longitude && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold">照片位置</h2>
+                  <button
+                    onClick={() => setShowMiniMap(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <XMarkIcon className="w-6 h-6" />
+                  </button>
+                </div>
+                
+                {/* 显示完整地址 */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="text-sm font-medium text-gray-700 mb-1">拍摄地点</div>
+                  <div className="text-gray-900">
+                    {[photo.country, photo.province, photo.city, photo.district, photo.township]
+                      .filter(Boolean)
+                      .join('')}
+                  </div>
+                  {photo.latitude && photo.longitude && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      坐标：{photo.latitude.toFixed(6)}, {photo.longitude.toFixed(6)}
+                    </div>
+                  )}
+                </div>
+                
+                {/* 迷你地图 - 使用 MapPicker，但为只读模式 */}
+                <MapPicker
+                  initialLatitude={photo.latitude}
+                  initialLongitude={photo.longitude}
+                  onLocationSelect={() => {}} // 预览模式下不允许修改
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    );
+    </div>
+  );
   };
 
 export default PhotoPreview;
