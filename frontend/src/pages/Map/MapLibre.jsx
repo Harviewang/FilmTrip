@@ -401,14 +401,23 @@ const MapLibre = () => {
               const el = document.createElement('div');
               el.className = 'map-photo-marker';
               el.innerHTML = '<div class="photo-dot"></div>';
+              // 确保元素可点击
+              el.style.cursor = 'pointer';
+              el.style.pointerEvents = 'auto';
+              
               const marker = new maplibregl.Marker({
                 element: el,
                 anchor: 'center'
               })
                 .setLngLat([photo.longitude, photo.latitude])
                 .addTo(mapInstanceRef.current);
+              
               markersRef.current.push(marker);
-              el.addEventListener('click', () => {
+              
+              // 使用marker.getElement()确保获取到正确的元素
+              const markerElement = marker.getElement();
+              markerElement.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡到地图
                 setSelectedPhoto(photo);
               });
             }
@@ -435,6 +444,9 @@ const MapLibre = () => {
           el.classList.add('selected');
         }
         el.innerHTML = '<div class="photo-dot"></div>';
+        // 确保元素可点击
+        el.style.cursor = 'pointer';
+        el.style.pointerEvents = 'auto';
 
         const marker = new maplibregl.Marker({
           element: el,
@@ -443,7 +455,10 @@ const MapLibre = () => {
           .setLngLat([photo.longitude, photo.latitude])
           .addTo(mapInstanceRef.current);
 
-        el.addEventListener('click', () => {
+        // 使用marker.getElement()确保获取到正确的元素
+        const markerElement = marker.getElement();
+        markerElement.addEventListener('click', (e) => {
+          e.stopPropagation(); // 阻止事件冒泡到地图
           setSelectedPhoto(photo);
           // 移除自动flyTo，避免干扰图片预览加载
           // 如果用户想查看位置，可以在预览中点击位置信息打开迷你地图
