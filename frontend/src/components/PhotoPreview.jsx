@@ -298,7 +298,7 @@ const PhotoPreview = ({
     <div 
       className="fixed inset-0 backdrop-blur-sm z-[9999] flex flex-col"
       style={{
-        background: 'linear-gradient(135deg, #e8f0f7 0%, #dce7f2 25%, #d0deec 50%, #c4d5e6 75%, #d0deec 100%)',
+        background: viewMode === 'immersive' ? '#000000' : 'linear-gradient(135deg, #e8f0f7 0%, #dce7f2 25%, #d0deec 50%, #c4d5e6 75%, #d0deec 100%)',
         transition: 'opacity 600ms cubic-bezier(0.4, 0, 0.2, 1)',
         opacity: isClosing ? 0 : 1
       }}
