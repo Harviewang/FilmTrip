@@ -623,7 +623,7 @@ const PhotoManagement = () => {
                   <p className="text-gray-600 text-sm mb-3 line-clamp-2">{photo.description}</p>
                 )}
                 <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
-                  <span>{photo.film_roll_id ? '胶卷实例' : '未知胶片'}</span>
+                  <span>{photo.film || photo.film_roll_id ? (photo.film || '未知胶片') : '无胶卷'}</span>
                   <div className="flex items-center gap-2">
                     {(photo.effective_protection === 1 || photo.effective_protection === true || photo.is_protected === 1 || photo.is_protected === true) && (
                       <span className="text-red-500 text-xs" title="隐私保护已启用">🔒</span>
