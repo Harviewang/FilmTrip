@@ -299,7 +299,31 @@ function getJapanCityTranslation(cityName) {
 
 // 获取泰国城市中文名
 function getThailandCityTranslation(cityName) {
-  return translations.thailandCities[cityName] || cityName;
+  if (!cityName) return cityName;
+  
+  // 标准化城市名（去除常见后缀，统一大小写）
+  const normalizedName = cityName
+    .trim()
+    .replace(/ Province$/, '')
+    .replace(/ Metropolitan$/, '')
+    .replace(/ Municipality$/, '');
+  
+  // 精确匹配
+  if (translations.thailandCities[normalizedName]) {
+    return translations.thailandCities[normalizedName];
+  }
+  
+  // 尝试匹配MapTiler可能返回的变体（如"Bangkok Metropolitan", "Bangkok Province"等）
+  const possibleMatches = Object.keys(translations.thailandCities).filter(key => 
+    normalizedName.toLowerCase().includes(key.toLowerCase()) || 
+    key.toLowerCase().includes(normalizedName.toLowerCase())
+  );
+  
+  if (possibleMatches.length > 0) {
+    return translations.thailandCities[possibleMatches[0]];
+  }
+  
+  return cityName;
 }
 
 // 获取菲律宾城市中文名

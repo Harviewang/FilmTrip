@@ -186,8 +186,8 @@ function parseMapTilerContext(context) {
       city = cityTranslations[city] || city;
     }
     
-    // 翻译香港、澳门、台湾的城市和区域
-    if (city && ['hk', 'mo', 'tw'].includes(countryCode.toLowerCase())) {
+    // 翻译香港、澳门、台湾、泰国、菲律宾、新加坡、韩国的城市
+    if (city && ['hk', 'mo', 'tw', 'th', 'ph', 'sg', 'kr'].includes(countryCode.toLowerCase())) {
       city = translateAddress(countryCode, city, 'city');
     }
     
