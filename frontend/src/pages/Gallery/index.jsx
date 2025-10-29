@@ -154,9 +154,9 @@ const Gallery = () => {
           original: photo.original,
           size1024: photo.size1024,
           size2048: photo.size2048,
-          camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
-          film: photo.film_roll_name || photo.film_roll_number || '无',
-          date: photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'), // taken_date已经是日期格式
+          camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
+          film: photo.film || '无',
+          date: photo.date || (photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期')), // 优先使用后端映射的date字段
           rating: photo.rating || 0,
           location_name: photo.location_name,
           photo_serial_number: photo.photo_serial_number,
