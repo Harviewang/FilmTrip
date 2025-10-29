@@ -422,7 +422,10 @@ const MapLibre = () => {
               const markerElement = marker.getElement();
               markerElement.addEventListener('click', (e) => {
                 e.stopPropagation(); // 阻止事件冒泡到地图
-                setSelectedPhoto(photo);
+                // 只有当图片路径存在时才打开预览
+                if (photo.size2048 || photo.size1024 || photo.original || photo.thumbnail) {
+                  setSelectedPhoto(photo);
+                }
               });
             }
           });
