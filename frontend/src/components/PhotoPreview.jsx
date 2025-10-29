@@ -447,7 +447,7 @@ const PhotoPreview = ({
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 text-sm">
               {/* 1. 评分 */}
               <div className="text-center">
-                <div className="text-gray-600 font-medium mb-1">评级</div>
+                <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">评级</div>
                 {photo.rating ? (
                   <div className="flex items-center justify-center">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -463,7 +463,7 @@ const PhotoPreview = ({
 
               {/* 2. 胶卷 */}
               <div className="text-center">
-                <div className="text-gray-600 font-medium mb-1">胶卷</div>
+                <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">胶卷</div>
                 {(photo.film_roll_brand || photo.film_roll_name) ? (
                   <div className="text-gray-900">
                     {photo.film_roll_brand && photo.film_roll_name
@@ -478,7 +478,7 @@ const PhotoPreview = ({
 
               {/* 3. 相机 */}
               <div className="text-center">
-                <div className="text-gray-600 font-medium mb-1">相机</div>
+                <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">相机</div>
                 {photo.camera ? (
                   <div className="text-gray-900">{photo.camera}</div>
                 ) : (
@@ -488,7 +488,7 @@ const PhotoPreview = ({
 
               {/* 4. 地点 */}
               <div className="text-center">
-                <div className="text-gray-600 font-medium mb-1">拍摄地点</div>
+                <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">拍摄地点</div>
                 {(photo.country || photo.province || photo.city || photo.district || photo.township) ? (
                   <div 
                     className="text-gray-900 cursor-pointer hover:text-blue-600 transition-colors border border-gray-300 rounded-lg px-2 py-1 bg-white hover:bg-blue-50 hover:border-blue-400"
@@ -510,7 +510,7 @@ const PhotoPreview = ({
 
               {/* 5. 拍摄时间 */}
               <div className="text-center">
-                <div className="text-gray-600 font-medium mb-1">拍摄时间</div>
+                <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">拍摄时间</div>
                 {photo.date ? (
                   <div className="text-gray-900">{photo.date}</div>
                 ) : (
@@ -520,7 +520,7 @@ const PhotoPreview = ({
 
               {/* 6. 加密状态 */}
               <div className="text-center">
-                <div className="text-gray-600 font-medium mb-1">加密状态</div>
+                <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">加密状态</div>
                 {photo.is_protected ? (
                   <div className="text-red-600">🔒 已加密</div>
                 ) : (
