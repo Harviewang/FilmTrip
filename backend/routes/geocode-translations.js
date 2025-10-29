@@ -430,7 +430,7 @@ const translations = {
     'Thian Hock Keng Temple': '天福宫',
     'Buddha Tooth Relic Temple': '佛牙寺',
     'Sultan Mosque': '苏丹回教堂',
-    'St. Andrew's Cathedral': '圣安德烈座堂'
+    'St. Andrew\'s Cathedral': '圣安德烈座堂'
   },
   
   // 韩国主要城市翻译
