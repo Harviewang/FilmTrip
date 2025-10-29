@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import '../pages/Map/Map.css';
 
 const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongitude, readOnly = false }, ref) => {
   const mapContainer = useRef(null);
@@ -89,9 +90,12 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
           
           // 如果有初始坐标，添加marker
           if (initialLongitude && initialLatitude) {
+            const markerEl = document.createElement('div');
+            markerEl.className = 'map-picker-marker';
+            markerEl.innerHTML = '<div class="picker-dot"></div>';
             marker.current = new maplibregl.Marker({
-              draggable: !readOnly,  // 只读模式下不可拖动
-              color: '#ef4444'
+              element: markerEl,
+              draggable: !readOnly  // 只读模式下不可拖动
             })
               .setLngLat([initialLongitude, initialLatitude])
               .addTo(map.current);
@@ -112,9 +116,12 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
               if (marker.current) {
                 marker.current.setLngLat([lng, lat]);
               } else {
+                const markerEl = document.createElement('div');
+                markerEl.className = 'map-picker-marker';
+                markerEl.innerHTML = '<div class="picker-dot"></div>';
                 marker.current = new maplibregl.Marker({
-                  draggable: true,
-                  color: '#ef4444'
+                  element: markerEl,
+                  draggable: true
                 })
                   .setLngLat([lng, lat])
                   .addTo(map.current);
@@ -164,9 +171,12 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
     if (marker.current) {
       marker.current.setLngLat([lng, lat]);
     } else if (map.current) {
+      const markerEl = document.createElement('div');
+      markerEl.className = 'map-picker-marker';
+      markerEl.innerHTML = '<div class="picker-dot"></div>';
       marker.current = new maplibregl.Marker({
-        draggable: true,
-        color: '#ef4444'
+        element: markerEl,
+        draggable: true
       })
         .setLngLat([lng, lat])
         .addTo(map.current);
@@ -226,9 +236,12 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
           if (marker.current) {
             marker.current.setLngLat([longitude, latitude]);
           } else if (map.current) {
+            const markerEl = document.createElement('div');
+            markerEl.className = 'map-picker-marker';
+            markerEl.innerHTML = '<div class="picker-dot"></div>';
             marker.current = new maplibregl.Marker({
-              draggable: true,
-              color: '#ef4444'
+              element: markerEl,
+              draggable: true
             })
               .setLngLat([longitude, latitude])
               .addTo(map.current);
@@ -310,9 +323,12 @@ const MapPicker = forwardRef(({ onLocationSelect, initialLatitude, initialLongit
         if (marker.current) {
           marker.current.setLngLat([lng, lat]);
         } else {
+          const markerEl = document.createElement('div');
+          markerEl.className = 'map-picker-marker';
+          markerEl.innerHTML = '<div class="picker-dot"></div>';
           marker.current = new maplibregl.Marker({
-            draggable: true,
-            color: '#ef4444'
+            element: markerEl,
+            draggable: true
           })
             .setLngLat([lng, lat])
             .addTo(map.current);

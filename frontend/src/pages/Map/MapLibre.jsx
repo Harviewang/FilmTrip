@@ -399,7 +399,8 @@ const MapLibre = () => {
           photos.forEach(photo => {
             if (photo.latitude && photo.longitude) {
               const el = document.createElement('div');
-              el.className = 'photo-marker';
+              el.className = 'map-photo-marker';
+              el.innerHTML = '<div class="photo-dot"></div>';
               const marker = new maplibregl.Marker(el)
                 .setLngLat([photo.longitude, photo.latitude])
                 .addTo(mapInstanceRef.current);
@@ -426,10 +427,11 @@ const MapLibre = () => {
     photos.forEach(photo => {
       if (photo.latitude && photo.longitude) {
         const el = document.createElement('div');
-        el.className = 'photo-marker';
+        el.className = 'map-photo-marker';
         if (selectedPhoto?.id === photo.id) {
           el.classList.add('selected');
         }
+        el.innerHTML = '<div class="photo-dot"></div>';
 
         const marker = new maplibregl.Marker(el)
           .setLngLat([photo.longitude, photo.latitude])

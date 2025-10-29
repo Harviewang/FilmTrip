@@ -494,6 +494,29 @@
   box-shadow: 0 4px 12px rgba(244, 67, 54, 0.5);
 }
 
+/* MapPicker 标记样式 */
+.map-picker-marker {
+  background: transparent;
+  border: none;
+}
+
+.picker-dot {
+  width: 10px;
+  height: 10px;
+  background: #ef4444;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.map-picker-marker:hover .picker-dot {
+  transform: scale(1.3);
+  background: #dc2626;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
 /* 自定义地图控件样式 - 统一设计 */
 .custom-map-controls {
   background: transparent;
