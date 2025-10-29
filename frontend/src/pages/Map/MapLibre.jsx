@@ -175,7 +175,8 @@ const MapLibre = () => {
   // 获取地图照片数据
   const fetchMapPhotos = async () => {
     try {
-      const response = await fetch('/api/photos');
+      // 地图需要显示全部可见照片，使用较大的limit值
+      const response = await fetch('/api/photos?limit=1000');
       
       if (response.ok) {
         const result = await response.json();
