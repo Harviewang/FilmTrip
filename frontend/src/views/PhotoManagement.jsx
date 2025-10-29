@@ -33,7 +33,6 @@ const PhotoManagement = () => {
     film_roll_id: '',
     camera_id: '',
     taken_date: '',
-    location_name: '',
     latitude: '',
     longitude: '',
     country: '',
@@ -54,7 +53,6 @@ const PhotoManagement = () => {
     film_roll_id: '',
     camera_id: '',
     taken_date: '',
-    location_name: '',
     latitude: '',
     longitude: '',
     country: '',
@@ -72,7 +70,6 @@ const PhotoManagement = () => {
   const [batchUploadForm, setBatchUploadForm] = useState({
     film_roll_id: '',
     camera_id: '',
-    location_name: '',
     tags: '',
     is_protected: false,
     protection_level: '',
@@ -89,7 +86,6 @@ const PhotoManagement = () => {
       film_roll_id: '',
       camera_id: '',
       taken_date: '',
-      location_name: '',
       latitude: '',
       longitude: '',
       country: '',
@@ -112,7 +108,6 @@ const PhotoManagement = () => {
       film_roll_id: '',
       camera_id: '',
       taken_date: '',
-      location_name: '',
       tags: '',
       file: null,
       is_protected: false,
@@ -125,7 +120,6 @@ const PhotoManagement = () => {
     setBatchUploadForm({
       film_roll_id: '',
       camera_id: '',
-      location_name: '',
       tags: '',
       is_protected: false,
       protection_level: '',
@@ -230,7 +224,6 @@ const PhotoManagement = () => {
       formData.append('film_roll_id', uploadForm.film_roll_id || '');
       formData.append('camera_id', uploadForm.camera_id || '');
       formData.append('taken_date', uploadForm.taken_date || '');
-      formData.append('location_name', uploadForm.location_name || '');
       // 新增：地址相关字段
       if (uploadForm.latitude) formData.append('latitude', uploadForm.latitude);
       if (uploadForm.longitude) formData.append('longitude', uploadForm.longitude);
@@ -267,7 +260,6 @@ const PhotoManagement = () => {
         film_roll_id: '',
         camera_id: '',
         taken_date: '',
-        location_name: '',
         latitude: '',
         longitude: '',
         country: '',
@@ -374,7 +366,6 @@ const PhotoManagement = () => {
       const formData = new FormData();
       formData.append('film_roll_id', batchUploadForm.film_roll_id.trim());
       formData.append('camera_id', batchUploadForm.camera_id || '');
-      formData.append('location_name', batchUploadForm.location_name || '');
       formData.append('tags', batchUploadForm.tags || '');
       console.log('批量上传 is_protected 值:', batchUploadForm.is_protected);
       formData.append('is_protected', batchUploadForm.is_protected ? '1' : '0');
@@ -457,7 +448,6 @@ const PhotoManagement = () => {
               setBatchUploadForm({
                 film_roll_id: '',
                 camera_id: '',
-                location_name: '',
                 tags: '',
                 is_protected: false,
                 protection_level: '',
@@ -626,7 +616,6 @@ const PhotoManagement = () => {
                         film_roll_id: photo.film_roll_id || '',
                         camera_id: photo.camera_id || '',
                         taken_date: photo.taken_date ? photo.taken_date.split('T')[0] : '',
-                        location_name: photo.location_name || '',
                         tags: photo.tags || '',
                         file: null, // 清空文件
                         is_protected: photo.is_protected === 1 || photo.is_protected === true,
@@ -766,16 +755,16 @@ const PhotoManagement = () => {
                 <div className="border-t pt-4">
                   <MapPicker
                     onLocationSelect={(addressData) => {
-                      setUploadForm({
-                        ...uploadForm,
-                        latitude: addressData.latitude || '',
-                        longitude: addressData.longitude || '',
-                        country: addressData.country || '',
-                        province: addressData.province || '',
-                        city: addressData.city || '',
-                        district: addressData.district || '',
-                        township: addressData.township || ''
-                      });
+      setUploadForm((prev) => ({
+        ...prev,
+        latitude: addressData.latitude || '',
+        longitude: addressData.longitude || '',
+        country: addressData.country || '',
+        province: addressData.province || '',
+        city: addressData.city || '',
+        district: addressData.district || '',
+        township: addressData.township || ''
+      }));
                     }}
                     initialLatitude={uploadForm.latitude || null}
                     initialLongitude={uploadForm.longitude || null}
@@ -977,15 +966,38 @@ const PhotoManagement = () => {
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">拍摄地点</label>
-                  <input
-                    type="text"
-                    value={editForm.location_name}
-                    onChange={(e) => setEditForm({...editForm, location_name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                {/* 地图选点器 - 编辑表单 */}
+                <div className="border-t pt-4">
+                  <MapPicker
+                    onLocationSelect={(addressData) => {
+                      setEditForm({
+                        ...editForm,
+                        latitude: addressData.latitude || '',
+                        longitude: addressData.longitude || '',
+                        country: addressData.country || '',
+                        province: addressData.province || '',
+                        city: addressData.city || '',
+                        district: addressData.district || '',
+                        township: addressData.township || ''
+                      });
+                    }}
+                    initialLatitude={editForm.latitude || null}
+                    initialLongitude={editForm.longitude || null}
                   />
+                  
+                  {/* 显示解析的地址 */}
+                  {(editForm.country || editForm.province || editForm.city) && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                      <div className="text-xs text-gray-600 mb-1">解析的地址：</div>
+                      <div className="text-sm text-gray-800">
+                        {[editForm.country, editForm.province, editForm.city, editForm.district, editForm.township]
+                          .filter(Boolean)
+                          .join('')}
+                      </div>
+                    </div>
+                  )}
                 </div>
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">标签</label>
                   <input
@@ -1128,19 +1140,12 @@ const PhotoManagement = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    拍摄地点
-                  </label>
-                  <input
-                    type="text"
-                    name="location_name"
-                    value={batchUploadForm.location_name}
-                    onChange={(e) => setBatchUploadForm({...batchUploadForm, location_name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="请输入拍摄地点"
-                  />
-                </div>
+-                <div>
+-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+-                    拍摄地点
+-                  </label>
+-                  <p className="text-sm text-gray-500">批量上传暂不支持自动选点，建议上传后在照片详情中补录。</p>
+-                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
