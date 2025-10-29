@@ -66,8 +66,8 @@
 | F-1 | 地图·OSM支持 | 实现OSM栅格地图样式 | AI助手 | ✅ 已完成 | 添加MapLibre style object |
 | F-2 | 地图·自动降级 | 智能配额检测和降级 | AI助手 | ✅ 已完成 | 三级降级流程 |
 | F-3 | 地图·月初重置 | 每月自动恢复 | AI助手 | ✅ 已完成 | 自动重置为矢量 |
-| M-4 | 地图·地址解析 | 坐标↔省/市/区/街道（五级）解析服务 | Codex→AI助手 | ⏳ 待开始 | 字段：country/province/city/district/township + lat/lng；MapTiler API 主体，预留 Geomaply 备选 |
-| M-5 | 地图·上传联动 | 上传/编辑表单通过选点写入地址字段 | AI助手 | ⏳ 待开始 | 仅支持地图选点→自动回填，多字段统一写库 |
+| M-4 | 地图·地址解析 | 坐标↔省/市/区/街道（五级）解析服务 | Codex→AI助手 | ✅ 已完成 | 字段：country/province/city/district/township + lat/lng；MapTiler API 主体，预留 Geomaply 备选 |
+| M-5 | 地图·上传联动 | 上传/编辑表单通过选点写入地址字段 | AI助手 | ✅ 已完成 | 仅支持地图选点→自动回填，多字段统一写库 |
 | M-6 | 地图·预览小地图 | 预览页点击省市区弹迷你地图（zoom=12） | AI助手 | ⏳ 待开始 | MapLibre 按需加载；列表不加载小地图，暂不跳转大地图 |
 
 ## M-4 方案概述（规划）
