@@ -196,7 +196,29 @@ const translations = {
     'Hakone': '箱根',
     'Kobe': '神户',
     'Nagasaki': '长崎',
-    'Okinawa': '冲绳'
+    'Okinawa': '冲绳',
+    'Shinjuku': '新宿',
+    'Shibuya': '涩谷',
+    'Harajuku': '原宿',
+    'Ginza': '银座',
+    'Asakusa': '浅草',
+    'Akihabara': '秋叶原',
+    'Ikebukuro': '池袋',
+    'Ueno': '上野',
+    'Tsukiji': '筑地',
+    'Roppongi': '六本木',
+    'Yokosuka': '横须贺',
+    'Kamakura': '镰仓',
+    'Enoshima': '江之岛',
+    'Fuji': '富士山',
+    'Hakodate': '函馆',
+    'Otaru': '小樽',
+    'Takayama': '高山',
+    'Kanazawa': '金泽',
+    'Matsumoto': '松本',
+    'Nikko': '日光',
+    'Kawagoe': '川越',
+    'Mount Fuji': '富士山'
   },
   
   // 泰国主要城市翻译
@@ -220,11 +242,25 @@ const translations = {
     'Boracay': '长滩岛',
     'Davao': '达沃',
     'Palawan': '巴拉望',
-    'Boracay': '长滩岛',
     'Bohol': '薄荷岛',
     'Siargao': '锡亚尔高',
     'Coron': '科隆',
-    'El Nido': '爱妮岛'
+    'El Nido': '爱妮岛',
+    'Baguio': '碧瑶',
+    'Tagaytay': '大雅台',
+    'Puerto Princesa': '普林塞萨港',
+    'Batangas': '八打雁',
+    'Iloilo': '伊洛伊洛',
+    'Bacolod': '巴科洛德',
+    'Cagayan de Oro': '卡加延德奥罗',
+    'Zamboanga': '三宝颜',
+    'Legazpi': '黎牙实比',
+    'Vigan': '维甘',
+    'Panglao': '邦劳岛',
+    'Moalboal': '莫阿尔博阿尔',
+    'Oslob': '奥斯洛布',
+    'Siquijor': '锡基霍尔岛',
+    'Camiguin': '卡米金岛'
   },
   
   // 新加坡行政区翻译
@@ -248,7 +284,61 @@ const translations = {
     'Daejeon': '大田',
     'Ulsan': '蔚山',
     'Suwon': '水原',
-    'Gyeongju': '庆州'
+    'Gyeongju': '庆州',
+    'Gangnam': '江南',
+    'Myeongdong': '明洞',
+    'Hongdae': '弘大',
+    'Itaewon': '梨泰院',
+    'Insadong': '仁寺洞',
+    'Bukchon': '北村',
+    'Jongno': '钟路',
+    'Dongdaemun': '东大门',
+    'Namdaemun': '南大门',
+    'Seongbuk': '城北',
+    'Haeundae': '海云台',
+    'Gwangalli': '广安里',
+    'Songdo': '松岛',
+    'Yeouido': '汝矣岛',
+    'Namsan': '南山',
+    'Jeonju': '全州',
+    'Andong': '安东',
+    'Tongyeong': '统营',
+    'Boseong': '宝城',
+    'Jinju': '晋州'
+  },
+  
+  // 澳大利亚主要城市翻译
+  australiaCities: {
+    'Sydney': '悉尼',
+    'Melbourne': '墨尔本',
+    'Brisbane': '布里斯班',
+    'Perth': '珀斯',
+    'Adelaide': '阿德莱德',
+    'Canberra': '堪培拉',
+    'Hobart': '霍巴特',
+    'Darwin': '达尔文',
+    'Gold Coast': '黄金海岸',
+    'Newcastle': '纽卡斯尔',
+    'Wollongong': '卧龙岗',
+    'Geelong': '吉朗',
+    'Townsville': '汤斯维尔',
+    'Cairns': '凯恩斯',
+    'Toowoomba': '图文巴',
+    'Ballarat': '巴拉瑞特',
+    'Bendigo': '本迪戈',
+    'Albury': '奥尔伯里',
+    'Launceston': '朗塞斯顿',
+    'Mackay': '麦凯',
+    'Rockhampton': '罗克汉普顿',
+    'Bunbury': '班伯里',
+    'Coffs Harbour': '科夫斯港',
+    'Wagga Wagga': '瓦加瓦加',
+    'Hervey Bay': '赫维湾',
+    'Port Macquarie': '麦夸里港',
+    'Shepparton': '谢珀顿',
+    'Gladstone': '格拉德斯通',
+    'Mildura': '米尔杜拉',
+    'Bundaberg': '班达伯格'
   }
 };
 
@@ -297,38 +387,50 @@ function getJapanCityTranslation(cityName) {
   return translations.japanCities[cityName] || cityName;
 }
 
-// 获取泰国城市中文名
-function getThailandCityTranslation(cityName) {
-  if (!cityName) return cityName;
+// 通用的城市名标准化和模糊匹配函数
+function normalizeCityName(cityName, cityMap) {
+  if (!cityName || !cityMap) return cityName;
   
   // 标准化城市名（去除常见后缀，统一大小写）
   const normalizedName = cityName
     .trim()
     .replace(/ Province$/, '')
     .replace(/ Metropolitan$/, '')
-    .replace(/ Municipality$/, '');
+    .replace(/ Municipality$/, '')
+    .replace(/ City$/, '')
+    .replace(/ Town$/, '');
   
   // 精确匹配
-  if (translations.thailandCities[normalizedName]) {
-    return translations.thailandCities[normalizedName];
+  if (cityMap[normalizedName]) {
+    return cityMap[normalizedName];
   }
   
-  // 尝试匹配MapTiler可能返回的变体（如"Bangkok Metropolitan", "Bangkok Province"等）
-  const possibleMatches = Object.keys(translations.thailandCities).filter(key => 
+  // 尝试匹配MapTiler可能返回的变体
+  const possibleMatches = Object.keys(cityMap).filter(key => 
     normalizedName.toLowerCase().includes(key.toLowerCase()) || 
     key.toLowerCase().includes(normalizedName.toLowerCase())
   );
   
   if (possibleMatches.length > 0) {
-    return translations.thailandCities[possibleMatches[0]];
+    return cityMap[possibleMatches[0]];
   }
   
   return cityName;
 }
 
-// 获取菲律宾城市中文名
+// 获取泰国城市中文名
+function getThailandCityTranslation(cityName) {
+  return normalizeCityName(cityName, translations.thailandCities);
+}
+
+// 获取日本城市中文名（增强版，支持标准化和模糊匹配）
+function getJapanCityTranslation(cityName) {
+  return normalizeCityName(cityName, translations.japanCities);
+}
+
+// 获取菲律宾城市中文名（增强版）
 function getPhilippinesCityTranslation(cityName) {
-  return translations.philippinesCities[cityName] || cityName;
+  return normalizeCityName(cityName, translations.philippinesCities);
 }
 
 // 获取新加坡地区中文名
@@ -336,9 +438,14 @@ function getSingaporeRegionTranslation(regionName) {
   return translations.singaporeRegions[regionName] || regionName;
 }
 
-// 获取韩国城市中文名
+// 获取韩国城市中文名（增强版）
 function getKoreaCityTranslation(cityName) {
-  return translations.koreaCities[cityName] || cityName;
+  return normalizeCityName(cityName, translations.koreaCities);
+}
+
+// 获取澳大利亚城市中文名（增强版）
+function getAustraliaCityTranslation(cityName) {
+  return normalizeCityName(cityName, translations.australiaCities);
 }
 
 // 根据国家代码和地区名获取翻译
@@ -368,6 +475,8 @@ function translateAddress(countryCode, regionName, level) {
         return getSingaporeRegionTranslation(regionName);
       case 'kr':
         return getKoreaCityTranslation(regionName);
+      case 'au':
+        return getAustraliaCityTranslation(regionName);
       default:
         return regionName;
     }
@@ -396,12 +505,14 @@ function translateAddress(countryCode, regionName, level) {
       return getPhilippinesCityTranslation(regionName);
     case 'sg':
       return getSingaporeRegionTranslation(regionName);
-    case 'kr':
-      return getKoreaCityTranslation(regionName);
-    default:
-      return regionName;
+      case 'kr':
+        return getKoreaCityTranslation(regionName);
+      case 'au':
+        return getAustraliaCityTranslation(regionName);
+      default:
+        return regionName;
+    }
   }
-}
 
 module.exports = {
   translateAddress,
@@ -418,6 +529,7 @@ module.exports = {
   getPhilippinesCityTranslation,
   getSingaporeRegionTranslation,
   getKoreaCityTranslation,
+  getAustraliaCityTranslation,
   translations
 };
 
