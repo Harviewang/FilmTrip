@@ -191,6 +191,7 @@ const getAllPhotos = async (req, res) => {
       // 优先显示胶卷规格（品牌+系列+ISO），其次显示实例名称
       film: (photo.film_roll_brand && photo.film_roll_series ? `${photo.film_roll_brand} ${photo.film_roll_series}${photo.film_roll_iso ? ` ${photo.film_roll_iso}` : ''}` : null) || photo.film_roll_name_display || photo.film_roll_number || '无',
       date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
+      taken_date: photo.taken_date,
       rating: photo.rating || 0,
       location_name: photo.location_name,
       photo_serial_number: photo.photo_serial_number,
@@ -618,6 +619,7 @@ const getPhotoById = (req, res) => {
       // 优先显示胶卷规格（品牌+系列+ISO），其次显示实例名称
       film: (photo.film_roll_brand && photo.film_roll_series ? `${photo.film_roll_brand} ${photo.film_roll_series}${photo.film_roll_iso ? ` ${photo.film_roll_iso}` : ''}` : null) || photo.film_roll_name_display || photo.film_roll_number || '无',
       date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
+      taken_date: photo.taken_date,
       rating: photo.rating || 0,
       location_name: photo.location_name,
       photo_serial_number: photo.photo_serial_number,
@@ -1298,6 +1300,7 @@ const getRandomPhotos = (req, res) => {
       // 优先显示胶卷规格（品牌+系列+ISO），其次显示实例名称
       film: (photo.film_roll_brand && photo.film_roll_series ? `${photo.film_roll_brand} ${photo.film_roll_series}${photo.film_roll_iso ? ` ${photo.film_roll_iso}` : ''}` : null) || photo.film_roll_name_display || photo.film_roll_number || '无',
       date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
+      taken_date: photo.taken_date,
       rating: photo.rating || 0,
       location_name: photo.location_name,
       photo_serial_number: photo.photo_serial_number,
