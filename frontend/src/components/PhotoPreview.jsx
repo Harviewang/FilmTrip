@@ -486,28 +486,17 @@ const PhotoPreview = ({
                 <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">拍摄地点</div>
                 {(photo.country || photo.province || photo.city || photo.district || photo.township) ? (
                   <div 
-                    className={`text-gray-900 transition-colors flex items-center justify-center gap-1 ${
-                      photo.latitude && photo.longitude 
-                        ? 'cursor-pointer hover:text-blue-600 underline decoration-dotted underline-offset-2' 
-                        : 'cursor-default'
-                    }`}
+                    className="text-gray-900 cursor-pointer hover:text-blue-600 transition-colors inline-flex items-center gap-1 underline decoration-dotted underline-offset-2"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (photo.latitude && photo.longitude) {
-                        setShowMiniMap(true);
-                      } else {
-                        // 显示提示信息
-                        alert('由于该图片缺少定位信息，无法显示地图预览。\n\n提示：请在管理后台为该照片添加拍摄地点坐标。');
-                      }
+                      setShowMiniMap(true);
                     }}
-                    title={photo.latitude && photo.longitude ? '点击查看地图' : '缺少定位信息'}
+                    title="点击查看地图"
                   >
-                    {photo.latitude && photo.longitude && (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    )}
+                    <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
                     <span>
                       {[photo.country, photo.province, photo.city, photo.district, photo.township]
                         .filter(Boolean)
@@ -543,7 +532,7 @@ const PhotoPreview = ({
         </div>
 
       {/* 迷你地图弹窗 */}
-      {showMiniMap && photo.latitude && photo.longitude && (
+      {showMiniMap && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto">
               <div className="p-6">
@@ -563,19 +552,24 @@ const PhotoPreview = ({
                   <div className="text-gray-900">
                     {[photo.country, photo.province, photo.city, photo.district, photo.township]
                       .filter(Boolean)
-                      .join('')}
+                      .join('') || '未知地点'}
                   </div>
-                  {photo.latitude && photo.longitude && (
+                  {photo.latitude && photo.longitude ? (
                     <div className="text-xs text-gray-500 mt-1">
                       坐标：{photo.latitude.toFixed(6)}, {photo.longitude.toFixed(6)}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-red-500 mt-2 p-2 bg-red-50 rounded border border-red-200">
+                      ⚠️ 由于该图片缺少定位信息，已被收监
                     </div>
                   )}
                 </div>
                 
                 {/* 迷你地图 - 使用 MapPicker，只读显示模式 */}
+                {/* 如果没有坐标，使用关塔那摩监狱坐标 (22.4642, -82.4397) */}
                 <MapPicker
-                  initialLatitude={photo.latitude}
-                  initialLongitude={photo.longitude}
+                  initialLatitude={photo.latitude || 22.4642}
+                  initialLongitude={photo.longitude || -82.4397}
                   readOnly={true}
                   onLocationSelect={() => {}} // 预览模式下不允许修改
                 />
