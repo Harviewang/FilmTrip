@@ -185,28 +185,37 @@ const MapLibre = () => {
           photoArray = result.data;
         }
         
-        const mappedPhotos = photoArray.map((photo, index) => ({
-          id: photo.id || `photo-${index}`,
-          title: photo.title || photo.filename || '无标题',
-          description: photo.description || '',
-          thumbnail: photo.thumbnail || photo.original,
-          original: photo.original,
-          size1024: photo.size1024,
-          size2048: photo.size2048,
-          camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
-          film: photo.film || (photo.film_roll_name || photo.film_roll_number || '无'),
-          date: photo.date || (photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期')),
-          latitude: photo.latitude,
-          longitude: photo.longitude,
-          location_name: photo.location_name,
-          country: photo.country,
-          province: photo.province,
-          city: photo.city,
-          district: photo.district,
-          township: photo.township,
-          // 保留原始数据用于调试
-          _raw: photo
-        }));
+        const mappedPhotos = photoArray
+          .filter(photo => {
+            // 只显示有图片路径的照片（后端已根据权限过滤）
+            // 未登录用户可以查看不受保护的照片
+            // 管理员可以查看所有照片
+            // 受保护照片对未登录用户会返回 null 的图片路径
+            return photo.thumbnail || photo.original || photo.size1024 || photo.size2048;
+          })
+          .map((photo, index) => ({
+            id: photo.id || `photo-${index}`,
+            title: photo.title || photo.filename || '无标题',
+            description: photo.description || '',
+            thumbnail: photo.thumbnail || photo.original,
+            original: photo.original,
+            size1024: photo.size1024,
+            size2048: photo.size2048,
+            camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
+            film: photo.film || (photo.film_roll_name || photo.film_roll_number || '无'),
+            date: photo.date || (photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期')),
+            latitude: photo.latitude,
+            longitude: photo.longitude,
+            location_name: photo.location_name,
+            country: photo.country,
+            province: photo.province,
+            city: photo.city,
+            district: photo.district,
+            township: photo.township,
+            effective_protection: photo.effective_protection,
+            // 保留原始数据用于调试
+            _raw: photo
+          }));
         
         setPhotos(mappedPhotos);
       }
