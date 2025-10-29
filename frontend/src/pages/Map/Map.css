@@ -468,6 +468,8 @@
 .map-photo-marker {
   background: transparent;
   border: none;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 /* 新的简单点样式 */
