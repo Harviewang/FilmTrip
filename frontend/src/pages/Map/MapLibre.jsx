@@ -349,10 +349,18 @@ const MapLibre = () => {
       // map.addControl(new maplibregl.NavigationControl(), 'top-right');
       
       map.on('load', () => {
-        console.log('Map loaded successfully');
+        console.log('Map style loaded successfully');
         // 确保地图尺寸正确
         map.resize();
-        // 隐藏loading
+        // 获取照片数据（样式加载完成后就可以开始获取了）
+        fetchMapPhotos();
+      });
+
+      // 监听idle事件：所有瓦片加载完成，地图完全就绪
+      // 这比'load'事件更准确，因为'load'只表示样式加载，瓦片可能还在加载中
+      map.once('idle', () => {
+        console.log('Map fully loaded (all tiles ready)');
+        // 隐藏loading状态
         setLoading(false);
       });
 
@@ -368,11 +376,6 @@ const MapLibre = () => {
       });
 
       mapInstanceRef.current = map;
-
-      // 地图加载完成后获取照片数据
-      map.once('load', () => {
-        fetchMapPhotos();
-      });
 
       return () => {
         if (mapInstanceRef.current) {
