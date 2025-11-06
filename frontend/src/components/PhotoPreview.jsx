@@ -143,6 +143,7 @@ const PhotoPreview = ({
       setFittedSize({ width: 0, height: 0 });
       setViewMode('standard'); // 重置为标准模式
       setUiVisible(showUI); // 重置UI可见性
+      setShowMiniMap(false); // 重置地图弹窗状态
       const timer = setTimeout(() => {
         setIsVisible(false);
         setIsClosing(false);

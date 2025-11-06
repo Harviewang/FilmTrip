@@ -34,12 +34,6 @@ export const useLazyLoading = (options = {}) => {
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        console.log('IntersectionObserver triggered:', {
-          isIntersecting: entry.isIntersecting,
-          intersectionRatio: entry.intersectionRatio,
-          boundingClientRect: entry.boundingClientRect,
-          rootBounds: entry.rootBounds
-        });
         if (entry.isIntersecting) {
           // 添加小延迟确保组件已完全挂载
           timeoutRef.current = setTimeout(() => {

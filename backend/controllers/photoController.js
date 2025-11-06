@@ -52,24 +52,6 @@ const getAllPhotos = async (req, res) => {
     let whereConditions = [];
     let queryParams = [];
     
-    // 如果不是管理员，过滤加密照片（随机模式也需要过滤）
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    let isAdmin = false;
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-        isAdmin = decoded.username === 'admin';
-      } catch (e) {
-        // Token 无效，视为普通用户
-      }
-    }
-    
-    // 普通用户或随机模式都需要过滤加密照片
-    if (!isAdmin || sortField === 'random') {
-      whereConditions.push('(p.is_protected = 0 OR p.is_protected IS NULL)');
-      whereConditions.push('(fr.is_protected = 0 OR fr.is_protected IS NULL)');
-    }
-    
     if (film_roll_id) {
       whereConditions.push('p.film_roll_id = ?');
       queryParams.push(film_roll_id);
@@ -125,6 +107,18 @@ const getAllPhotos = async (req, res) => {
       ${orderClause}
       LIMIT ? OFFSET ?
     `, [...queryParams, parseInt(limit), parseInt(offset)]);
+    
+    // 判断用户是否为管理员
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    let isAdmin = false;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        isAdmin = decoded.username === 'admin';
+      } catch (e) {
+        // Token 无效，视为普通用户
+      }
+    }
     
     photos.forEach(photo => {
       // 在修改前保存原始数据副本
@@ -336,14 +330,10 @@ const uploadPhotosBatch = async (req, res) => {
     const countRow = query('SELECT COUNT(*) as cnt FROM photos WHERE film_roll_id = ?', [film_roll_id]);
     const existingCount = countRow[0]?.cnt || 0;
     let nextNumber = lastPhoto.length > 0 ? (lastPhoto[0].photo_number + 1) : 1;
-    // 增加每卷照片数量限制到72张（允许更多照片，特别是120胶卷）
-    const maxPerRoll = 72;
+    const maxPerRoll = 36;
     const remainingSlots = Math.max(0, maxPerRoll - existingCount);
-    // 如果剩余空间为0，检查是否可以继续上传（允许超出限制，但给出警告）
     if (remainingSlots <= 0) {
-      // 如果用户尝试上传超过限制的照片，给出提示但允许继续（限制在上传时）
-      console.log(`⚠️ 胶卷已有 ${existingCount} 张照片，尝试上传 ${req.files.length} 张（超出限制）`);
-      // 允许继续，但只处理能放入的部分（实际代码会在后面限制）
+      return res.status(400).json({ success: false, message: '胶卷已满，无法添加更多照片' });
     }
     const uploadDir = path.join(__dirname, '../uploads');
     const thumbDir = path.join(__dirname, '../uploads/thumbnails');
@@ -356,8 +346,7 @@ const uploadPhotosBatch = async (req, res) => {
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const results = [];
     let processed = 0;
-    // 如果已超出限制，允许继续上传但给出警告；否则限制在剩余空间内
-    const toProcess = remainingSlots > 0 ? Math.min(remainingSlots, req.files.length) : req.files.length;
+    const toProcess = Math.min(remainingSlots, req.files.length);
     for (let i = 0; i < toProcess; i++) {
       const file = req.files[i];
       const id = crypto.randomUUID();
@@ -503,16 +492,9 @@ const uploadPhotosBatch = async (req, res) => {
       processed++;
     }
     const skipped = req.files.length - processed;
-    let msg = '批量上传成功';
-    if (skipped > 0) {
-      if (existingCount >= maxPerRoll) {
-        msg = `批量上传完成：成功 ${processed} 张，跳过 ${skipped} 张（已超出每卷上限 ${maxPerRoll} 张）`;
-      } else {
-        msg = `批量上传完成：成功 ${processed} 张，跳过 ${skipped} 张（已达每卷上限 ${maxPerRoll} 张）`;
-      }
-    } else if (existingCount + processed > maxPerRoll) {
-      msg = `批量上传成功（共 ${existingCount + processed} 张，已超出标准上限 ${maxPerRoll} 张）`;
-    }
+    const msg = skipped > 0 
+      ? `批量上传完成：成功 ${processed} 张，跳过 ${skipped} 张（已达每卷上限 36 张）`
+      : '批量上传成功';
     return res.status(201).json({ success: true, message: msg, count: results.length, skipped, data: results });
   } catch (error) {
     return res.status(500).json({ success: false, message: '批量上传失败', error: error.message });
@@ -968,11 +950,11 @@ const uploadPhoto = async (req, res) => {
       photoNumber = lastPhoto[0].photo_number + 1;
     }
     
-    // 验证照片序号不超过72（标准胶卷36张，120胶卷可更多）
-    if (photoNumber > 72) {
+    // 验证照片序号不超过36（标准胶卷）
+    if (photoNumber > 36) {
       return res.status(400).json({
         success: false,
-        message: '胶卷已满，无法添加更多照片（每卷最多72张）'
+        message: '胶卷已满，无法添加更多照片'
       });
     }
 

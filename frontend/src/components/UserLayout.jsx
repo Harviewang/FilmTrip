@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { 
@@ -8,10 +8,13 @@ import {
   EllipsisHorizontalIcon
 } from '@heroicons/react/24/outline';
 import Logo from './Logo';
+import { ScrollContainerProvider } from '../contexts/ScrollContainerContext';
 
 const UserLayout = ({ isFullscreen = false }) => {
   const location = useLocation();
   const isMapPage = location.pathname === '/map';
+  const scrollContainerRef = useRef(null);
+  const [authRef, setAuthRef] = useState({ isAdmin: false });
 
   const navigation = [
     { name: '照片', href: '/gallery', icon: PhotoIcon },
@@ -20,7 +23,55 @@ const UserLayout = ({ isFullscreen = false }) => {
     { name: '更多', href: '/more', icon: EllipsisHorizontalIcon },
   ];
 
+  // 检查用户身份，并在 localStorage 变化时更新
+  useEffect(() => {
+    const checkAuth = () => {
+      try {
+        const stored = localStorage.getItem('user');
+        if (!stored) {
+          setAuthRef({ isAdmin: false });
+          return;
+        }
+        const parsed = JSON.parse(stored);
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setAuthRef({ isAdmin: false });
+          return;
+        }
+        const role = parsed?.role || parsed?.roles;
+        const isAdmin =
+          role === 'admin' ||
+          (Array.isArray(role) && role.includes('admin')) ||
+          parsed?.isAdmin === true ||
+          parsed?.username === 'admin';
+        setAuthRef({ isAdmin });
+      } catch (e) {
+        setAuthRef({ isAdmin: false });
+      }
+    };
+
+    // 初始检查
+    checkAuth();
+
+    // 监听 storage 事件（跨标签页同步）
+    const handleStorageChange = (e) => {
+      if (e.key === 'user' || e.key === 'token') {
+        checkAuth();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // 定期检查（处理同标签页内的变化，但频率降低）
+    const interval = setInterval(checkAuth, 2000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
   return (
+    <ScrollContainerProvider scrollContainerRef={scrollContainerRef} authRef={authRef}>
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       {/* 导航栏 - 固定在顶部，全屏时隐藏 */}
       {!isFullscreen && (
@@ -70,13 +121,17 @@ const UserLayout = ({ isFullscreen = false }) => {
       )}
 
       {/* 主要内容区域 - 考虑header高度和footer高度 */}
-      <main className={`flex-1 w-full ${
+        <main 
+          ref={scrollContainerRef}
+          data-scroll-container
+          className={`flex-1 w-full ${
         isFullscreen 
           ? 'h-full overflow-hidden' 
           : isMapPage 
             ? 'mt-16 h-[calc(100vh-4rem)] overflow-hidden' 
             : 'mt-16 h-[calc(100vh-7rem)] overflow-auto scrollbar-hidden'
-      }`}>
+          }`}
+        >
         <Outlet />
       </main>
 
@@ -101,6 +156,7 @@ const UserLayout = ({ isFullscreen = false }) => {
         </footer>
       )}
     </div>
+    </ScrollContainerProvider>
   );
 };
 

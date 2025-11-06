@@ -6,6 +6,7 @@ import AdaptiveLayout, { AdaptiveCard } from '../../components/AdaptiveLayout';
 import PhotoPreview from '../../components/PhotoPreview';
 import LazyImage from '../../components/LazyImage';
 import RandomFilmStrip from './RandomFilmStrip';
+import { useScrollContainer } from '../../contexts/ScrollContainerContext';
  
 // import useStablePullToRefresh from '../../hooks/useStablePullToRefresh';
 // import PullToRefreshIndicator from '../../components/PullToRefreshIndicator';
@@ -23,11 +24,14 @@ const Gallery = () => {
   // 分页相关状态
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const pageSize = 24; // 每页加载24张照片（懒加载按页追加）
+  const pageSize = 20; // 每页加载20张照片
   
   // 视图模式状态
   const WATERFALL_ENABLED = true; // 启用瀑布流
   const [viewMode, setViewMode] = useState('list');
+  
+  // 懒加载修复：获取滚动容器引用
+  const { scrollContainerRef: scrollContainerRefFromContext } = useScrollContainer() || {};
   const [galleryCurrentIndex, setGalleryCurrentIndex] = useState(0);
   
   // 随机照片状态
@@ -35,16 +39,20 @@ const Gallery = () => {
   const [randomFilmRoll, setRandomFilmRoll] = useState(null);
   const [currentRandomIndex, setCurrentRandomIndex] = useState(0);
   const [randomError, setRandomError] = useState(null);
-  
-  // 胶卷随机模式状态
-  const [canisterState, setCanisterState] = useState('idle'); // idle, random, selected
-  const [filmState, setFilmState] = useState('folded'); // folded, unrolled
   const [isRandomizing, setIsRandomizing] = useState(false);
   
   // 筛选状态
-  const [hideEncryptedPhotos, setHideEncryptedPhotos] = useState(true);
+  const [hideEncryptedPhotos, setHideEncryptedPhotos] = useState(() => {
+    const stored = localStorage.getItem('hideEncryptedPhotos');
+    return stored ? JSON.parse(stored) : false; // 默认显示加密图片
+  });
   const [filmTypeFilter, setFilmTypeFilter] = useState('all');
   const [filmFormatFilter, setFilmFormatFilter] = useState('all');
+  
+  // 持久化 hideEncryptedPhotos 状态
+  useEffect(() => {
+    localStorage.setItem('hideEncryptedPhotos', JSON.stringify(hideEncryptedPhotos));
+  }, [hideEncryptedPhotos]);
   
   // 使用稳定的时间戳，避免每次渲染都刷新图片
   const stableTimestamp = useRef(Date.now()).current;
@@ -59,6 +67,20 @@ const Gallery = () => {
   const isPulling = false;
   const containerRef = useRef(null);
   const triggerRefresh = () => {};
+  
+  // 懒加载修复：使用 state 确保在 ref 准备好后触发重渲染
+  const [scrollRoot, setScrollRoot] = useState(null);
+  
+  useEffect(() => {
+    // 使用 requestAnimationFrame 确保 DOM 已完全渲染
+    const rafId = requestAnimationFrame(() => {
+      if (scrollContainerRefFromContext?.current) {
+        setScrollRoot(scrollContainerRefFromContext.current);
+      }
+    });
+    
+    return () => cancelAnimationFrame(rafId);
+  }, [scrollContainerRefFromContext]);
 
   // 加载更多照片函数
   const loadMorePhotos = async () => {
@@ -114,18 +136,21 @@ const Gallery = () => {
       });
       if (response.ok) {
         const result = await response.json();
-        console.log('获取到的照片数据:', result);
         
-        // 处理后端API的标准响应格式（优先 photos，再兼容 data）
+        // 处理后端API的标准响应格式
         let photoArray = [];
-        if (result && result.photos && Array.isArray(result.photos)) {
-          photoArray = result.photos;
-        } else if (result && result.success && result.data && Array.isArray(result.data)) {
-          photoArray = result.data;
-        } else if (result && result.data && Array.isArray(result.data)) {
+        if (result.success && result.data && Array.isArray(result.data)) {
+          // 标准格式：{ success: true, data: [...] }
           photoArray = result.data;
         } else if (Array.isArray(result)) {
+          // 直接是数组
           photoArray = result;
+        } else if (result && result.data && Array.isArray(result.data)) {
+          // 包装在data字段中的数组
+          photoArray = result.data;
+        } else if (result && result.photos && Array.isArray(result.photos)) {
+          // 包装在photos字段中的数组
+          photoArray = result.photos;
         } else if (result && typeof result === 'object') {
           // 如果是对象，尝试提取数组
           const keys = Object.keys(result);
@@ -136,8 +161,6 @@ const Gallery = () => {
             }
           }
         }
-        
-        console.log('处理后的照片数组:', photoArray);
         
         // 不再在开发环境注入模拟数据；数据为空时直接呈现空态
         
@@ -177,18 +200,17 @@ const Gallery = () => {
           width: photo.width,
           height: photo.height,
           orientation: photo.orientation,
+          // 提升 effective_protection 到顶层，避免依赖 _raw 嵌套
+          effective_protection: photo.effective_protection,
+          protection_level: photo.protection_level,
           // 保留原始数据用于调试
           _raw: photo
         }));
         
-        console.log('映射后的照片数据:', mappedPhotos);
-        
         // 过滤加密照片（如果开关开启）
         const filteredPhotos = hideEncryptedPhotos 
-          ? mappedPhotos.filter(photo => !photo._raw?.effective_protection)
+          ? mappedPhotos.filter(photo => !photo.effective_protection)
           : mappedPhotos;
-        
-        console.log('过滤后的照片数据:', filteredPhotos);
         
         // 设置照片数据
         if (append) {
@@ -212,9 +234,7 @@ const Gallery = () => {
         
         setHasMore(hasMoreData);
         
-        if (filteredPhotos.length === 0 && !append) {
-          setError('没有找到照片数据');
-        }
+        // 移除错误设置，空状态在列表中正常显示
       } else {
         console.error('获取照片失败:', response.status);
         setError(`获取照片失败: ${response.status}`);
@@ -233,26 +253,6 @@ const Gallery = () => {
     }
   };
 
-  const randomAnimationTimer = useRef(null);
-
-  useEffect(() => {
-    return () => {
-      if (randomAnimationTimer.current) {
-        clearTimeout(randomAnimationTimer.current);
-      }
-    };
-  }, []);
-
-  const waitForAnimation = (duration) =>
-    new Promise((resolve) => {
-      if (randomAnimationTimer.current) {
-        clearTimeout(randomAnimationTimer.current);
-      }
-      randomAnimationTimer.current = setTimeout(() => {
-        randomAnimationTimer.current = null;
-        resolve();
-      }, duration);
-    });
 
   const mapRandomPhoto = (photoData, index) => ({
     id: photoData.id || `random-photo-${index}`,
@@ -304,64 +304,84 @@ const Gallery = () => {
       setViewMode('random');
       setRandomFilmRoll(null);
       setRandomPhotos([]);
-
-      if (canisterState === 'selected') {
-        setFilmState('folded');
-        await waitForAnimation(320);
-      }
-
-      setCanisterState('random');
-      setFilmState('folded');
-      await waitForAnimation(420);
       
       const token = localStorage.getItem('token');
       const authHeader = token ? { Authorization: `Bearer ${token}` } : undefined;
 
-      // 临时方案：全局随机6张，受右上角筛选控制
-      const params = new URLSearchParams({ sort: 'random', limit: '6' });
-      if (filmTypeFilter !== 'all') params.append('film_type', filmTypeFilter);
-      if (filmFormatFilter !== 'all') params.append('film_format', filmFormatFilter);
+      let randomFilmRoll = null;
+      const MAX_RANDOM_ATTEMPTS = 5;
 
-      // 请求一次，全局随机，数量不足则按实际数量显示（最多6张）
-      const photosResponse = await fetch(`/api/photos?${params.toString()}`, { headers: authHeader });
-      if (!photosResponse.ok) {
-        throw new Error(`获取随机照片失败（${photosResponse.status}）`);
+      for (let attempt = 0; attempt < MAX_RANDOM_ATTEMPTS; attempt++) {
+        const filmRollResponse = await fetch('/api/filmRolls/random', {
+          headers: authHeader
+        });
+
+        if (!filmRollResponse.ok) {
+          throw new Error(`获取随机胶卷失败（${filmRollResponse.status}）`);
+        }
+
+        const filmRollResult = await filmRollResponse.json();
+        if (filmRollResult.success && filmRollResult.data) {
+          const candidate = filmRollResult.data;
+          const matchesType =
+            filmTypeFilter === 'all' ||
+            !candidate.film_roll_type ||
+            candidate.film_roll_type === filmTypeFilter;
+          const matchesFormat =
+            filmFormatFilter === 'all' ||
+            !candidate.film_roll_format ||
+            candidate.film_roll_format === filmFormatFilter;
+
+          if (matchesType && matchesFormat) {
+            randomFilmRoll = candidate;
+            break;
+          }
+        }
       }
-      const resultJson = await photosResponse.json();
-      const rawList = (resultJson && resultJson.photos && Array.isArray(resultJson.photos))
-        ? resultJson.photos
-        : (resultJson && resultJson.success && Array.isArray(resultJson.data))
-          ? resultJson.data
-          : (resultJson && Array.isArray(resultJson.data))
-            ? resultJson.data
-            : (Array.isArray(resultJson) ? resultJson : []);
 
-      const mappedPhotos = rawList.map(mapRandomPhoto);
-      const filteredPhotos = hideEncryptedPhotos ? mappedPhotos.filter(p => !p.effective_protection) : mappedPhotos;
-
-      if (filteredPhotos.length === 0) {
-        setRandomError('当前筛选条件下无可展示照片，请调整筛选后再试');
-        setCanisterState('idle');
-        setFilmState('folded');
-        setRandomPhotos([]);
+      if (!randomFilmRoll) {
+        setRandomError('当前筛选条件下暂无可用胶卷，请调整筛选后再试。');
         return;
       }
 
-      setRandomPhotos(filteredPhotos.slice(0, 6));
-      setCurrentRandomIndex(0);
-      setCanisterState('selected');
-      await waitForAnimation(360);
-      setFilmState('unrolled');
-    } catch (error) {
-      console.error('随机浏览失败:', error);
-      setRandomError(error.message || '随机浏览失败，请稍后再试');
-      setCanisterState('idle');
-      setFilmState('folded');
-    } finally {
-      if (randomAnimationTimer.current) {
-        clearTimeout(randomAnimationTimer.current);
-        randomAnimationTimer.current = null;
+      // 构建筛选参数，与其他模式保持一致
+      const params = new URLSearchParams({
+        film_roll_id: randomFilmRoll.id,
+        limit: 8,
+        sort: 'random',
+        exclude_encrypted: hideEncryptedPhotos ? '1' : '0'
+      });
+
+      const photosResponse = await fetch(
+        `/api/photos?${params.toString()}`,
+        {
+          headers: authHeader
+        }
+      );
+
+      if (!photosResponse.ok) {
+        throw new Error(`获取胶卷照片失败（${photosResponse.status}）`);
       }
+
+      const photosResult = await photosResponse.json();
+      const rawList = photosResult?.data && Array.isArray(photosResult.data)
+        ? photosResult.data
+        : Array.isArray(photosResult)
+          ? photosResult
+          : [];
+
+      const mappedPhotos = rawList.map(mapRandomPhoto);
+      const limitedPhotos = mappedPhotos.slice(0, 6);
+      
+      // 即使没有照片也设置状态，让空状态在列表页显示而不是显示错误
+      setRandomFilmRoll(randomFilmRoll);
+      setRandomPhotos(limitedPhotos);
+      setCurrentRandomIndex(0);
+      setRandomError(null); // 清除错误
+    } catch (error) {
+      console.error('随机照片获取失败:', error);
+      setRandomError(error.message || '随机浏览失败，请稍后再试');
+    } finally {
       setIsRandomizing(false);
     }
   };
@@ -376,41 +396,37 @@ const Gallery = () => {
 
   // 滚动懒加载
   useEffect(() => {
+    const target = scrollRoot || window;
+
     const handleScroll = () => {
-      // 检查是否接近页面底部
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      const windowHeight = window.innerHeight;
-      const documentHeight = document.documentElement.scrollHeight;
-      
-      // 当滚动到距离底部200px时触发加载更多
-      if (scrollTop + windowHeight >= documentHeight - 200) {
+      let scrollTop;
+      let viewportHeight;
+      let scrollHeight;
+
+      if (scrollRoot) {
+        scrollTop = scrollRoot.scrollTop;
+        viewportHeight = scrollRoot.clientHeight;
+        scrollHeight = scrollRoot.scrollHeight;
+      } else {
+        scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        viewportHeight = window.innerHeight;
+        scrollHeight = document.documentElement.scrollHeight;
+      }
+
+      if (scrollTop + viewportHeight >= scrollHeight - 200) {
         if (hasMore && !loadingMore && !isPullRefreshing) {
           loadMorePhotos();
         }
       }
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [hasMore, loadingMore, isPullRefreshing]);
+    target.addEventListener('scroll', handleScroll, { passive: true });
+    return () => target.removeEventListener('scroll', handleScroll);
+  }, [scrollRoot, hasMore, loadingMore, isPullRefreshing]);
 
   useEffect(() => {
     fetchPhotos();
   }, []);
-
-  // 初始化与持久化：隐藏加密图片开关
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('hideEncryptedPhotos');
-      if (saved !== null) setHideEncryptedPhotos(saved === 'true');
-    } catch (e) {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('hideEncryptedPhotos', hideEncryptedPhotos ? 'true' : 'false');
-    } catch (e) {}
-  }, [hideEncryptedPhotos]);
 
   // 筛选状态变化时重新加载数据
   useEffect(() => {
@@ -575,7 +591,8 @@ const Gallery = () => {
               onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
               autoOrientation={true}
               lazyOptions={{
-                rootMargin: '200px',
+                root: scrollRoot,
+                rootMargin: '0px 0px 400px 0px',
                 threshold: 0.05
               }}
             />
@@ -599,8 +616,8 @@ const Gallery = () => {
       );
     }
     
-    // 普通模式：检查保护状态
-    const effectiveProtection = !!(photo && photo._raw && photo._raw.effective_protection);
+    // 普通模式：检查保护状态（使用顶层字段）
+    const effectiveProtection = !!photo.effective_protection;
     const isProtectedForViewer = effectiveProtection && !isAdmin;
     
     // 检查是否有有效的图片URL
@@ -617,7 +634,17 @@ const Gallery = () => {
             >
               <div className="flex flex-col items-center">
                 <div className="text-3xl mb-2">🔒</div>
-                <div className="text-xs">{isProtectedForViewer ? "该照片涉及隐私或他人肖像，已被管理员加密" : "图片不可用"}</div>
+                <div className="text-xs">
+                  {isProtectedForViewer ? (() => {
+                    const level = photo.protection_level;
+                    if (level === 'personal') return '此照片包含个人隐私内容，已加密保护';
+                    if (level === 'sensitive') return '此照片包含敏感内容，已加密保护';
+                    if (level === 'restricted') return '此照片严格限制访问，已加密保护';
+                    if (level === 'portrait') return '此照片涉及他人肖像权，已加密保护';
+                    if (level === 'other') return '此照片已被管理员加密保护';
+                    return '该照片涉及隐私或他人肖像，已被管理员加密';
+                  })() : "图片不可用"}
+                </div>
               </div>
             </div>
           ) : (
@@ -631,7 +658,8 @@ const Gallery = () => {
               onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
               autoOrientation={true}
               lazyOptions={{
-                rootMargin: '200px',
+                root: scrollRoot,
+                rootMargin: '0px 0px 400px 0px',
                 threshold: 0.05
               }}
             />
@@ -657,9 +685,9 @@ const Gallery = () => {
     return (
       <AdaptiveCard 
         key={photo.id} 
-        className={`h-full group photo-card overflow-hidden rounded-lg bg-gray-100 shadow-sm hover:shadow-lg transition-shadow ${isProtectedForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-        hover={false}
-        shadow={undefined}
+        className={`h-full group photo-card ${isProtectedForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+        hover={true}
+        shadow={'default'}
       >
         {content}
       </AdaptiveCard>
@@ -794,28 +822,31 @@ const Gallery = () => {
                   <span className="text-sm text-gray-700">隐藏加密图片</span>
                 </label>
                 
-                {/* 胶卷类型筛选 */}
-                <select
-                  value={filmTypeFilter}
-                  onChange={(e) => setFilmTypeFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">全部类型</option>
-                  <option value="Color Negative">彩色</option>
-                  <option value="Black & White">黑白</option>
-                  <option value="Slide">反转片</option>
-                </select>
-                
-                {/* 胶卷画幅筛选 */}
-                <select
-                  value={filmFormatFilter}
-                  onChange={(e) => setFilmFormatFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">全部画幅</option>
-                  <option value="135mm">135</option>
-                  <option value="120">120</option>
-                </select>
+                {/* 胶卷类型和画幅筛选 - 暂时隐藏 */}
+                {false && (
+                  <>
+                    <select
+                      value={filmTypeFilter}
+                      onChange={(e) => setFilmTypeFilter(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">全部类型</option>
+                      <option value="Color Negative">彩色</option>
+                      <option value="Black & White">黑白</option>
+                      <option value="Slide">反转片</option>
+                    </select>
+                    
+                    <select
+                      value={filmFormatFilter}
+                      onChange={(e) => setFilmFormatFilter(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">全部画幅</option>
+                      <option value="135mm">135</option>
+                      <option value="120">120</option>
+                    </select>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -825,14 +856,13 @@ const Gallery = () => {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             {viewMode === 'random' ? (
               <RandomFilmStrip
-                filmRoll={randomFilmRoll}
                 photos={randomPhotos}
-                canisterState={canisterState}
-                filmState={filmState}
                 onRandom={fetchRandomPhoto}
                 isRandomizing={isRandomizing}
                 onFrameClick={openRandomPhoto}
                 error={randomError}
+                renderPhotoCard={renderPhotoCard}
+                scrollRoot={scrollRoot}
               />
             ) : photos.length === 0 && !loading ? (
               // 空状态
@@ -846,14 +876,14 @@ const Gallery = () => {
               <>
                 {(viewMode === 'list' || !WATERFALL_ENABLED) ? (
                   // 固定网格：一行4个，统一宽高
-                  <div className="grid gap-6 sm:gap-8 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
+                  <div className="grid gap-6 sm:gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {photos.map((photo) => renderPhotoCard(photo))}
                   </div>
                 ) : (
                   // 瀑布流（Masonry）：同一宽度等比缩放高度，按累积高度补位
                   (() => {
                     // 计算瀑布流布局
-                    const columnCount = window.innerWidth >= 1024 ? 3 : (window.innerWidth >= 640 ? 2 : 1);
+                    const columnCount = window.innerWidth >= 1024 ? 3 : window.innerWidth >= 640 ? 2 : 1;
                     const gap = window.innerWidth >= 640 ? 32 : 24; // sm:gap-8 (32px) 或 gap-6 (24px)
                     
                     // 计算容器的实际宽度，模拟 Tailwind container 类的行为
@@ -927,7 +957,7 @@ const Gallery = () => {
                             try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; }
                             catch (e) { return false; }
                           })();
-                          const effectiveProtection = !!(photo && photo._raw && photo._raw.effective_protection);
+                          const effectiveProtection = !!photo.effective_protection;
                           const isProtectedForViewer = effectiveProtection && !isAdmin;
                           
                           return (
@@ -948,7 +978,7 @@ const Gallery = () => {
                                       <div className="text-3xl mb-2">🔒</div>
                                       <div className="text-xs">
                                         {(() => {
-                                          const level = photo.protection_level || photo._raw?.protection_level;
+                                          const level = photo.protection_level;
                                           if (level === 'personal') return '此照片包含个人隐私内容，已加密保护';
                                           if (level === 'sensitive') return '此照片包含敏感内容，已加密保护';
                                           if (level === 'restricted') return '此照片严格限制访问，已加密保护';
@@ -956,7 +986,7 @@ const Gallery = () => {
                                           if (level === 'other') return '此照片已被管理员加密保护';
                                           return '该照片涉及隐私或他人肖像，已被管理员加密';
                                         })()}
-                        </div>
+                                      </div>
                             </div>
                             </div>
                                 ) : (
@@ -982,7 +1012,7 @@ const Gallery = () => {
                   })()
                 )}
 
-                <div className="flex justify-center items-center py-3 sm:py-4">
+                <div className="flex justify-center items-center py-1">
                   {hasMore ? (
                     <span
                       onClick={loadMorePhotos}
