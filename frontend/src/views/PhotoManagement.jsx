@@ -813,7 +813,7 @@ const PhotoManagement = () => {
                       <div className="text-sm text-gray-800">
                         {[uploadForm.country, uploadForm.province, uploadForm.city, uploadForm.district, uploadForm.township]
                           .filter(Boolean)
-                          .join('')}
+                          .join(' ')}
                       </div>
                     </div>
                   )}
@@ -1026,7 +1026,7 @@ const PhotoManagement = () => {
                       <div className="text-sm text-gray-800">
                         {[editForm.country, editForm.province, editForm.city, editForm.district, editForm.township]
                           .filter(Boolean)
-                          .join('')}
+                          .join(' ')}
                       </div>
                     </div>
                   )}
@@ -1154,7 +1154,7 @@ const PhotoManagement = () => {
                   <div className="mb-3">
                     <div className="text-xs text-gray-600 mb-1">解析的地址：</div>
                     <div className="bg-blue-50 px-3 py-1.5 rounded text-sm text-gray-800 truncate">
-                      {loc.country}{loc.province}{loc.city}{loc.district}{loc.township}
+                      {[loc.country, loc.province, loc.city, loc.district, loc.township].filter(Boolean).join(' ')}
                     </div>
                   </div>
                 ) : null;
@@ -1343,7 +1343,7 @@ const PhotoManagement = () => {
                                     <div className="flex items-center gap-2">
                                       {location ? (
                                         <span className="flex-1 text-xs text-gray-600 bg-blue-50 px-2 py-0.5 rounded truncate">
-                                          {location.country}{location.province}{location.city}{location.district}{location.township}
+                                          {[location.country, location.province, location.city, location.district, location.township].filter(Boolean).join(' ')}
                                         </span>
                                       ) : (
                                         <span className="flex-1 text-xs text-gray-400">未设置位置</span>

@@ -17,6 +17,130 @@ function cleanBilingualText(text) {
   return text.replace(/\b([a-zA-Z\s]+)\s+\1\b/gi, '$1').trim();
 }
 
+// 清理特殊格式文本
+function cleanSpecialFormat(text) {
+  if (!text) return text;
+  
+  // 处理 "Alba / Scotland" 或 "Inbhir Nis / Inverness" 等双语格式
+  if (text.includes(' / ')) {
+    const parts = text.split(' / ').map(p => p.trim()).filter(p => p);
+    
+    if (parts.length === 0) return text;
+    
+    // 策略1：优先检查最后一段是否在翻译表中（如果能查到说明是标准英文名）
+    // 因为MapTiler通常把英文放在后面，且翻译表包含的是标准英文名
+    const { translations } = require('./geocode-translations');
+    const lastPart = parts[parts.length - 1];
+    
+    // 检查英国地区翻译表和城市翻译表（包括省份和城市）
+    if (translations.ukRegions && translations.ukRegions[lastPart]) {
+      return lastPart;
+    }
+    if (translations.ukCities && translations.ukCities[lastPart]) {
+      return lastPart;
+    }
+    
+    // 策略2：检查所有部分是否在翻译表中（优先返回能在翻译表中找到的）
+    // 先从后往前检查（优先匹配后面的，因为MapTiler常把英文放后）
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const part = parts[i];
+      if (translations.ukRegions && translations.ukRegions[part]) {
+        return part;
+      }
+      if (translations.ukCities && translations.ukCities[part]) {
+        return part;
+      }
+    }
+    
+    // 策略3：如果都是ASCII字符，需要更智能的判断
+    const allAscii = parts.every(p => /^[\x00-\x7F]+$/.test(p));
+    if (allAscii) {
+      // 检查是否有部分在翻译表中（优先返回更标准的名）
+      let foundInTranslation = null;
+      for (const part of parts) {
+        if ((translations.ukRegions && translations.ukRegions[part]) ||
+            (translations.ukCities && translations.ukCities[part])) {
+          foundInTranslation = part;
+          break; // 优先选择第一个在翻译表中的
+        }
+      }
+      if (foundInTranslation) {
+        return foundInTranslation;
+      }
+      
+      // 如果都不在翻译表中，计算每个部分的"英文可能性"分数
+      // 得分因素：1) 有英文后缀 +3分  2) 常见英文地名后缀 +2分  3) 单词且首字母大写 +1分
+      // 4) 常见英文单词组合 +1分  5) 长度较短（英文地名通常更短，但不够可靠，暂不使用）
+      const scoreEnglish = (str) => {
+        let score = 0;
+        
+        // 常见英文地名后缀（相对可靠）
+        const commonSuffixes = ['shire', 'ton', 'ham', 'ford', 'bridge', 'port', 'mouth', 'borough', 'city', 'town'];
+        if (commonSuffixes.some(suffix => str.toLowerCase().endsWith(suffix))) {
+          score += 3;
+        }
+        
+        // 其他英文后缀
+        const otherSuffixes = ['land', 'side', 'vale', 'wood', 'field', 'hill', 'bay', 'isle', 'sea'];
+        if (otherSuffixes.some(suffix => str.toLowerCase().endsWith(suffix))) {
+          score += 2;
+        }
+        
+        // 单词且首字母大写（可能是地名，但不够可靠）
+        if (/^[A-Z][a-z]+$/.test(str)) {
+          score += 1;
+        }
+        
+        // 常见英文单词组合（如"New York"、"Great Britain"等）
+        const commonEnglishWords = ['new', 'old', 'great', 'little', 'north', 'south', 'east', 'west', 'upper', 'lower', 'royal'];
+        const words = str.toLowerCase().split(/\s+/);
+        if (words.some(word => commonEnglishWords.includes(word))) {
+          score += 1;
+        }
+        
+        return score;
+      };
+      
+      // 如果有部分明显更可能是英文（得分更高），优先返回
+      const scores = parts.map(p => ({ part: p, score: scoreEnglish(p) }));
+      const maxScore = Math.max(...scores.map(s => s.score));
+      if (maxScore > 0) {
+        // 如果只有一个最高分，直接返回
+        const maxScoreParts = scores.filter(s => s.score === maxScore);
+        if (maxScoreParts.length === 1) {
+          return maxScoreParts[0].part;
+        }
+        // 如果有多个相同最高分，优先返回最后一段（MapTiler通常把英文放在后面）
+        // 例如："Roma / Rome"、"Milano / Milan"，两个都是1分，应该返回"Rome"、"Milan"
+        return lastPart;
+      }
+      
+      // 如果得分都为0，优先返回最后一段（MapTiler通常把英文放在后面）
+      // 这是基于MapTiler实际行为："本地语 / 英文"的格式更常见
+      // 例如："Roma / Rome"、"Milano / Milan"、"Alba / Scotland"
+      return lastPart;
+    }
+    
+    // 策略4：优先选择纯ASCII字符的部分（如果混有非ASCII）
+    const asciiOnly = parts.find(p => /^[\x00-\x7F]+$/.test(p));
+    if (asciiOnly) {
+      return asciiOnly;
+    }
+    
+    // 兜底：返回最后一段（MapTiler常把英文放后）
+    return lastPart;
+  }
+  
+  // 处理 "City of Edinburgh" -> "Edinburgh"
+  // 使用 \s+ 匹配多个空格，确保能处理 "City  of   Edinburgh" 等情况
+  const cityOfMatch = text.match(/^City\s+of\s+/i);
+  if (cityOfMatch) {
+    return text.replace(/^City\s+of\s+/i, '').trim();
+  }
+  
+  return text.trim();
+}
+
 // 统一解析MapTiler返回的context
 function parseMapTilerContext(context) {
   let country = '';
@@ -29,89 +153,167 @@ function parseMapTilerContext(context) {
     return { country, province, city, district, township };
   }
   
-  // MapTiler的context是倒序的（从详细到宏观）
-  // 顺序通常是：postal_code -> neighbourhood -> municipality -> county -> subregion -> region -> country
-  // 但需要注意：对于中国，county可能是市（如深圳市），joint_municipality可能是区（如南山区）
+  // 先提取country_code
+  let countryCode = '';
+  context.forEach(item => {
+    if (item.country_code) {
+      countryCode = item.country_code.toLowerCase();
+    }
+  });
   
-  // 按顺序遍历context（从详细到宏观）
-  const tempData = {};
+  // 按国家代码分别适配解析策略
+  const tempData = {
+    country: '',
+    province: '',
+    city: '',
+    district: '',
+    township: '',
+    // 临时存储字段
+    region: '',
+    subregion: '',
+    county: '',
+    municipality: '',
+    jointMunicipality: '',
+    jointSubmunicipality: '',
+    municipalDistrict: '',
+    locality: '',
+    place: ''
+  };
   
+  // 遍历context，提取所有可能的字段
   context.forEach(item => {
     const text = item.text || '';
     const id = item.id || '';
     const designation = item.place_designation || '';
+    const kind = item.kind || '';
     
-    // 存储所有可能的数据
+    // 国家
     if (id.includes('country.') || designation === 'country') {
       tempData.country = text;
-    } else if (id.includes('region.') && designation === 'state') {
-      tempData.province = text;
-    } else if (id.includes('subregion.')) {
-      if (!tempData.province) {
-        tempData.province = text;
+    }
+    // 区域/省份
+    else if (id.includes('region.')) {
+      tempData.region = text;
+    }
+    // 子区域
+    else if (id.includes('subregion.')) {
+      tempData.subregion = text;
+    }
+    // 县/郡
+    else if (id.includes('county.')) {
+      tempData.county = text;
+    }
+    // 市政区
+    else if (id.includes('municipality.')) {
+      tempData.municipality = text;
+    }
+    // 联合市政区
+    else if (id.includes('joint_municipality.')) {
+      tempData.jointMunicipality = text;
+    }
+    // 联合子市政区
+    else if (id.includes('joint_submunicipality.')) {
+      tempData.jointSubmunicipality = text;
+    }
+    // 市政区（区级）
+    else if (id.includes('municipal_district.')) {
+      tempData.municipalDistrict = text;
+    }
+    // 地方/区域
+    else if (id.includes('locality.')) {
+      tempData.locality = text;
+    }
+    // 地点/街区
+    else if (id.includes('place.') || id.includes('neighbourhood.')) {
+      if (designation === 'quarter' || designation === 'neighbourhood' || kind === 'place') {
+        tempData.place = text;
       }
-    } else if (id.includes('county.') && designation === 'city' && !tempData.city) {
-      tempData.city = text;  // 深圳市
-    } else if (id.includes('municipality.')) {
-      // 对于日本和其他国家，municipality可能是city或district
-      if (!tempData.city && designation === 'city') {
-        tempData.city = text;  // 城市
-      } else if (designation === 'suburb' || designation === 'municipality') {
-        tempData.township = text;  // 镇/区
-      } else if (!tempData.district) {
-        tempData.district = text;  // 可能作为district使用
-      }
-    } else if (id.includes('municipal_district.')) {
-      // 日本等国家，municipal_district是区
-      if (!tempData.district) {
-        tempData.district = text;  // 中央区
-      }
-    } else if (id.includes('joint_municipality.') && !tempData.jointMunicipality) {
-      tempData.jointMunicipality = text;  // 可能是区（南山区）或直辖市区（东城区）
-    } else if (id.includes('neighbourhood.') || id.includes('place.') && designation === 'quarter') {
-      tempData.township = text;  // 街区
-    } else if (id.includes('locality.') && !tempData.city) {
-      // 日本等国家，locality可能是城市名
-      tempData.city = text;
     }
   });
   
-  // 判断层级结构
-  // 深圳：county=深圳市(city), joint_municipality=南山区(district)
-  // 北京：subregion=北京市(province), joint_municipality=东城区(city)
-  // 日本：region=東京都/県(province), municipality=市区町村(city/district), neighbourhood=街区(township)
-  
-  if (tempData.city && tempData.jointMunicipality) {
-    // 有county和joint_municipality → 多层结构（省/市/区）
-    city = tempData.city;
-    district = tempData.jointMunicipality;
-  } else if (tempData.jointMunicipality && !tempData.city) {
-    // 只有joint_municipality → 直辖市结构（市/区）
-    city = tempData.jointMunicipality;
-  } else if (tempData.city) {
-    // 有city → 普通城市结构
-    city = tempData.city;
-    district = tempData.district || '';
-  } else if (tempData.municipality) {
-    // 只有municipality → 可能是小城市或镇
-    city = tempData.municipality;
-  } else {
-    // 其他情况
-    city = tempData.city || '';
-    district = tempData.jointMunicipality || tempData.district || '';
+  // 按国家代码适配解析策略
+  switch (countryCode) {
+    case 'gb': // 英国
+    case 'uk':
+      // 英国结构：region (state) -> county/joint_municipality (city) -> joint_submunicipality (district) -> municipality (township)
+      province = cleanSpecialFormat(tempData.region || tempData.subregion || '');
+      city = cleanSpecialFormat(tempData.county || tempData.jointMunicipality || '');
+      district = cleanSpecialFormat(tempData.jointSubmunicipality || '');
+      township = tempData.municipality || tempData.place || '';
+      break;
+      
+    case 'de': // 德国
+      // 德国结构：region (city) -> municipal_district (district) -> locality (suburb)
+      city = tempData.region || '';
+      district = tempData.municipalDistrict || tempData.locality || '';
+      township = tempData.place || '';
+      break;
+      
+    case 'es': // 西班牙
+      // 西班牙结构：region/subregion (province) -> municipality (city) -> municipal_district (district) -> locality (quarter) -> place (neighbourhood)
+      province = tempData.region || tempData.subregion || '';
+      city = tempData.municipality || '';
+      district = tempData.municipalDistrict || tempData.locality || '';
+      township = tempData.place || '';
+      break;
+      
+    case 'it': // 意大利
+      // 意大利结构：region (state) -> municipality (city) -> locality (district) -> place (quarter)
+      province = tempData.region || '';
+      city = tempData.municipality || tempData.county || '';
+      district = tempData.locality || '';
+      township = tempData.place || '';
+      break;
+      
+    case 'ph': // 菲律宾
+      // 菲律宾结构：region (province) -> municipality (city) -> locality (suburb) -> municipal_district (district) -> place (quarter)
+      province = tempData.region || '';
+      city = tempData.municipality || '';
+      district = tempData.municipalDistrict || tempData.locality || '';
+      township = tempData.place || '';
+      break;
+      
+    case 'mx': // 墨西哥
+      // 墨西哥结构：region/locality (city) -> municipality (borough) -> place (neighbourhood)
+      city = tempData.region || tempData.locality || '';
+      district = tempData.municipality || '';
+      township = tempData.place || '';
+      break;
+      
+    case 'br': // 巴西
+      // 巴西结构：region (state) -> municipality (city) -> locality (district)
+      province = tempData.region || tempData.subregion || '';
+      city = tempData.municipality || '';
+      district = tempData.locality || '';
+      township = tempData.place || '';
+      break;
+      
+    default:
+      // 通用策略：尝试推断
+      province = tempData.region || tempData.subregion || '';
+      city = tempData.county || tempData.jointMunicipality || tempData.municipality || tempData.locality || '';
+      district = tempData.jointSubmunicipality || tempData.municipalDistrict || '';
+      township = tempData.place || '';
+      
+      // 如果只有township（景点/街区）但没有city，尝试从更大的层级推断
+      if (township && !city) {
+        if (province) {
+          const provinceLower = province.toLowerCase();
+          if (provinceLower.includes('manila') || provinceLower.includes('metro manila')) {
+            city = 'Manila';
+          }
+        }
+      }
+      break;
   }
   
   country = tempData.country || '';
-  province = tempData.province || '';
-  township = tempData.township || '';
   
-  // 获取country_code用于翻译
-  let countryCode = '';
-  context.forEach(item => {
-    if (item.country_code) {
-      countryCode = item.country_code;
-    }
-  });
+  // 清理空值
+  if (!province || province === '') province = '';
+  if (!city || city === '') city = '';
+  if (!district || district === '') district = '';
+  if (!township || township === '') township = '';
   
   // 特殊处理：中国地区的港澳台地址（country_code是"cn"但实际是港澳台）
   if (countryCode && countryCode.toLowerCase() === 'cn') {
@@ -150,6 +352,14 @@ function parseMapTilerContext(context) {
     }
   }
   
+  // 处理中国省份翻译（包括新疆等）
+  if (countryCode && countryCode.toLowerCase() === 'cn') {
+    const { getChinaProvinceTranslation } = require('./geocode-translations');
+    if (province) {
+      province = getChinaProvinceTranslation(province);
+    }
+  }
+  
   // 翻译国外地址和中国特别行政区（香港、澳门、台湾）
   if (countryCode && countryCode.toLowerCase() !== 'cn') {
     // 清理港澳台地区的中英文混合文本（在翻译之前）
@@ -160,8 +370,12 @@ function parseMapTilerContext(context) {
       district = cleanBilingualText(district);
     }
     
-    // 翻译国家名
-    const countryTranslated = getCountryTranslation(countryCode.toLowerCase());
+    // 翻译国家名（先尝试使用countryCode，如果失败则尝试使用country名称）
+    let countryTranslated = getCountryTranslation(countryCode.toLowerCase());
+    if (!countryTranslated && country) {
+      // 如果使用countryCode没有找到翻译，尝试使用country名称
+      countryTranslated = getCountryTranslation(country);
+    }
     if (countryTranslated) {
       country = countryTranslated;
     }
@@ -186,8 +400,8 @@ function parseMapTilerContext(context) {
       city = cityTranslations[city] || city;
     }
     
-    // 翻译香港、澳门、台湾、泰国、菲律宾、新加坡、韩国、澳大利亚、越南、马来西亚、印度尼西亚的城市
-    if (city && ['hk', 'mo', 'tw', 'th', 'ph', 'sg', 'kr', 'au', 'vn', 'my', 'id'].includes(countryCode.toLowerCase())) {
+    // 翻译香港、澳门、台湾、泰国、菲律宾、新加坡、韩国、澳大利亚、越南、马来西亚、印度尼西亚、英国、法国、美国的城市
+    if (city && ['hk', 'mo', 'tw', 'th', 'ph', 'sg', 'kr', 'au', 'vn', 'my', 'id', 'gb', 'uk', 'fr', 'us'].includes(countryCode.toLowerCase())) {
       city = translateAddress(countryCode, city, 'city');
     }
     
@@ -425,5 +639,7 @@ router.post('/reverse-maptiler', async (req, res) => {
   }
 });
 
+// 导出 cleanSpecialFormat 用于单元测试
 module.exports = router;
+module.exports.cleanSpecialFormat = cleanSpecialFormat;
 

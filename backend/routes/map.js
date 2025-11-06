@@ -6,8 +6,57 @@ const { adminAuth } = require('../middleware/auth');
 // 获取地图上的所有照片位置
 router.get('/photos', async (req, res) => {
   try {
-    const { bounds, zoom } = req.query;
+    const { bounds, zoom, lightweight } = req.query;
+    const isLightweight = lightweight === 'true' || lightweight === true;
     
+    // 轻量级模式：只返回位置信息（用于地图标点）
+    if (isLightweight) {
+      let sql = `
+        SELECT 
+          p.id,
+          p.latitude,
+          p.longitude
+        FROM photos p
+        LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
+        WHERE p.latitude IS NOT NULL 
+          AND p.longitude IS NOT NULL
+          AND p.latitude != 0 
+          AND p.longitude != 0
+          AND p.latitude BETWEEN -90 AND 90
+          AND p.longitude BETWEEN -180 AND 180
+          AND (p.is_protected = 0 OR p.is_protected IS NULL)
+          AND (fr.is_protected = 0 OR fr.is_protected IS NULL)
+      `;
+      
+      const params = [];
+      
+      // 如果提供了边界范围，添加边界过滤
+      if (bounds) {
+        const [swLat, swLng, neLat, neLng] = bounds.split(',').map(Number);
+        sql += ` AND p.latitude BETWEEN ? AND ? AND p.longitude BETWEEN ? AND ?`;
+        params.push(swLat, neLat, swLng, neLng);
+      }
+      
+      // 优化：如果没有bounds，限制返回数量（避免加载所有照片）
+      // 如果以后有3000张照片，初始加载时不传递bounds会查询所有，导致性能问题
+      if (!bounds) {
+        // 没有bounds时，限制返回前500个（根据实际需求调整）
+        sql += ` ORDER BY p.taken_date DESC LIMIT 500`;
+      } else {
+        sql += ` ORDER BY p.taken_date DESC`;
+      }
+      
+      const photos = db.prepare(sql).all(params);
+      
+      res.json({
+        success: true,
+        data: photos,
+        count: photos.length
+      });
+      return;
+    }
+    
+    // 完整模式：返回所有信息（保持向后兼容）
     let sql = `
       SELECT 
         p.id,
@@ -26,6 +75,12 @@ router.get('/photos', async (req, res) => {
       LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
       WHERE p.latitude IS NOT NULL 
         AND p.longitude IS NOT NULL
+        AND p.latitude != 0 
+        AND p.longitude != 0
+        AND p.latitude BETWEEN -90 AND 90
+        AND p.longitude BETWEEN -180 AND 180
+        AND (p.is_protected = 0 OR p.is_protected IS NULL)
+        AND (fr.is_protected = 0 OR fr.is_protected IS NULL)
     `;
     
     const params = [];

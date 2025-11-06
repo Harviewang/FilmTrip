@@ -129,7 +129,13 @@ const createFilmStock = (req, res) => {
     console.log('请求体:', req.body);
     console.log('上传的文件:', req.files);
     
-    const { brand, series, iso, format, type, description } = req.body;
+    // 标准化输入：去除首尾空格，确保一致性
+    const brand = (req.body.brand || '').trim();
+    const series = (req.body.series || '').trim();
+    const iso = (req.body.iso || '').trim();
+    const format = (req.body.format || '').trim();
+    const type = (req.body.type || '').trim();
+    const description = (req.body.description || '').trim();
     
     // 处理文件上传
     let packageImagePath = null;
@@ -152,24 +158,39 @@ const createFilmStock = (req, res) => {
       });
     }
     
+    // 验证品牌和系列长度（至少3个字符才能生成编号）
+    if (brand.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: '品牌名称至少需要3个字符'
+      });
+    }
+    if (series.length < 3) {
+      return res.status(400).json({
+        success: false,
+        message: '系列名称至少需要3个字符'
+      });
+    }
+    
     // 验证ISO值
-    if (isNaN(iso) || parseInt(iso) <= 0) {
+    const isoNum = parseInt(iso);
+    if (isNaN(isoNum) || isoNum <= 0) {
       return res.status(400).json({
         success: false,
         message: 'ISO必须是正整数'
       });
     }
     
-    // 检查是否已存在相同的胶卷品类
+    // 检查是否已存在相同的胶卷品类（基于标准化后的数据）
     const existingStock = query(
-      'SELECT id FROM film_stocks WHERE brand = ? AND series = ? AND iso = ? AND format = ? AND type = ?',
-      [brand, series, parseInt(iso), format, type]
+      'SELECT id, stock_serial_number FROM film_stocks WHERE brand = ? AND series = ? AND iso = ? AND format = ? AND type = ?',
+      [brand, series, isoNum, format, type]
     );
     
     if (existingStock.length > 0) {
       return res.status(400).json({
         success: false,
-        message: '该胶卷品类已存在'
+        message: `该胶卷品类已存在（编号：${existingStock[0].stock_serial_number}）`
       });
     }
     
@@ -177,15 +198,46 @@ const createFilmStock = (req, res) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     
-    // 生成胶卷品类流水号
-    const stockSerialNumber = `${brand.toUpperCase()}-${series.toUpperCase()}-${iso}-${format.toUpperCase()}`;
+    // 生成胶卷品类编号：品牌缩写+系列缩写+格式+类型缩写（无分隔符）
+    // 品牌缩写：取前3个字母，如 KOD, ILF, FUJ
+    // 系列：取前3个字母（去除空格），如 POR, SUP, EKT
+    // 格式：去除mm后缀，如 135, 120, 45
+    // 类型：CN(彩色负片), BW(黑白), SL(反转片)
+    const brandShort = brand.substring(0, 3).toUpperCase();
+    const seriesShort = series.substring(0, 3).toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
+    const formatShort = format.replace(/mm|MM/g, '').toUpperCase(); // 135mm -> 135
+    let typeShort = '';
+    const typeLower = type.toLowerCase();
+    if (typeLower.includes('color') || typeLower.includes('彩色')) {
+      if (typeLower.includes('negative') || typeLower.includes('负片')) {
+        typeShort = 'CN'; // Color Negative
+      } else if (typeLower.includes('slide') || typeLower.includes('反转')) {
+        typeShort = 'SL'; // Slide 反转片
+      } else {
+        typeShort = 'CN';
+      }
+    } else if (typeLower.includes('black') || typeLower.includes('white') || typeLower.includes('黑白')) {
+      typeShort = 'BW'; // Black & White
+    } else {
+      typeShort = type.substring(0, 2).toUpperCase().replace(/[^A-Z]/g, '');
+    }
     
-    // 检查流水号是否已存在
-    const existingStockBySerial = query('SELECT id FROM film_stocks WHERE stock_serial_number = ?', [stockSerialNumber]);
+    // 无分隔符，更简洁：KODPOR135CN
+    const stockSerialNumber = `${brandShort}${seriesShort}${formatShort}${typeShort}`;
+    
+    console.log('生成的品类编号:', {
+      原始输入: { brand: req.body.brand, series: req.body.series, format: req.body.format, type: req.body.type },
+      标准化后: { brand, series, format, type },
+      生成结果: { brandShort, seriesShort, formatShort, typeShort, stockSerialNumber }
+    });
+    
+    // 检查生成的编号是否已存在（防止编号冲突）
+    const existingStockBySerial = query('SELECT id, brand, series FROM film_stocks WHERE stock_serial_number = ?', [stockSerialNumber]);
     if (existingStockBySerial.length > 0) {
+      const existing = existingStockBySerial[0];
       return res.status(400).json({
         success: false,
-        message: '该胶卷品类已存在'
+        message: `生成的编号 "${stockSerialNumber}" 已存在，对应的品类：${existing.brand} ${existing.series}。请检查输入是否有重复或冲突。`
       });
     }
     
@@ -193,7 +245,7 @@ const createFilmStock = (req, res) => {
     const result = insert(
       `INSERT INTO film_stocks (id, stock_serial_number, brand, series, iso, format, type, description, package_image, cartridge_image, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, stockSerialNumber, brand, series, parseInt(iso), format, type, description || '', packageImagePath, cartridgeImagePath, now, now]
+      [id, stockSerialNumber, brand, series, isoNum, format, type, description || '', packageImagePath, cartridgeImagePath, now, now]
     );
     
     if (result.changes === 0) {
@@ -263,8 +315,27 @@ const updateFilmStock = (req, res) => {
       }
     }
     
-    // 生成新的胶卷品类流水号
-    const stockSerialNumber = `${brand.toUpperCase()}-${series.toUpperCase()}-${iso}-${format.toUpperCase()}`;
+    // 生成新的胶卷品类编号：品牌缩写+系列缩写+格式+类型缩写（无分隔符）
+    const brandShort = brand.substring(0, 3).toUpperCase();
+    const seriesShort = series.substring(0, 3).toUpperCase().replace(/\s+/g, '');
+    const formatShort = format.replace('mm', '').toUpperCase();
+    let typeShort = '';
+    if (type.toLowerCase().includes('color') || type.toLowerCase().includes('彩色')) {
+      if (type.toLowerCase().includes('negative') || type.toLowerCase().includes('负片')) {
+        typeShort = 'CN';
+      } else if (type.toLowerCase().includes('slide') || type.toLowerCase().includes('反转')) {
+        typeShort = 'SL'; // Slide 反转片
+      } else {
+        typeShort = 'CN';
+      }
+    } else if (type.toLowerCase().includes('black') || type.toLowerCase().includes('white') || type.toLowerCase().includes('黑白')) {
+      typeShort = 'BW';
+    } else {
+      typeShort = type.substring(0, 2).toUpperCase();
+    }
+    
+    // 无分隔符，更简洁：KODPOR135CN
+    const stockSerialNumber = `${brandShort}${seriesShort}${formatShort}${typeShort}`;
     
     // 检查新流水号是否与其他品类冲突（排除自己）
     const conflictingStockBySerial = query(

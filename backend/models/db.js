@@ -147,6 +147,24 @@ const initialize = () => {
       );
     `);
 
+    // 创建索引优化查询性能
+    try {
+      db.exec(`
+        -- photos表的latitude和longitude索引（用于地图标点查询）
+        CREATE INDEX IF NOT EXISTS idx_photos_latitude ON photos(latitude);
+        CREATE INDEX IF NOT EXISTS idx_photos_longitude ON photos(longitude);
+        
+        -- 复合索引：用于地图边界查询（latitude BETWEEN ... AND longitude BETWEEN ...）
+        CREATE INDEX IF NOT EXISTS idx_photos_lat_lng ON photos(latitude, longitude);
+        
+        -- 优化：taken_date索引（如果ORDER BY taken_date需要）
+        CREATE INDEX IF NOT EXISTS idx_photos_taken_date ON photos(taken_date DESC);
+      `);
+      console.log('地图相关索引创建成功');
+    } catch (indexError) {
+      console.warn('创建索引时出错（可能已存在）:', indexError.message);
+    }
+
     console.log('数据库初始化成功');
     
     // 创建默认管理员用户
@@ -171,6 +189,7 @@ const initialize = () => {
       } else {
         console.log('默认管理员用户已存在');
       }
+
     } catch (error) {
       console.error('创建默认管理员用户失败:', error.message);
     }

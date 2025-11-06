@@ -2,7 +2,7 @@
 // 用于将国外地址翻译为中文
 
 const translations = {
-  // 国家翻译
+  // 国家翻译（使用国家代码）
   country: {
     'us': '美国',
     'gb': '英国',
@@ -49,6 +49,142 @@ const translations = {
     'hk': '中国香港',
     'mo': '中国澳门',
     'tw': '中国台湾'
+  },
+  
+  // 国家名称翻译（作为fallback，处理MapTiler返回英文名称的情况）
+  countryName: {
+    'United States': '美国',
+    'United States of America': '美国',
+    'USA': '美国',
+    'United Kingdom': '英国',
+    'UK': '英国',
+    'Japan': '日本',
+    'France': '法国',
+    'Germany': '德国',
+    'Australia': '澳大利亚',
+    'Brazil': '巴西',
+    'South Africa': '南非',
+    'Canada': '加拿大',
+    'India': '印度',
+    'South Korea': '韩国',
+    'Korea': '韩国',
+    'Republic of Korea': '韩国',
+    'Singapore': '新加坡',
+    'Malaysia': '马来西亚',
+    'Thailand': '泰国',
+    'Philippines': '菲律宾',
+    'Vietnam': '越南',
+    'Indonesia': '印度尼西亚',
+    'Netherlands': '荷兰',
+    'Italy': '意大利',
+    'Spain': '西班牙',
+    'Russia': '俄罗斯',
+    'Mexico': '墨西哥',
+    'Argentina': '阿根廷',
+    'Switzerland': '瑞士',
+    'Austria': '奥地利',
+    'Belgium': '比利时',
+    'Denmark': '丹麦',
+    'Sweden': '瑞典',
+    'Norway': '挪威',
+    'Finland': '芬兰',
+    'Poland': '波兰',
+    'Czech Republic': '捷克',
+    'Greece': '希腊',
+    'Portugal': '葡萄牙',
+    'Turkey': '土耳其',
+    'Egypt': '埃及',
+    'Saudi Arabia': '沙特阿拉伯',
+    'United Arab Emirates': '阿联酋',
+    'UAE': '阿联酋',
+    'New Zealand': '新西兰',
+    'Ireland': '爱尔兰',
+    'China': '中国',
+    'Hong Kong': '中国香港',
+    'Macau': '中国澳门',
+    'Macao': '中国澳门',
+    'Taiwan': '中国台湾'
+  },
+  
+  // 中国省份翻译
+  chinaProvinces: {
+    '北京': '北京市',
+    'Beijing': '北京市',
+    'Peking': '北京市',
+    '上海': '上海市',
+    'Shanghai': '上海市',
+    '天津': '天津市',
+    'Tianjin': '天津市',
+    '重庆': '重庆市',
+    'Chongqing': '重庆市',
+    '广东': '广东省',
+    'Guangdong': '广东省',
+    '广西': '广西壮族自治区',
+    'Guangxi': '广西壮族自治区',
+    '广西壮族自治区': '广西壮族自治区',
+    '浙江': '浙江省',
+    'Zhejiang': '浙江省',
+    '江苏': '江苏省',
+    'Jiangsu': '江苏省',
+    '山东': '山东省',
+    'Shandong': '山东省',
+    '河南': '河南省',
+    'Henan': '河南省',
+    '河北': '河北省',
+    'Hebei': '河北省',
+    '湖南': '湖南省',
+    'Hunan': '湖南省',
+    '湖北': '湖北省',
+    'Hubei': '湖北省',
+    '四川': '四川省',
+    'Sichuan': '四川省',
+    '云南': '云南省',
+    'Yunnan': '云南省',
+    '贵州': '贵州省',
+    'Guizhou': '贵州省',
+    '陕西': '陕西省',
+    'Shaanxi': '陕西省',
+    '山西': '山西省',
+    'Shanxi': '山西省',
+    '安徽': '安徽省',
+    'Anhui': '安徽省',
+    '江西': '江西省',
+    'Jiangxi': '江西省',
+    '福建': '福建省',
+    'Fujian': '福建省',
+    '辽宁': '辽宁省',
+    'Liaoning': '辽宁省',
+    '吉林': '吉林省',
+    'Jilin': '吉林省',
+    '黑龙江': '黑龙江省',
+    'Heilongjiang': '黑龙江省',
+    '内蒙古': '内蒙古自治区',
+    'Inner Mongolia': '内蒙古自治区',
+    '内蒙古自治区': '内蒙古自治区',
+    '新疆': '新疆维吾尔自治区',
+    'Xinjiang': '新疆维吾尔自治区',
+    'Xinjiang Uygur Autonomous Region': '新疆维吾尔自治区',
+    '新疆维吾尔自治区': '新疆维吾尔自治区',
+    '西藏': '西藏自治区',
+    'Tibet': '西藏自治区',
+    'Xizang': '西藏自治区',
+    '西藏自治区': '西藏自治区',
+    '宁夏': '宁夏回族自治区',
+    'Ningxia': '宁夏回族自治区',
+    '宁夏回族自治区': '宁夏回族自治区',
+    '青海': '青海省',
+    'Qinghai': '青海省',
+    '甘肃': '甘肃省',
+    'Gansu': '甘肃省',
+    '海南': '海南省',
+    'Hainan': '海南省',
+    '台湾': '中国台湾',
+    'Taiwan': '中国台湾',
+    '香港': '中国香港',
+    'Hong Kong': '中国香港',
+    '澳门': '中国澳门',
+    'Macau': '中国澳门',
+    'Macao': '中国澳门'
   },
   
   // 香港地区翻译
@@ -142,7 +278,7 @@ const translations = {
     'Utah': '犹他州'
   },
   
-  // 英国地区翻译
+  // 英国地区翻译（省份/州）
   ukRegions: {
     'England': '英格兰',
     'Scotland': '苏格兰',
@@ -150,7 +286,269 @@ const translations = {
     'Northern Ireland': '北爱尔兰',
     'Greater London': '大伦敦',
     'West Midlands': '西米德兰兹',
-    'Greater Manchester': '大曼彻斯特'
+    'Greater Manchester': '大曼彻斯特',
+    'Alba': '苏格兰',
+    'Alba / Scotland': '苏格兰'
+  },
+  
+  // 德国州翻译
+  deStates: {
+    'Bavaria': '巴伐利亚州',
+    'Bayern': '巴伐利亚州',
+    'Baden-Württemberg': '巴登-符腾堡州',
+    'Berlin': '柏林',
+    'Brandenburg': '勃兰登堡州',
+    'Bremen': '不来梅',
+    'Hamburg': '汉堡',
+    'Hesse': '黑森州',
+    'Hessen': '黑森州',
+    'Lower Saxony': '下萨克森州',
+    'Niedersachsen': '下萨克森州',
+    'Mecklenburg-Vorpommern': '梅克伦堡-前波美拉尼亚州',
+    'North Rhine-Westphalia': '北莱茵-威斯特法伦州',
+    'Nordrhein-Westfalen': '北莱茵-威斯特法伦州',
+    'Rhineland-Palatinate': '莱茵兰-普法尔茨州',
+    'Rheinland-Pfalz': '莱茵兰-普法尔茨州',
+    'Saarland': '萨尔州',
+    'Saxony': '萨克森州',
+    'Sachsen': '萨克森州',
+    'Saxony-Anhalt': '萨克森-安哈尔特州',
+    'Sachsen-Anhalt': '萨克森-安哈尔特州',
+    'Schleswig-Holstein': '石勒苏益格-荷尔斯泰因州',
+    'Thuringia': '图林根州',
+    'Thüringen': '图林根州'
+  },
+  
+  // 西班牙自治区翻译
+  esRegions: {
+    'Andalucía': '安达卢西亚',
+    'Aragón': '阿拉贡',
+    'Asturias': '阿斯图里亚斯',
+    'Balears': '巴利阿里群岛',
+    'Canarias': '加那利群岛',
+    'Cantabria': '坎塔布里亚',
+    'Castilla y León': '卡斯蒂利亚-莱昂',
+    'Castilla-La Mancha': '卡斯蒂利亚-拉曼恰',
+    'Cataluña': '加泰罗尼亚',
+    'Comunidad de Madrid': '马德里自治区',
+    'Comunidad Foral de Navarra': '纳瓦拉',
+    'Comunidad Valenciana': '瓦伦西亚',
+    'Extremadura': '埃斯特雷马杜拉',
+    'Galicia': '加利西亚',
+    'La Rioja': '拉里奥哈',
+    'País Vasco': '巴斯克',
+    'Región de Murcia': '穆尔西亚'
+  },
+  
+  // 意大利大区翻译
+  itRegions: {
+    'Abruzzo': '阿布鲁佐',
+    'Basilicata': '巴西利卡塔',
+    'Calabria': '卡拉布里亚',
+    'Campania': '坎帕尼亚',
+    'Emilia-Romagna': '艾米利亚-罗马涅',
+    'Friuli-Venezia Giulia': '弗留利-威尼斯朱利亚',
+    'Lazio': '拉齐奥',
+    'Liguria': '利古里亚',
+    'Lombardia': '伦巴第',
+    'Lombardy': '伦巴第',
+    'Marche': '马尔凯',
+    'Molise': '莫利塞',
+    'Piemonte': '皮埃蒙特',
+    'Piemont': '皮埃蒙特',
+    'Puglia': '普利亚',
+    'Sardegna': '撒丁岛',
+    'Sicilia': '西西里',
+    'Sicily': '西西里',
+    'Toscana': '托斯卡纳',
+    'Tuscany': '托斯卡纳',
+    'Trentino-Alto Adige': '特伦蒂诺-上阿迪杰',
+    'Umbria': '翁布里亚',
+    'Valle d\'Aosta': '瓦莱达奥斯塔',
+    'Veneto': '威尼托'
+  },
+  
+  // 墨西哥州翻译
+  mxStates: {
+    'Aguascalientes': '阿瓜斯卡连特斯州',
+    'Baja California': '下加利福尼亚州',
+    'Baja California Sur': '南下加利福尼亚州',
+    'Campeche': '坎佩切州',
+    'Chiapas': '恰帕斯州',
+    'Chihuahua': '奇瓦瓦州',
+    'Ciudad de México': '墨西哥城',
+    'Coahuila': '科阿韦拉州',
+    'Colima': '科利马州',
+    'Durango': '杜兰戈州',
+    'Guanajuato': '瓜纳华托州',
+    'Guerrero': '格雷罗州',
+    'Hidalgo': '伊达尔戈州',
+    'Jalisco': '哈利斯科州',
+    'México': '墨西哥州',
+    'Michoacán': '米却肯州',
+    'Morelos': '莫雷洛斯州',
+    'Nayarit': '纳亚里特州',
+    'Nuevo León': '新莱昂州',
+    'Oaxaca': '瓦哈卡州',
+    'Puebla': '普埃布拉州',
+    'Querétaro': '克雷塔罗州',
+    'Quintana Roo': '金塔纳罗奥州',
+    'San Luis Potosí': '圣路易斯波托西州',
+    'Sinaloa': '锡那罗亚州',
+    'Sonora': '索诺拉州',
+    'Tabasco': '塔瓦斯科州',
+    'Tamaulipas': '塔毛利帕斯州',
+    'Tlaxcala': '特拉斯卡拉州',
+    'Veracruz': '韦拉克鲁斯州',
+    'Yucatán': '尤卡坦州',
+    'Zacatecas': '萨卡特卡斯州'
+  },
+  
+  // 巴西州翻译
+  brStates: {
+    'Acre': '阿克里州',
+    'Alagoas': '阿拉戈斯州',
+    'Amapá': '阿马帕州',
+    'Amazonas': '亚马逊州',
+    'Bahia': '巴伊亚州',
+    'Ceará': '塞阿拉州',
+    'Distrito Federal': '联邦区',
+    'Espírito Santo': '圣埃斯皮里图州',
+    'Goiás': '戈亚斯州',
+    'Maranhão': '马拉尼昂州',
+    'Mato Grosso': '马托格罗索州',
+    'Mato Grosso do Sul': '南马托格罗索州',
+    'Minas Gerais': '米纳斯吉拉斯州',
+    'Pará': '帕拉州',
+    'Paraíba': '帕拉伊巴州',
+    'Paraná': '巴拉那州',
+    'Pernambuco': '伯南布哥州',
+    'Piauí': '皮奥伊州',
+    'Rio de Janeiro': '里约热内卢州',
+    'Rio Grande do Norte': '北大河州',
+    'Rio Grande do Sul': '南大河州',
+    'Rondônia': '朗多尼亚州',
+    'Roraima': '罗赖马州',
+    'Santa Catarina': '圣卡塔琳娜州',
+    'São Paulo': '圣保罗州',
+    'Sergipe': '塞尔希培州',
+    'Tocantins': '托坎廷斯州'
+  },
+  
+  // 英国主要城市翻译
+  ukCities: {
+    'London': '伦敦',
+    'Manchester': '曼彻斯特',
+    'Birmingham': '伯明翰',
+    'Liverpool': '利物浦',
+    'Leeds': '利兹',
+    'Edinburgh': '爱丁堡',
+    'Glasgow': '格拉斯哥',
+    'Bristol': '布里斯托',
+    'Cardiff': '加的夫',
+    'Belfast': '贝尔法斯特',
+    'Newcastle': '纽卡斯尔',
+    'Nottingham': '诺丁汉',
+    'Leicester': '莱斯特',
+    'Sheffield': '谢菲尔德',
+    'Coventry': '考文垂',
+    'Brighton': '布莱顿',
+    'Bath': '巴斯',
+    'Oxford': '牛津',
+    'Cambridge': '剑桥',
+    'York': '约克',
+    'Canterbury': '坎特伯雷',
+    'Stratford-upon-Avon': '斯特拉特福',
+    'Stonehenge': '巨石阵'
+  },
+  
+  // 法国主要城市翻译
+  franceCities: {
+    'Paris': '巴黎',
+    'Lyon': '里昂',
+    'Marseille': '马赛',
+    'Toulouse': '图卢兹',
+    'Nice': '尼斯',
+    'Nantes': '南特',
+    'Strasbourg': '斯特拉斯堡',
+    'Montpellier': '蒙彼利埃',
+    'Bordeaux': '波尔多',
+    'Lille': '里尔',
+    'Rennes': '雷恩',
+    'Reims': '兰斯',
+    'Saint-Étienne': '圣艾蒂安',
+    'Toulon': '土伦',
+    'Grenoble': '格勒诺布尔',
+    'Dijon': '第戎',
+    'Angers': '昂热',
+    'Nîmes': '尼姆',
+    'Villeurbanne': '维勒班',
+    'Saint-Denis': '圣但尼',
+    'Versailles': '凡尔赛',
+    'Avignon': '阿维尼翁',
+    'Aix-en-Provence': '普罗旺斯地区艾克斯',
+    'Cannes': '戛纳',
+    'Monaco': '摩纳哥',
+    'Chamonix': '霞慕尼',
+    'Annecy': '阿讷西',
+    'Colmar': '科尔马'
+  },
+  
+  // 美国主要城市翻译
+  usCities: {
+    'New York': '纽约',
+    'Los Angeles': '洛杉矶',
+    'Chicago': '芝加哥',
+    'Houston': '休斯顿',
+    'Phoenix': '凤凰城',
+    'Philadelphia': '费城',
+    'San Antonio': '圣安东尼奥',
+    'San Diego': '圣地亚哥',
+    'Dallas': '达拉斯',
+    'San Jose': '圣何塞',
+    'Austin': '奥斯汀',
+    'Jacksonville': '杰克逊维尔',
+    'San Francisco': '旧金山',
+    'Indianapolis': '印第安纳波利斯',
+    'Columbus': '哥伦布',
+    'Fort Worth': '沃思堡',
+    'Charlotte': '夏洛特',
+    'Seattle': '西雅图',
+    'Denver': '丹佛',
+    'Boston': '波士顿',
+    'El Paso': '埃尔帕索',
+    'Nashville': '纳什维尔',
+    'Detroit': '底特律',
+    'Oklahoma City': '俄克拉荷马城',
+    'Portland': '波特兰',
+    'Las Vegas': '拉斯维加斯',
+    'Memphis': '孟菲斯',
+    'Louisville': '路易斯维尔',
+    'Baltimore': '巴尔的摩',
+    'Milwaukee': '密尔沃基',
+    'Albuquerque': '阿尔伯克基',
+    'Tucson': '图森',
+    'Fresno': '弗雷斯诺',
+    'Sacramento': '萨克拉门托',
+    'Mesa': '梅萨',
+    'Kansas City': '堪萨斯城',
+    'Atlanta': '亚特兰大',
+    'Omaha': '奥马哈',
+    'Colorado Springs': '科罗拉多斯普林斯',
+    'Raleigh': '罗利',
+    'Virginia Beach': '弗吉尼亚海滩',
+    'Miami': '迈阿密',
+    'Oakland': '奥克兰',
+    'Minneapolis': '明尼阿波利斯',
+    'Tulsa': '塔尔萨',
+    'Cleveland': '克利夫兰',
+    'Wichita': '威奇托',
+    'Honolulu': '火奴鲁鲁',
+    'Washington': '华盛顿',
+    'Orlando': '奥兰多',
+    'Tampa': '坦帕',
+    'New Orleans': '新奥尔良',
+    'Pittsburgh': '匹兹堡'
   },
   
   // 日本都道府县翻译（部分）
@@ -657,12 +1055,167 @@ const translations = {
     'Surakarta': '梭罗',
     'Malang': '玛琅',
     'Bogor': '茂物'
+  },
+  
+  // 马来西亚省份/州翻译
+  malaysiaStates: {
+    'Selangor': '雪兰莪州',
+    'Kuala Lumpur': '吉隆坡',
+    'Penang': '槟城州',
+    'Johor': '柔佛州',
+    'Sabah': '沙巴州',
+    'Sarawak': '砂拉越州',
+    'Perak': '霹雳州',
+    'Kedah': '吉打州',
+    'Kelantan': '吉兰丹州',
+    'Terengganu': '登嘉楼州',
+    'Pahang': '彭亨州',
+    'Malacca': '马六甲州',
+    'Melaka': '马六甲州',  // MapTiler可能返回Melaka而不是Malacca
+    'Negeri Sembilan': '森美兰州',
+    'Perlis': '玻璃市州',
+    'Labuan': '纳闽',
+    'Putrajaya': '布城'
+  },
+  
+  // 印度尼西亚省份翻译
+  indonesiaProvinces: {
+    'Jakarta': '雅加达',
+    'Jakarta Barat': '雅加达西部',
+    'Jakarta Timur': '雅加达东部',
+    'Jakarta Selatan': '雅加达南部',
+    'Jakarta Pusat': '雅加达中部',
+    'Jakarta Utara': '雅加达北部',
+    'Jawa Barat': '西爪哇省',
+    'Jawa Timur': '东爪哇省',
+    'Jawa Tengah': '中爪哇省',
+    'Bali': '巴厘省',
+    'Sumatra Utara': '北苏门答腊省',
+    'Sumatra Barat': '西苏门答腊省',
+    'Sumatra Selatan': '南苏门答腊省',
+    'Kalimantan Barat': '西加里曼丹省',
+    'Kalimantan Timur': '东加里曼丹省',
+    'Sulawesi Selatan': '南苏拉威西省',
+    'Sulawesi Utara': '北苏拉威西省',
+    'Yogyakarta': '日惹特区',
+    'Papua': '巴布亚省',
+    'Papua Barat': '西巴布亚省',
+    'Banten': '万丹省',
+    'Lampung': '楠榜省',
+    'Riau': '廖内省',
+    'Kepulauan Riau': '廖内群岛省',
+    'Aceh': '亚齐省'
+  },
+  
+  // 泰国省份翻译
+  thailandProvinces: {
+    'Bangkok': '曼谷',
+    'Chiang Mai': '清迈府',
+    'Phuket': '普吉府',
+    'Krabi': '甲米府',
+    'Pattaya': '芭堤雅',
+    'Ayutthaya': '大城府',
+    'Sukhothai': '素可泰府',
+    'Kanchanaburi': '北碧府',
+    'Hua Hin': '华欣',
+    'Chiang Rai': '清莱府',
+    'Pai': '拜县',
+    'Koh Samui': '苏梅岛',
+    'Koh Phangan': '帕岸岛',
+    'Koh Tao': '涛岛',
+    'Surat Thani': '素叻他尼府'
+  },
+  
+  // 菲律宾省份翻译
+  philippinesProvinces: {
+    'Metro Manila': '大马尼拉',
+    'National Capital Region': '国家首都区',
+    'NCR': '国家首都区',
+    'Manila': '马尼拉',
+    'Cebu': '宿务省',
+    'Davao': '达沃省',
+    'Palawan': '巴拉望省',
+    'Bohol': '保和省',
+    'Laguna': '拉古纳省',
+    'Cavite': '甲米地省',
+    'Batangas': '八打雁省',
+    'Pampanga': '邦板牙省',
+    'Ilocos Norte': '北伊罗戈省',
+    'Ilocos Sur': '南伊罗戈省',
+    'Bicol': '比科尔',
+    'Quezon': '奎松省',
+    'Rizal': '黎刹省',
+    'Bulacan': '布拉干省'
+  },
+  
+  // 越南省份翻译
+  vietnamProvinces: {
+    'Ho Chi Minh City': '胡志明市',
+    'Hanoi': '河内',
+    'Da Nang': '岘港',
+    'Hai Phong': '海防',
+    'Can Tho': '芹苴',
+    'Hue': '顺化',
+    'Nha Trang': '芽庄',
+    'Quang Ninh': '广宁省',
+    'Khanh Hoa': '庆和省',
+    'Lam Dong': '林同省',
+    'Quang Nam': '广南省',
+    'Thua Thien Hue': '承天顺化省',
+    'An Giang': '安江省',
+    'Kien Giang': '坚江省'
+  },
+  
+  // 新加坡地区翻译（作为省份使用）
+  singaporeProvinces: {
+    'Singapore': '新加坡',
+    'Central Region': '中央区',
+    'East Region': '东区',
+    'North Region': '北区',
+    'North-East Region': '东北区',
+    'West Region': '西区'
   }
 };
 
-// 获取国家中文名
-function getCountryTranslation(countryCode) {
-  return translations.country[countryCode] || null;
+// 获取国家中文名（支持国家代码和国家名称）
+function getCountryTranslation(countryCodeOrName) {
+  if (!countryCodeOrName) return null;
+  
+  const lower = countryCodeOrName.toLowerCase();
+  
+  // 先尝试使用国家代码匹配
+  if (translations.country[lower]) {
+    return translations.country[lower];
+  }
+  
+  // 再尝试使用国家名称匹配（不区分大小写）
+  for (const [key, value] of Object.entries(translations.countryName)) {
+    if (key.toLowerCase() === lower) {
+      return value;
+    }
+  }
+  
+  return null;
+}
+
+// 获取中国省份中文名
+function getChinaProvinceTranslation(provinceName) {
+  if (!provinceName) return provinceName;
+  
+  // 精确匹配
+  if (translations.chinaProvinces[provinceName]) {
+    return translations.chinaProvinces[provinceName];
+  }
+  
+  // 模糊匹配（不区分大小写）
+  const lower = provinceName.toLowerCase();
+  for (const [key, value] of Object.entries(translations.chinaProvinces)) {
+    if (key.toLowerCase() === lower) {
+      return value;
+    }
+  }
+  
+  return provinceName;
 }
 
 // 获取美国州中文名
@@ -673,6 +1226,31 @@ function getUSStateTranslation(stateName) {
 // 获取英国地区中文名
 function getUKRegionTranslation(regionName) {
   return translations.ukRegions[regionName] || regionName;
+}
+
+// 获取德国州中文名
+function getDEStateTranslation(stateName) {
+  return translations.deStates[stateName] || stateName;
+}
+
+// 获取西班牙自治区中文名
+function getESRegionTranslation(regionName) {
+  return translations.esRegions[regionName] || regionName;
+}
+
+// 获取意大利大区中文名
+function getITRegionTranslation(regionName) {
+  return translations.itRegions[regionName] || regionName;
+}
+
+// 获取墨西哥州中文名
+function getMXStateTranslation(stateName) {
+  return translations.mxStates[stateName] || stateName;
+}
+
+// 获取巴西州中文名
+function getBRStateTranslation(stateName) {
+  return translations.brStates[stateName] || stateName;
 }
 
 // 获取日本都道府县中文名
@@ -756,6 +1334,36 @@ function getSingaporeRegionTranslation(regionName) {
   return translations.singaporeRegions[regionName] || regionName;
 }
 
+// 获取马来西亚省份中文名
+function getMalaysiaStateTranslation(stateName) {
+  return normalizeCityName(stateName, translations.malaysiaStates);
+}
+
+// 获取印度尼西亚省份中文名
+function getIndonesiaProvinceTranslation(provinceName) {
+  return normalizeCityName(provinceName, translations.indonesiaProvinces);
+}
+
+// 获取泰国省份中文名
+function getThailandProvinceTranslation(provinceName) {
+  return normalizeCityName(provinceName, translations.thailandProvinces);
+}
+
+// 获取菲律宾省份中文名
+function getPhilippinesProvinceTranslation(provinceName) {
+  return normalizeCityName(provinceName, translations.philippinesProvinces);
+}
+
+// 获取越南省份中文名
+function getVietnamProvinceTranslation(provinceName) {
+  return normalizeCityName(provinceName, translations.vietnamProvinces);
+}
+
+// 获取新加坡省份中文名
+function getSingaporeProvinceTranslation(provinceName) {
+  return translations.singaporeProvinces[provinceName] || provinceName;
+}
+
 // 获取韩国城市中文名（增强版）
 function getKoreaCityTranslation(cityName) {
   return normalizeCityName(cityName, translations.koreaCities);
@@ -764,6 +1372,21 @@ function getKoreaCityTranslation(cityName) {
 // 获取澳大利亚城市中文名（增强版）
 function getAustraliaCityTranslation(cityName) {
   return normalizeCityName(cityName, translations.australiaCities);
+}
+
+// 获取英国城市中文名（增强版）
+function getUKCityTranslation(cityName) {
+  return normalizeCityName(cityName, translations.ukCities);
+}
+
+// 获取法国城市中文名（增强版）
+function getFranceCityTranslation(cityName) {
+  return normalizeCityName(cityName, translations.franceCities);
+}
+
+// 获取美国城市中文名（增强版）
+function getUSCityTranslation(cityName) {
+  return normalizeCityName(cityName, translations.usCities);
 }
 
 // 获取越南城市中文名（增强版）
@@ -816,6 +1439,13 @@ function translateAddress(countryCode, regionName, level) {
         return getMalaysiaCityTranslation(regionName);
       case 'id':
         return getIndonesiaCityTranslation(regionName);
+      case 'gb':
+      case 'uk':
+        return getUKCityTranslation(regionName);
+      case 'fr':
+        return getFranceCityTranslation(regionName);
+      case 'us':
+        return getUSCityTranslation(regionName);
       default:
         return regionName;
     }
@@ -828,6 +1458,16 @@ function translateAddress(countryCode, regionName, level) {
     case 'gb':
     case 'uk':
       return getUKRegionTranslation(cleanName);
+    case 'de':
+      return getDEStateTranslation(cleanName);
+    case 'es':
+      return getESRegionTranslation(cleanName);
+    case 'it':
+      return getITRegionTranslation(cleanName);
+    case 'mx':
+      return getMXStateTranslation(cleanName);
+    case 'br':
+      return getBRStateTranslation(cleanName);
     case 'jp':
       return getJPRegionTranslation(regionName);
     case 'au':
@@ -839,23 +1479,28 @@ function translateAddress(countryCode, regionName, level) {
     case 'tw':
       return getTWRegionTranslation(regionName);
     case 'th':
-      return getThailandCityTranslation(regionName);
+      return getThailandProvinceTranslation(cleanName);
     case 'ph':
-      return getPhilippinesCityTranslation(regionName);
+      return getPhilippinesProvinceTranslation(cleanName);
     case 'sg':
-      return getSingaporeRegionTranslation(regionName);
-      case 'kr':
-        return getKoreaCityTranslation(regionName);
-      case 'au':
-        return getAustraliaCityTranslation(regionName);
-      default:
-        return regionName;
+      return getSingaporeProvinceTranslation(cleanName);
+    case 'kr':
+      return getKoreaCityTranslation(regionName);
+    case 'my':
+      return getMalaysiaStateTranslation(cleanName);
+    case 'id':
+      return getIndonesiaProvinceTranslation(cleanName);
+    case 'vn':
+      return getVietnamProvinceTranslation(cleanName);
+    default:
+      return regionName;
     }
   }
 
 module.exports = {
   translateAddress,
   getCountryTranslation,
+  getChinaProvinceTranslation,
   getUSStateTranslation,
   getUKRegionTranslation,
   getJPRegionTranslation,
@@ -872,6 +1517,15 @@ module.exports = {
   getVietnamCityTranslation,
   getMalaysiaCityTranslation,
   getIndonesiaCityTranslation,
+  getUKCityTranslation,
+  getFranceCityTranslation,
+  getUSCityTranslation,
+  getMalaysiaStateTranslation,
+  getIndonesiaProvinceTranslation,
+  getThailandProvinceTranslation,
+  getPhilippinesProvinceTranslation,
+  getVietnamProvinceTranslation,
+  getSingaporeProvinceTranslation,
   translations
 };
 

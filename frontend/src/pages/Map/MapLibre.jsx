@@ -132,7 +132,7 @@ const MapLibre = () => {
               ],
               tileSize: 256,
               attribution: '© MapTiler © OpenStreetMap contributors',
-              maxzoom: 15
+              maxzoom: 18
             }
           },
           layers: [{
@@ -151,7 +151,7 @@ const MapLibre = () => {
               tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
               tileSize: 256,
               attribution: '© OpenStreetMap contributors',
-              maxzoom: 15
+              maxzoom: 18
             }
           },
           layers: [{
@@ -172,54 +172,109 @@ const MapLibre = () => {
   const markersRef = useRef([]);
   const userMarkerRef = useRef(null);
 
-  // 获取地图照片数据（分页获取全部可见照片）
-  const fetchMapPhotos = async () => {
+  // 防抖函数：避免频繁请求
+  const debounce = (func, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func.apply(null, args), delay);
+    };
+  };
+
+  // 获取地图照片位置（轻量级，只获取标点信息）
+  // 使用 useCallback 稳定函数引用，确保防抖函数能正确工作
+  const fetchMapMarkers = useCallback(async (bounds = null, zoom = null) => {
+    if (!mapInstanceRef.current) return;
+    
     try {
-      // 地图需要显示全部可见照片，由于后端限制最大limit=100，需要分页请求
-      const allPhotos = [];
-      let page = 1;
-      const limit = 100; // 后端API最大限制
-      let hasMore = true;
-
-      while (hasMore) {
-        const response = await fetch(`/api/photos?page=${page}&limit=${limit}`);
-        
-        if (!response.ok) {
-          console.error('获取照片失败:', response.status);
-          break;
-        }
-
-        const result = await response.json();
-        let photoArray = [];
-        
-        if (result.success && result.data && Array.isArray(result.data)) {
-          photoArray = result.data;
-        }
-        
-        // 过滤并添加到总数组
-        const filteredPhotos = photoArray.filter(photo => {
-          // 只显示有图片路径的照片（后端已根据权限过滤）
-          // 未登录用户可以查看不受保护的照片
-          // 管理员可以查看所有照片
-          // 受保护照片对未登录用户会返回 null 的图片路径
-          return photo.thumbnail || photo.original || photo.size1024 || photo.size2048;
-        });
-        
-        allPhotos.push(...filteredPhotos);
-        
-        // 检查是否还有更多数据
-        if (result.pagination) {
-          hasMore = page < result.pagination.pages;
-          page++;
-        } else {
-          // 如果没有分页信息，当返回的数据少于limit时认为没有更多了
-          hasMore = photoArray.length === limit;
-          page++;
-        }
+      // 如果没有提供bounds，使用当前地图视图的bounds
+      if (!bounds) {
+        const mapBounds = mapInstanceRef.current.getBounds();
+        const sw = mapBounds.getSouthWest();
+        const ne = mapBounds.getNorthEast();
+        bounds = `${sw.lat},${sw.lng},${ne.lat},${ne.lng}`;
       }
       
-      const mappedPhotos = allPhotos.map((photo, index) => ({
-        id: photo.id || `photo-${index}`,
+      // 使用 /api/map/photos 接口的轻量级模式，只获取位置信息（用于标点）
+      const response = await fetch(`/api/map/photos?bounds=${bounds}&lightweight=true`);
+      
+      if (!response.ok) {
+        console.error('获取照片位置失败:', response.status);
+        return;
+      }
+
+      const result = await response.json();
+      let markersArray = [];
+      
+      // 优先读取 data 字段
+      if (result.success && result.data && Array.isArray(result.data)) {
+        markersArray = result.data;
+      }
+      
+      // 只保存位置信息（用于显示标点）
+      // 过滤无效坐标（0,0 或超出有效范围）
+      const markers = markersArray
+        .filter(marker => {
+          const lat = Number(marker.latitude);
+          const lng = Number(marker.longitude);
+          // 验证坐标有效性：不能是 0,0，且必须在有效范围内
+          return lat !== 0 && lng !== 0 
+            && !isNaN(lat) && !isNaN(lng)
+            && lat >= -90 && lat <= 90
+            && lng >= -180 && lng <= 180;
+        })
+        .map(marker => ({
+          id: marker.id,
+          latitude: Number(marker.latitude),
+          longitude: Number(marker.longitude)
+        }));
+      
+      // 更新标点列表（当前视图内的标点）
+      setPhotos(markers);
+    } catch (error) {
+      console.error('获取地图标点出错:', error);
+    }
+  }, []);
+
+  // 获取单张照片详情（点击标点时调用）
+  const fetchPhotoDetail = async (photoId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : undefined;
+      const response = await fetch(`/api/photos/${photoId}`, {
+        headers
+      });
+      
+      if (!response.ok) {
+        console.error('获取照片详情失败:', response.status, response.statusText);
+        return null;
+      }
+
+      const result = await response.json();
+      let photo = null;
+      
+      // 读取照片数据（兼容多种返回格式）
+      if (result && result.data) {
+        photo = result.data;
+      } else if (result && result.photo) {
+        photo = result.photo;
+      } else if (result && result.success && result.data) {
+        photo = result.data;
+      } else if (result && result.success && result.photo) {
+        photo = result.photo;
+      } else if (!result || !result.success) {
+        console.error('获取照片详情失败:', result?.message || '未知错误', result);
+        return null;
+      }
+      
+      if (!photo) {
+        console.error('照片数据为空:', result);
+        return null;
+      }
+      
+      // 映射到前端期望的格式
+      const mappedPhoto = {
+        id: photo.id || photoId,
         title: photo.title || photo.filename || '无标题',
         description: photo.description || '',
         thumbnail: photo.thumbnail || photo.original,
@@ -238,15 +293,21 @@ const MapLibre = () => {
         district: photo.district,
         township: photo.township,
         effective_protection: photo.effective_protection,
-        // 保留原始数据用于调试
         _raw: photo
-      }));
+      };
       
-      setPhotos(mappedPhotos);
+      return mappedPhoto;
     } catch (error) {
-      console.error('获取地图照片出错:', error);
+      console.error('获取照片详情出错:', error);
+      return null;
     }
   };
+  
+  // 照片详情缓存（避免重复请求）
+  const photoDetailCache = useRef(new Map());
+  
+  // 防抖函数引用：避免地图移动时频繁请求标点
+  const debouncedFetchMarkersRef = useRef(null);
 
   // 获取用户位置
   const getUserLocation = () => {
@@ -314,7 +375,7 @@ const MapLibre = () => {
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
       const currentZoom = mapInstanceRef.current.getZoom();
-      if (currentZoom < 15) {  // 最大限制到Zoom 15（显示15x）
+      if (currentZoom < 18) {  // 最大限制到Zoom 18（显示18x）
         mapInstanceRef.current.zoomIn();
       }
     }
@@ -342,27 +403,95 @@ const MapLibre = () => {
         center: [113.9, 22.5],  // 直接设置深圳为中心
         zoom: 3,                 // 默认Zoom 3，显示3x
         minZoom: 1,              // 最小Zoom 1（显示1x）
-        maxZoom: 15,             // 最大Zoom 15（显示15x）
+        maxZoom: 18,             // 最大Zoom 18（显示18x）
+        // 优化瓦片加载策略
+        refreshExpiredTiles: false,  // 不刷新过期瓦片，优先使用缓存
+        maxTileCacheSize: 50,        // 增加瓦片缓存大小（MB）
+        fadeDuration: 0,             // 禁用淡入效果，加快加载速度
+        crossSourceCollisions: false, // 禁用跨源碰撞检测，提升性能
+        attributionControl: false,    // 禁用默认版权控件（可自定义）
+        // 瓦片请求优化
+        transformRequest: (url, resourceType) => {
+          // 限制并发请求，避免请求过多
+          if (resourceType === 'Tile') {
+            // 对于瓦片请求，可以添加延迟或限制
+            return {
+              url: url,
+              headers: {}
+            };
+          }
+          return { url: url };
+        }
       });
 
       // 使用自定义控件，不使用 MapLibre 自带控件
       // map.addControl(new maplibregl.NavigationControl(), 'top-right');
       
+      // 创建防抖函数（在地图初始化时创建，确保正确引用 fetchMapMarkers）
+      // 优化：防抖时间从300ms增加到500ms，减少频繁请求
+      debouncedFetchMarkersRef.current = debounce(() => {
+        if (mapInstanceRef.current) {
+          const mapBounds = mapInstanceRef.current.getBounds();
+          const sw = mapBounds.getSouthWest();
+          const ne = mapBounds.getNorthEast();
+          const bounds = `${sw.lat},${sw.lng},${ne.lat},${ne.lng}`;
+          const zoom = mapInstanceRef.current.getZoom();
+          fetchMapMarkers(bounds, zoom);
+        }
+      }, 500);
+      
       map.on('load', () => {
         console.log('Map style loaded successfully');
         // 确保地图尺寸正确
         map.resize();
-        // 获取照片数据（样式加载完成后就可以开始获取了）
-        fetchMapPhotos();
-        // 隐藏loading状态
-        // 矢量地图的渲染机制：样式加载后地图就可以交互，瓦片会渐进式加载
-        // 这与PNG栅格地图不同，不需要等待所有瓦片
+        // 隐藏loading状态（地图样式加载完成即可显示地图，不等待标点数据）
         setLoading(false);
+        // 异步获取照片位置（轻量级，只加载标点，不加载图片）
+        // 确保传递bounds，避免查询所有照片（性能优化）
+        const mapBounds = map.getBounds();
+        const sw = mapBounds.getSouthWest();
+        const ne = mapBounds.getNorthEast();
+        const bounds = `${sw.lat},${sw.lng},${ne.lat},${ne.lng}`;
+        fetchMapMarkers(bounds, map.getZoom());
+      });
+      
+      // 监听地图移动结束，按需加载新区域的标点
+      map.on('moveend', () => {
+        if (debouncedFetchMarkersRef.current) {
+          debouncedFetchMarkersRef.current();
+        }
+      });
+      
+      // 监听地图缩放结束，按需加载新区域的标点
+      map.on('zoomend', () => {
+        if (debouncedFetchMarkersRef.current) {
+          debouncedFetchMarkersRef.current();
+        }
       });
 
       map.on('error', (e) => {
         console.error('Map error:', e);
         setLoading(false);
+        
+        // 如果是配额错误，自动降级
+        if (e.error && e.error.message) {
+          const errorMsg = e.error.message.toLowerCase();
+          if (errorMsg.includes('403') || errorMsg.includes('quota') || errorMsg.includes('limit')) {
+            console.warn('⚠️ 检测到MapTiler配额问题，自动降级到OSM');
+            const currentStyle = mapStyle;
+            if (currentStyle === 'maptiler-vector' || currentStyle === 'maptiler-raster') {
+              setMapStyle('osm-raster');
+              localStorage.setItem('mapStyleDowngrade', 'osm');
+            }
+          }
+        }
+      });
+      
+      // 监听数据加载事件，优化瓦片加载
+      map.on('data', (e) => {
+        if (e.dataType === 'source' && e.isSourceLoaded) {
+          // 源加载完成，可以优化后续请求
+        }
       });
 
       map.on('zoom', () => {
@@ -433,7 +562,15 @@ const MapLibre = () => {
         // 重新添加照片标记
         if (photos.length) {
           photos.forEach(photo => {
-            if (photo.latitude && photo.longitude) {
+            // 严格验证坐标有效性：不能是 0,0，且必须在有效范围内
+            const lat = Number(photo.latitude);
+            const lng = Number(photo.longitude);
+            const isValidCoord = lat !== 0 && lng !== 0 
+              && !isNaN(lat) && !isNaN(lng)
+              && lat >= -90 && lat <= 90
+              && lng >= -180 && lng <= 180;
+            
+            if (isValidCoord && photo.id) {
               const el = document.createElement('div');
               el.className = 'map-photo-marker';
               el.innerHTML = '<div class="photo-dot"></div>';
@@ -445,17 +582,47 @@ const MapLibre = () => {
                 element: el,
                 anchor: 'center'
               })
-                .setLngLat([photo.longitude, photo.latitude])
+                .setLngLat([lng, lat])
                 .addTo(mapInstanceRef.current);
               
               markersRef.current.push(marker);
               
               // 使用marker.getElement()确保获取到正确的元素
               const markerElement = marker.getElement();
-              markerElement.addEventListener('click', (e) => {
+              markerElement.addEventListener('click', async (e) => {
                 e.stopPropagation(); // 阻止事件冒泡到地图
-                setSelectedPhoto(photo);
-                // 让PhotoPreview组件自己处理图片路径不可用的情况
+                
+                // 点击标点时，加载照片详情
+                const photoId = photo.id;
+                
+                // 验证照片ID是否存在（ID可能是UUID格式，不一定是数字）
+                if (!photoId || (typeof photoId !== 'string' && typeof photoId !== 'number')) {
+                  console.error('无效的照片ID:', photoId);
+                  return;
+                }
+                
+                // 检查缓存
+                if (photoDetailCache.current.has(photoId)) {
+                  const cachedPhoto = photoDetailCache.current.get(photoId);
+                  setSelectedPhoto(cachedPhoto);
+                  return;
+                }
+                
+                // 显示加载状态
+                setSelectedPhoto({ id: photoId, loading: true });
+                
+                // 获取照片详情
+                const photoDetail = await fetchPhotoDetail(photoId);
+                
+                if (photoDetail) {
+                  // 缓存照片详情
+                  photoDetailCache.current.set(photoId, photoDetail);
+                  setSelectedPhoto(photoDetail);
+                } else {
+                  // 加载失败，清除加载状态
+                  console.error('无法加载照片详情:', photoId);
+                  setSelectedPhoto(null);
+                }
               });
             }
           });
@@ -464,7 +631,7 @@ const MapLibre = () => {
     }
   }, [mapStyle]);
 
-  // 添加照片标记
+  // 添加照片标记（标点）
   useEffect(() => {
     if (!mapInstanceRef.current || !photos.length) return;
 
@@ -472,12 +639,20 @@ const MapLibre = () => {
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
-    // 添加新标记
-    photos.forEach(photo => {
-      if (photo.latitude && photo.longitude) {
+    // 添加新标记（标点）
+    photos.forEach(markerData => {
+      // 严格验证坐标有效性：不能是 0,0，且必须在有效范围内
+      const lat = Number(markerData.latitude);
+      const lng = Number(markerData.longitude);
+      const isValidCoord = lat !== 0 && lng !== 0 
+        && !isNaN(lat) && !isNaN(lng)
+        && lat >= -90 && lat <= 90
+        && lng >= -180 && lng <= 180;
+      
+      if (isValidCoord && markerData.id) {
         const el = document.createElement('div');
         el.className = 'map-photo-marker';
-        if (selectedPhoto?.id === photo.id) {
+        if (selectedPhoto?.id === markerData.id) {
           el.classList.add('selected');
         }
         el.innerHTML = '<div class="photo-dot"></div>';
@@ -489,15 +664,45 @@ const MapLibre = () => {
           element: el,
           anchor: 'center'
         })
-          .setLngLat([photo.longitude, photo.latitude])
+          .setLngLat([markerData.longitude, markerData.latitude])
           .addTo(mapInstanceRef.current);
 
         // 使用marker.getElement()确保获取到正确的元素
         const markerElement = marker.getElement();
-        markerElement.addEventListener('click', (e) => {
+        markerElement.addEventListener('click', async (e) => {
           e.stopPropagation(); // 阻止事件冒泡到地图
-          setSelectedPhoto(photo);
-          // 让PhotoPreview组件自己处理图片路径不可用的情况
+          
+          // 点击标点时，加载照片详情
+          const photoId = markerData.id;
+          
+          // 验证照片ID是否存在（ID可能是UUID格式，不一定是数字）
+          if (!photoId || (typeof photoId !== 'string' && typeof photoId !== 'number')) {
+            console.error('无效的照片ID:', photoId);
+            return;
+          }
+          
+          // 检查缓存
+          if (photoDetailCache.current.has(photoId)) {
+            const cachedPhoto = photoDetailCache.current.get(photoId);
+            setSelectedPhoto(cachedPhoto);
+            return;
+          }
+          
+          // 显示加载状态
+          setSelectedPhoto({ id: photoId, loading: true });
+          
+          // 获取照片详情
+          const photoDetail = await fetchPhotoDetail(photoId);
+          
+          if (photoDetail) {
+            // 缓存照片详情
+            photoDetailCache.current.set(photoId, photoDetail);
+            setSelectedPhoto(photoDetail);
+          } else {
+            // 加载失败，清除加载状态
+            console.error('无法加载照片详情:', photoId);
+            setSelectedPhoto(null);
+          }
         });
 
         markersRef.current.push(marker);

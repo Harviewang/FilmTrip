@@ -27,9 +27,7 @@ const FilmRollManagement = () => {
 
   const [formData, setFormData] = useState({
     film_stock_id: '',
-    name: '',
     opened_date: '',
-    location: '',
     camera_id: '',
     notes: '',
     is_protected: false,
@@ -112,11 +110,26 @@ const FilmRollManagement = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const url = editingRoll 
-        ? `http://localhost:3001/api/filmRolls/${editingRoll.id}`
-        : 'http://localhost:3001/api/filmRolls';
+      
+      // 检查是否有编辑对象，优先使用ID，如果没有ID则使用roll_number
+      let url;
+      if (editingRoll) {
+        if (editingRoll.id) {
+          url = `http://localhost:3001/api/filmRolls/${editingRoll.id}`;
+        } else if (editingRoll.roll_number) {
+          // 如果没有ID，使用roll_number作为标识
+          url = `http://localhost:3001/api/filmRolls/${editingRoll.roll_number}`;
+        } else {
+          alert('无法编辑该胶卷实例：缺少ID和编号。请刷新页面后重试。');
+          return;
+        }
+      } else {
+        url = 'http://localhost:3001/api/filmRolls';
+      }
       
       const method = editingRoll ? 'PUT' : 'POST';
+      
+      console.log('提交数据:', { url, method, formData });
       
       const response = await fetch(url, {
         method,
@@ -128,18 +141,23 @@ const FilmRollManagement = () => {
       });
       
       const data = await response.json();
+      console.log('响应数据:', data);
       
-      if (data.success) {
-        setShowModal(false);
-        setEditingRoll(null);
-        resetForm();
-        fetchFilmRolls(pagination.page);
-      } else {
-        alert(data.message || '操作失败');
+      if (!response.ok || !data.success) {
+        const errorMessage = data.message || data.error || `操作失败 (${response.status})`;
+        console.error('操作失败:', { status: response.status, data });
+        alert(errorMessage);
+        return;
       }
+      
+      setShowModal(false);
+      setEditingRoll(null);
+      resetForm();
+      fetchFilmRolls(pagination.page);
+      alert(editingRoll ? '更新成功' : '创建成功');
     } catch (error) {
       console.error('操作失败:', error);
-      alert('操作失败');
+      alert('操作失败: ' + error.message);
     }
   };
 
@@ -200,9 +218,7 @@ const FilmRollManagement = () => {
     setEditingRoll(roll);
     setFormData({
       film_stock_id: roll.film_stock_id,
-      name: roll.name,
       opened_date: roll.opened_date || '',
-      location: roll.location || '',
       camera_id: roll.camera_id || '',
       notes: roll.notes || '',
       is_protected: roll.is_protected || false,
@@ -215,9 +231,7 @@ const FilmRollManagement = () => {
   const resetForm = () => {
     setFormData({
       film_stock_id: '',
-      name: '',
       opened_date: '',
-      location: '',
       camera_id: '',
       notes: '',
       is_protected: false,
@@ -381,7 +395,7 @@ const FilmRollManagement = () => {
                   编号
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  名称
+                  备注
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   胶卷品类
@@ -423,7 +437,7 @@ const FilmRollManagement = () => {
                       {roll.roll_number}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {roll.name}
+                      {roll.notes || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex items-center space-x-3">
@@ -531,6 +545,22 @@ const FilmRollManagement = () => {
               </h3>
               
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* 编辑时显示编号（只读） */}
+                {editingRoll && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      胶卷编号
+                    </label>
+                    <input
+                      type="text"
+                      value={editingRoll.roll_number || ''}
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
+                      readOnly
+                    />
+                  </div>
+                )}
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     胶卷品类 *
@@ -548,23 +578,6 @@ const FilmRollManagement = () => {
                       </option>
                     ))}
                   </select>
-
-                </div>
-                
-
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    名称 *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="如：8月旅行第一卷"
-                  />
                 </div>
                 
                 <div>
@@ -579,19 +592,7 @@ const FilmRollManagement = () => {
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    地点
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => setFormData({...formData, location: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="如：广东省深圳市"
-                  />
-                </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     相机

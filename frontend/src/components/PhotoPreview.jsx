@@ -395,48 +395,83 @@ const PhotoPreview = ({
           });
         }}
       >
-        {/* 加载指示器 */}
-        {!imageLoaded && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        )}
-        
-        <img
-          src={photo.size2048 ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${stableVRef.current}` : (photo.size1024 ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${stableVRef.current}` : (photo.original ? `${API_CONFIG.BASE_URL}${photo.original}?v=${stableVRef.current}` : (photo.thumbnail ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${stableVRef.current}` : null))) || undefined}
-          alt={photo.title || '照片'}
-          className={`transition-all duration-400 ease-out ${
-            imageLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
-          style={{
-            maxWidth: `${imageWidth}px`,
-            maxHeight: `${imageHeight}px`,
-            width: 'auto',
-            height: 'auto',
-            objectFit: 'contain',
-            opacity: imageLoaded ? 1 : 0,
-            transition: 'opacity 400ms cubic-bezier(0.4, 0, 0.2, 1)',
-            ...(viewMode === 'standard' ? {
-              borderRadius: '16px',
-              boxShadow: '0 32px 64px -12px rgba(0, 0, 0, 0.25), 0 20px 48px -8px rgba(0, 0, 0, 0.18), 0 12px 24px -4px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)'
-            } : {})
-          }}
-          ref={imgRef}
-          onLoad={(e) => {
-            setImageLoaded(true);
-            try {
-              const img = e.currentTarget;
-              if (img && img.naturalWidth && img.naturalHeight) {
-                setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-              }
-            } catch {}
-          }}
-          onError={(e) => {
-            console.error('照片加载失败:', e.target.src);
-            e.target.style.display = 'none';
-            setImageLoaded(true);
-          }}
-        />
+        {/* 检查是否有图片URL */}
+        {(() => {
+          const imageUrl = photo.size2048 
+            ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${stableVRef.current}` 
+            : (photo.size1024 
+              ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${stableVRef.current}` 
+              : (photo.original 
+                ? `${API_CONFIG.BASE_URL}${photo.original}?v=${stableVRef.current}` 
+                : (photo.thumbnail 
+                  ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${stableVRef.current}` 
+                  : null)));
+          
+          // 如果没有图片URL（可能是受保护的照片）
+          if (!imageUrl || (!photo.size2048 && !photo.size1024 && !photo.original && !photo.thumbnail)) {
+            return (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-2xl">
+                <div className="text-center p-8">
+                  <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center bg-gray-200 rounded-full">
+                    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <div className="text-gray-600 text-lg font-medium mb-2">照片受保护</div>
+                  <div className="text-gray-400 text-sm">该照片已加密，需要管理员权限才能查看</div>
+                </div>
+              </div>
+            );
+          }
+          
+          // 有图片URL，正常显示
+          return (
+            <>
+              {/* 加载指示器 */}
+              {!imageLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+              
+              <img
+                src={imageUrl}
+                alt={photo.title || '照片'}
+                className={`transition-all duration-400 ease-out ${
+                  imageLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
+                style={{
+                  maxWidth: `${imageWidth}px`,
+                  maxHeight: `${imageHeight}px`,
+                  width: 'auto',
+                  height: 'auto',
+                  objectFit: 'contain',
+                  opacity: imageLoaded ? 1 : 0,
+                  transition: 'opacity 400ms cubic-bezier(0.4, 0, 0.2, 1)',
+                  ...(viewMode === 'standard' ? {
+                    borderRadius: '16px',
+                    boxShadow: '0 32px 64px -12px rgba(0, 0, 0, 0.25), 0 20px 48px -8px rgba(0, 0, 0, 0.18), 0 12px 24px -4px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+                  } : {})
+                }}
+                ref={imgRef}
+                onLoad={(e) => {
+                  setImageLoaded(true);
+                  try {
+                    const img = e.currentTarget;
+                    if (img && img.naturalWidth && img.naturalHeight) {
+                      setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+                    }
+                  } catch {}
+                }}
+                onError={(e) => {
+                  console.error('照片加载失败:', e.target.src);
+                  e.target.style.display = 'none';
+                  setImageLoaded(true);
+                }}
+              />
+            </>
+          );
+        })()}
 
         {/* 照片信息区域 - 固定在底部，居中显示 */}
         <div ref={infoRef} className={`absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 transition-all duration-200 ease-out ${
@@ -500,7 +535,7 @@ const PhotoPreview = ({
                     <span>
                       {[photo.country, photo.province, photo.city, photo.district, photo.township]
                         .filter(Boolean)
-                        .join('')}
+                        .join(' ')}
                     </span>
                   </div>
                 ) : (
@@ -566,7 +601,7 @@ const PhotoPreview = ({
                   <div className="text-gray-900">
                     {[photo.country, photo.province, photo.city, photo.district, photo.township]
                       .filter(Boolean)
-                      .join('') || '未知地点'}
+                      .join(' ') || '未知地点'}
                   </div>
                   {photo.latitude && photo.longitude ? (
                     <div className="text-xs text-gray-500 mt-1">
