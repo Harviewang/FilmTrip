@@ -400,8 +400,8 @@ function parseMapTilerContext(context) {
       city = cityTranslations[city] || city;
     }
     
-    // 翻译香港、澳门、台湾、泰国、菲律宾、新加坡、韩国、澳大利亚、越南、马来西亚、印度尼西亚、英国、法国、美国的城市
-    if (city && ['hk', 'mo', 'tw', 'th', 'ph', 'sg', 'kr', 'au', 'vn', 'my', 'id', 'gb', 'uk', 'fr', 'us'].includes(countryCode.toLowerCase())) {
+    // 翻译各国城市（包括：香港、澳门、台湾、泰国、菲律宾、新加坡、韩国、澳大利亚、越南、马来西亚、印度尼西亚、英国、法国、美国、德国、西班牙、意大利、墨西哥）
+    if (city && ['hk', 'mo', 'tw', 'th', 'ph', 'sg', 'kr', 'au', 'vn', 'my', 'id', 'gb', 'uk', 'fr', 'us', 'de', 'es', 'it', 'mx'].includes(countryCode.toLowerCase())) {
       city = translateAddress(countryCode, city, 'city');
     }
     
