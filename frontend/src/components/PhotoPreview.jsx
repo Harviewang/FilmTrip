@@ -304,13 +304,12 @@ const PhotoPreview = ({
       }}
     >
       {/* 顶部工具栏 */}
-      {showChrome && (
-        <div
-          ref={toolbarRef}
-          className={`absolute top-4 right-4 z-10 flex items-center space-x-2 transition-all duration-200 ease-out ${
-            showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
-          }`}
-        >
+      <div
+        ref={toolbarRef}
+        className={`absolute top-4 right-4 z-10 flex items-center space-x-2 transition-all duration-500 ease-out ${
+          showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
+        }`}
+      >
           {/* 分享按钮 */}
           <button
             onClick={sharePhoto}
@@ -340,7 +339,6 @@ const PhotoPreview = ({
             <XMarkIcon className="w-6 h-6 text-gray-700" />
           </button>
         </div>
-      )}
 
 
 
@@ -474,8 +472,8 @@ const PhotoPreview = ({
         })()}
 
         {/* 照片信息区域 - 固定在底部，居中显示 */}
-        <div ref={infoRef} className={`absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 transition-all duration-200 ease-out ${
-          showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'
+        <div ref={infoRef} className={`absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 transition-all duration-500 ease-out ${
+          showChrome ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'
         }`}>
           <div className="max-w-6xl mx-auto px-6 py-4">
             {/* 固定显示6个字段：评分、胶卷、相机、地点、拍摄时间、加密状态 */}
