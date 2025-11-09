@@ -11,6 +11,17 @@ import { useScrollContainer } from '../../contexts/ScrollContainerContext';
 // import useStablePullToRefresh from '../../hooks/useStablePullToRefresh';
 // import PullToRefreshIndicator from '../../components/PullToRefreshIndicator';
 
+const normalizeProtectionFlag = (value) => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
+  }
+  return Boolean(value);
+};
+
 const Gallery = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -165,47 +176,57 @@ const Gallery = () => {
         // 不再在开发环境注入模拟数据；数据为空时直接呈现空态
         
         // 数据映射：将后端字段映射到前端期望的字段
-        const mappedPhotos = photoArray.map((photo, index) => ({
-          id: photo.id || `photo-${page}-${index}`, // 使用稳定的ID，避免刷新时位置错乱
-          title: photo.title || photo.filename || '无标题',
-          description: photo.description || '',
-          thumbnail: photo.thumbnail || photo.original,
-          original: photo.original,
-          size1024: photo.size1024,
-          size2048: photo.size2048,
-          camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
-          film: photo.film || '无',
-          date: photo.date || (photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期')), // 优先使用后端映射的date字段
-          rating: photo.rating || 0,
-          location_name: photo.location_name,
-          photo_serial_number: photo.photo_serial_number,
-          country: photo.country,
-          province: photo.province,
-          city: photo.city,
-          district: photo.district,
-          township: photo.township,
-          latitude: photo.latitude,
-          longitude: photo.longitude,
-          categories: photo.categories,
-          trip_name: photo.trip_name,
-          trip_start_date: photo.trip_start_date,
-          trip_end_date: photo.trip_end_date,
-          aperture: photo.aperture,
-          shutter_speed: photo.shutter_speed,
-          focal_length: photo.focal_length,
-          iso: photo.iso,
-          camera_model: photo.camera_model,
-          lens_model: photo.lens_model,
-          // 图片尺寸和方向(用于瀑布流布局计算)
-          width: photo.width,
-          height: photo.height,
-          orientation: photo.orientation,
-          // 提升 effective_protection 到顶层，避免依赖 _raw 嵌套
-          effective_protection: photo.effective_protection,
-          protection_level: photo.protection_level,
-          // 保留原始数据用于调试
-          _raw: photo
-        }));
+        const mappedPhotos = photoArray.map((photo, index) => {
+          const effectiveProtection = normalizeProtectionFlag(
+            photo.effective_protection !== undefined
+              ? photo.effective_protection
+              : photo.is_protected
+          );
+
+          return {
+            id: photo.id || `photo-${page}-${index}`, // 使用稳定的ID，避免刷新时位置错乱
+            title: photo.title || photo.filename || '无标题',
+            description: photo.description || '',
+            thumbnail: photo.thumbnail || photo.original,
+            original: photo.original,
+            size1024: photo.size1024,
+            size2048: photo.size2048,
+            camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
+            film: photo.film || '无',
+            date: photo.date || (photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期')), // 优先使用后端映射的date字段
+            rating: photo.rating || 0,
+            location_name: photo.location_name,
+            photo_serial_number: photo.photo_serial_number,
+            country: photo.country,
+            province: photo.province,
+            city: photo.city,
+            district: photo.district,
+            township: photo.township,
+            latitude: photo.latitude,
+            longitude: photo.longitude,
+            categories: photo.categories,
+            trip_name: photo.trip_name,
+            trip_start_date: photo.trip_start_date,
+            trip_end_date: photo.trip_end_date,
+            aperture: photo.aperture,
+            shutter_speed: photo.shutter_speed,
+            focal_length: photo.focal_length,
+            iso: photo.iso,
+            camera_model: photo.camera_model,
+            lens_model: photo.lens_model,
+            // 图片尺寸和方向(用于瀑布流布局计算)
+            width: photo.width,
+            height: photo.height,
+            orientation: photo.orientation,
+            // 提升 effective_protection 到顶层，避免依赖 _raw 嵌套
+            effective_protection: effectiveProtection,
+            protection_level: photo.protection_level,
+            raw_effective_protection: photo.effective_protection,
+            raw_is_protected: photo.is_protected,
+            // 保留原始数据用于调试
+            _raw: photo
+          };
+        });
         
         // 过滤加密照片（如果开关开启）
         const filteredPhotos = hideEncryptedPhotos 
@@ -254,46 +275,56 @@ const Gallery = () => {
   };
 
 
-  const mapRandomPhoto = (photoData, index) => ({
-    id: photoData.id || `random-photo-${index}`,
-    title: photoData.title || photoData.filename || '随机照片',
-    description: photoData.description || '',
-    thumbnail: photoData.thumbnail || photoData.original,
-    original: photoData.original,
-    size1024: photoData.size1024,
-    size2048: photoData.size2048,
-    filename: photoData.filename,
-    camera: photoData.camera_name || photoData.camera_model || photoData.camera_brand || '未知相机',
-    film: photoData.film_roll_name || photoData.film_roll_number || '无',
-    date: photoData.taken_date
-      ? photoData.taken_date.split(' ')[0]
-      : photoData.uploaded_at
-        ? photoData.uploaded_at.split(' ')[0]
-        : '未知日期',
-    rating: photoData.rating || 0,
-    location_name: photoData.location_name,
-    photo_serial_number: photoData.photo_serial_number,
-    country: photoData.country,
-    province: photoData.province,
-    city: photoData.city,
-    categories: photoData.categories,
-    trip_name: photoData.trip_name,
-    trip_start_date: photoData.trip_start_date,
-    trip_end_date: photoData.trip_end_date,
-    aperture: photoData.aperture,
-    shutter_speed: photoData.shutter_speed,
-    focal_length: photoData.focal_length,
-    iso: photoData.iso,
-    camera_model: photoData.camera_model,
-    lens_model: photoData.lens_model,
-    is_protected: photoData.is_protected,
-    protection_level: photoData.protection_level,
-    effective_protection: photoData.effective_protection,
-    width: photoData.width,
-    height: photoData.height,
-    orientation: photoData.orientation,
-    _raw: photoData
-  });
+  const mapRandomPhoto = (photoData, index) => {
+    const effectiveProtection = normalizeProtectionFlag(
+      photoData.effective_protection !== undefined
+        ? photoData.effective_protection
+        : photoData.is_protected
+    );
+
+    return {
+      id: photoData.id || `random-photo-${index}`,
+      title: photoData.title || photoData.filename || '随机照片',
+      description: photoData.description || '',
+      thumbnail: photoData.thumbnail || photoData.original,
+      original: photoData.original,
+      size1024: photoData.size1024,
+      size2048: photoData.size2048,
+      filename: photoData.filename,
+      camera: photoData.camera_name || photoData.camera_model || photoData.camera_brand || '未知相机',
+      film: photoData.film_roll_name || photoData.film_roll_number || '无',
+      date: photoData.taken_date
+        ? photoData.taken_date.split(' ')[0]
+        : photoData.uploaded_at
+          ? photoData.uploaded_at.split(' ')[0]
+          : '未知日期',
+      rating: photoData.rating || 0,
+      location_name: photoData.location_name,
+      photo_serial_number: photoData.photo_serial_number,
+      country: photoData.country,
+      province: photoData.province,
+      city: photoData.city,
+      categories: photoData.categories,
+      trip_name: photoData.trip_name,
+      trip_start_date: photoData.trip_start_date,
+      trip_end_date: photoData.trip_end_date,
+      aperture: photoData.aperture,
+      shutter_speed: photoData.shutter_speed,
+      focal_length: photoData.focal_length,
+      iso: photoData.iso,
+      camera_model: photoData.camera_model,
+      lens_model: photoData.lens_model,
+      is_protected: effectiveProtection,
+      protection_level: photoData.protection_level,
+      effective_protection: effectiveProtection,
+      raw_effective_protection: photoData.effective_protection,
+      raw_is_protected: photoData.is_protected,
+      width: photoData.width,
+      height: photoData.height,
+      orientation: photoData.orientation,
+      _raw: photoData
+    };
+  };
 
   const fetchRandomPhoto = async () => {
     if (isRandomizing) return;
