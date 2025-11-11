@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Logo from './Logo';
 import { ScrollContainerProvider } from '../contexts/ScrollContainerContext';
+import { authApi } from '../services/api';
 
 const UserLayout = ({ isFullscreen = false }) => {
   const location = useLocation();
@@ -23,50 +24,52 @@ const UserLayout = ({ isFullscreen = false }) => {
     { name: '更多', href: '/more', icon: EllipsisHorizontalIcon },
   ];
 
-  // 检查用户身份，并在 localStorage 变化时更新
+  // 检查用户身份，基于服务器端 profile
   useEffect(() => {
-    const checkAuth = () => {
+    let aborted = false;
+
+    const fetchProfile = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        if (!aborted) setAuthRef({ isAdmin: false });
+        return;
+      }
       try {
-        const stored = localStorage.getItem('user');
-        if (!stored) {
-          setAuthRef({ isAdmin: false });
-          return;
+        const response = await authApi.getProfile();
+        const profile = response?.data || {};
+        const roleField = profile.role || profile.roles;
+        const roles = Array.isArray(roleField)
+          ? roleField
+          : roleField
+            ? [roleField]
+            : [];
+        const isAdmin = Boolean(
+          profile.isAdmin === true ||
+          profile.username === 'admin' ||
+          roles.includes('admin')
+        );
+        if (!aborted) {
+          setAuthRef({ isAdmin });
         }
-        const parsed = JSON.parse(stored);
-        const token = localStorage.getItem('token');
-        if (!token) {
+      } catch (error) {
+        if (!aborted) {
           setAuthRef({ isAdmin: false });
-          return;
         }
-        const role = parsed?.role || parsed?.roles;
-        const isAdmin =
-          role === 'admin' ||
-          (Array.isArray(role) && role.includes('admin')) ||
-          parsed?.isAdmin === true ||
-          parsed?.username === 'admin';
-        setAuthRef({ isAdmin });
-      } catch (e) {
-        setAuthRef({ isAdmin: false });
       }
     };
 
-    // 初始检查
-    checkAuth();
+    fetchProfile();
 
-    // 监听 storage 事件（跨标签页同步）
-    const handleStorageChange = (e) => {
-      if (e.key === 'user' || e.key === 'token') {
-        checkAuth();
+    const handleStorageChange = (event) => {
+      if (event.key === 'token') {
+        fetchProfile();
       }
     };
     window.addEventListener('storage', handleStorageChange);
 
-    // 定期检查（处理同标签页内的变化，但频率降低）
-    const interval = setInterval(checkAuth, 2000);
-
     return () => {
+      aborted = true;
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
     };
   }, []);
 

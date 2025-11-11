@@ -48,7 +48,7 @@ function App() {
               <Route path="gallery" element={<Gallery />} />
               <Route path="timeline" element={<Timeline />} />
               <Route path="timeline/:shortCode" element={<Timeline />} />
-              <Route path="s/:shortCode" element={<Timeline />} />
+              <Route path="s/:shortCode" element={<Gallery />} />
               <Route path="film-rolls" element={<FilmRolls />} />
               <Route path="map" element={<Map />} />
               <Route path="more" element={<More />} />
