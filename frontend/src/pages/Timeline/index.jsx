@@ -26,21 +26,50 @@ const Timeline = () => {
   const hasPushedShortLinkRef = useRef(false);
 
   const logShortLinkEvent = useCallback((level, message, payload = {}) => {
-    if (typeof window !== 'undefined') {
-      window.__timelineShortLinkLogs = window.__timelineShortLinkLogs || [];
-      window.__timelineShortLinkLogs.push({
-        timestamp: new Date().toISOString(),
-        level,
-        message,
-        ...payload
-      });
-    }
     const prefix = '[Timeline][ShortLink]';
     if (level === 'warn') {
       console.warn(prefix, message, payload);
     } else {
       console.log(prefix, message, payload);
     }
+  }, []);
+
+  const updateHistoryForPhoto = useCallback((photo, { replace = false } = {}) => {
+    const shortLinkPath = buildShortLinkPath(getPhotoShortCode(photo));
+    if (!shortLinkPath) {
+      logShortLinkEvent('warn', 'skip history update, missing short code', {
+        id: photo?.id,
+        rawShortCode: photo?._raw?.short_code
+      });
+      return;
+    }
+
+    logShortLinkEvent('info', 'updateHistoryForPhoto', {
+      shortLinkPath,
+      replace,
+      code: getPhotoShortCode(photo),
+      currentHref: window.location.href
+    });
+
+    const method = replace ? 'replaceState' : 'pushState';
+    if (!replace) {
+      hasPushedShortLinkRef.current = true;
+    }
+    window.history[method](
+      { modal: true, source: 'timeline' },
+      '',
+      shortLinkPath
+    );
+  }, [logShortLinkEvent]);
+
+  const restoreHistoryPath = useCallback(() => {
+    if (!hasPushedShortLinkRef.current) return;
+    window.history.replaceState(
+      { modal: false, source: 'timeline' },
+      '',
+      initialPathRef.current || '/timeline'
+    );
+    hasPushedShortLinkRef.current = false;
   }, []);
 
   const mapPhotoRecord = useCallback((photo, { fallbackIdPrefix = 'timeline-photo', fallbackTitle = '未命名照片' } = {}) => {
@@ -188,44 +217,6 @@ const Timeline = () => {
       updateHistoryForPhoto(selectedPhoto, { replace: hasPushedShortLinkRef.current });
     }
   }, [showModal, selectedPhoto, updateHistoryForPhoto, logShortLinkEvent]);
-
-  const updateHistoryForPhoto = useCallback((photo, { replace = false } = {}) => {
-    const shortLinkPath = buildShortLinkPath(getPhotoShortCode(photo));
-    if (!shortLinkPath) {
-      logShortLinkEvent('warn', 'skip history update, missing short code', {
-        id: photo?.id,
-        rawShortCode: photo?._raw?.short_code
-      });
-      return;
-    }
-
-    logShortLinkEvent('info', 'updateHistoryForPhoto', {
-      shortLinkPath,
-      replace,
-      code: getPhotoShortCode(photo),
-      currentHref: window.location.href
-    });
-
-    const method = replace ? 'replaceState' : 'pushState';
-    if (!replace) {
-      hasPushedShortLinkRef.current = true;
-    }
-    window.history[method](
-      { modal: true, source: 'timeline' },
-      '',
-      shortLinkPath
-    );
-  }, []);
-
-  const restoreHistoryPath = useCallback(() => {
-    if (!hasPushedShortLinkRef.current) return;
-    window.history.replaceState(
-      { modal: false, source: 'timeline' },
-      '',
-      initialPathRef.current || '/timeline'
-    );
-    hasPushedShortLinkRef.current = false;
-  }, []);
 
   useEffect(() => {
     const handlePopState = (event) => {

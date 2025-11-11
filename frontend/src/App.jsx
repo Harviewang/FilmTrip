@@ -16,6 +16,7 @@ import FilmRolls from './pages/FilmRolls';
 import Map from './pages/Map/MapLibre';
 import More from './pages/More';
 import PhotoDetail from './pages/PhotoDetail';
+import Timeline from './pages/Timeline';
 import NotFound from './pages/NotFound';
 import UserLayout from './components/UserLayout';
 
@@ -45,6 +46,9 @@ function App() {
             <Route path="/" element={<UserLayout isFullscreen={isFullscreen} />}>
               <Route index element={<Navigate to="/gallery" replace />} />
               <Route path="gallery" element={<Gallery />} />
+              <Route path="timeline" element={<Timeline />} />
+              <Route path="timeline/:shortCode" element={<Timeline />} />
+              <Route path="s/:shortCode" element={<Timeline />} />
               <Route path="film-rolls" element={<FilmRolls />} />
               <Route path="map" element={<Map />} />
               <Route path="more" element={<More />} />

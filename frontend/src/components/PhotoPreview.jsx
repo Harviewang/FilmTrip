@@ -5,6 +5,7 @@ import { getFittedSize } from '../utils/imageFit.js';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, ShareIcon, LinkIcon, ArrowUturnRightIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 import MapPicker from './MapPicker';
 import { resolveProtectionLevelInfo, isPhotoProtected } from '../constants/protectionLevels';
+import { useScrollContainer } from '../contexts/ScrollContainerContext';
 
 /**
  * 全局通用照片预览组件
@@ -40,14 +41,8 @@ const PhotoPreview = ({
   const stableVRef = useRef(Date.now());
   // 迷你地图弹窗状态
   const [showMiniMap, setShowMiniMap] = useState(false);
-  const isAdminUser = (() => {
-    try {
-      const user = JSON.parse(localStorage.getItem('user') || 'null');
-      return user && user.username === 'admin';
-    } catch {
-      return false;
-    }
-  })();
+  const { authRef } = useScrollContainer();
+  const isAdminUser = Boolean(authRef?.isAdmin);
   const isProtectedPhoto = photo ? isPhotoProtected(photo) : false;
   const protectionInfo = photo
     ? resolveProtectionLevelInfo(photo.protection_level || photo._raw?.protection_level)
