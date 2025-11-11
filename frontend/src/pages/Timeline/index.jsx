@@ -1,30 +1,247 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import API_CONFIG from '../../config/api.js';
+import { photoApi } from '../../services/api';
+import {
+  resolvePhotoShortLink,
+  getPhotoShortCode,
+  buildShortLinkPath,
+  normalizeShortCode
+} from '../../utils/shortLink.js';
+import { resolveProtectionLevelInfo } from '../../constants/protectionLevels.js';
 
 const Timeline = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams();
+  const shortCodeParam = params?.shortCode;
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [showUI, setShowUI] = useState(true); // 控制UI显示状态
-  
-  // 检查URL中是否有照片ID参数
-  useEffect(() => {
-    const urlParams = new URLSearchParams(location.search);
-    const photoId = urlParams.get('photo');
-    if (photoId && photos.length > 0) {
-      const photo = photos.find(p => p.id.toString() === photoId);
-      if (photo) {
-        setSelectedPhoto(photo);
-        setShowModal(true);
+  const initialPathRef = useRef(window.location.pathname || '/timeline');
+  const hasPushedShortLinkRef = useRef(false);
+
+  const logShortLinkEvent = useCallback((level, message, payload = {}) => {
+    if (typeof window !== 'undefined') {
+      window.__timelineShortLinkLogs = window.__timelineShortLinkLogs || [];
+      window.__timelineShortLinkLogs.push({
+        timestamp: new Date().toISOString(),
+        level,
+        message,
+        ...payload
+      });
+    }
+    const prefix = '[Timeline][ShortLink]';
+    if (level === 'warn') {
+      console.warn(prefix, message, payload);
+    } else {
+      console.log(prefix, message, payload);
+    }
+  }, []);
+
+  const mapPhotoRecord = useCallback((photo, { fallbackIdPrefix = 'timeline-photo', fallbackTitle = '未命名照片' } = {}) => {
+    if (!photo) return null;
+    const filename = photo.filename || photo.original_name || '';
+    const baseName = filename ? filename.replace(/\.[^.]+$/, '') : '';
+    const thumbnail = photo.thumbnail || (baseName ? `${API_CONFIG.BASE_URL}/uploads/thumbnails/${baseName}_thumb.jpg` : '');
+    const original = photo.original || (filename ? `${API_CONFIG.BASE_URL}/uploads/${filename}` : thumbnail);
+    const size1024 = photo.size1024 || (baseName ? `${API_CONFIG.BASE_URL}/uploads/size1024/${baseName}_1024.jpg` : thumbnail);
+    const size2048 = photo.size2048 || (baseName ? `${API_CONFIG.BASE_URL}/uploads/size2048/${baseName}_2048.jpg` : original);
+    const takenDate = photo.taken_date;
+    const uploadedAt = photo.uploaded_at;
+    const displayDate = photo.date
+      || (takenDate ? takenDate.split(' ')[0] : (uploadedAt ? uploadedAt.split(' ')[0] : '未知日期'));
+    const effectiveProtection = Boolean(
+      photo.effective_protection !== undefined ? photo.effective_protection : photo.is_protected
+    );
+
+    const mapped = {
+      id: photo.id || `${fallbackIdPrefix}-${photo.photo_number || Date.now()}`,
+      title: photo.title || filename || fallbackTitle,
+      description: photo.description || '',
+      thumbnail,
+      original,
+      size1024,
+      size2048,
+      filename,
+      camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
+      camera_brand: photo.camera_brand,
+      camera_model: photo.camera_model,
+      lens_model: photo.lens_model,
+      film: photo.film_roll_name || photo.film_roll_number || '未知胶卷',
+      film_roll_number: photo.film_roll_number,
+      date: displayDate,
+      taken_date: takenDate,
+      uploaded_at: uploadedAt,
+      rating: photo.rating || 0,
+      location_name: photo.location_name,
+      country: photo.country,
+      province: photo.province,
+      city: photo.city,
+      categories: photo.categories,
+      trip_name: photo.trip_name,
+      photo_serial_number: photo.photo_serial_number,
+      width: photo.width,
+      height: photo.height,
+      orientation: photo.orientation,
+      is_protected: photo.is_protected,
+      protection_level: photo.protection_level,
+      effective_protection: effectiveProtection,
+      shortCode: getPhotoShortCode(photo),
+      short_link: resolvePhotoShortLink(photo),
+      _raw: photo
+    };
+    if (!mapped.shortCode) {
+      logShortLinkEvent('warn', 'mapped photo missing shortCode', {
+        id: mapped.id,
+        rawShortCode: photo.short_code,
+        source: 'mapPhotoRecord'
+      });
+    }
+    return mapped;
+  }, [logShortLinkEvent]);
+
+  const openPhotoById = useCallback((targetId) => {
+    if (!targetId) return false;
+    const stringId = targetId.toString();
+    const targetIndex = photos.findIndex((p) => p.id?.toString() === stringId);
+    if (targetIndex === -1) return false;
+    const targetPhoto = photos[targetIndex];
+    setSelectedPhoto(targetPhoto);
+    setShowModal(true);
+    updateHistoryForPhoto(targetPhoto, { replace: !hasPushedShortLinkRef.current });
+    return true;
+  }, [photos, updateHistoryForPhoto]);
+
+  const fetchPhotoByShortCode = useCallback(async (code) => {
+    const normalized = normalizeShortCode(code);
+    if (!normalized) return null;
+    try {
+      const response = await photoApi.getPhotoByShortCode(normalized);
+      const payload = response?.data;
+      const list = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : [];
+      if (!list.length) return null;
+      return mapPhotoRecord(list[0], { fallbackIdPrefix: `timeline-${normalized}` });
+    } catch (error) {
+      console.error('通过短链获取照片失败:', error);
+      return null;
+    }
+  }, [mapPhotoRecord]);
+
+  const openPhotoByShortCode = useCallback(async (code) => {
+    const normalized = normalizeShortCode(code);
+    if (!normalized) return;
+    const existingIndex = photos.findIndex((p) => getPhotoShortCode(p) === normalized);
+    let targetPhoto = existingIndex !== -1 ? photos[existingIndex] : null;
+    if (!targetPhoto) {
+      const fetched = await fetchPhotoByShortCode(normalized);
+      if (fetched) {
+        targetPhoto = fetched;
+        setPhotos((prev) => {
+          if (prev.some((p) => p.id === fetched.id)) return prev;
+          return [fetched, ...prev];
+        });
       }
     }
-  }, [location.search, photos]);
+    if (targetPhoto) {
+      setSelectedPhoto(targetPhoto);
+      setShowModal(true);
+      logShortLinkEvent('info', 'openPhotoByShortCode resolved target', {
+        code: normalized,
+        id: targetPhoto.id,
+        shortLink: targetPhoto.short_link
+      });
+      updateHistoryForPhoto(targetPhoto, { replace: !hasPushedShortLinkRef.current });
+    }
+  }, [fetchPhotoByShortCode, photos, updateHistoryForPhoto, logShortLinkEvent]);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const photoIdParam = urlParams.get('photo');
+    if (photoIdParam) {
+      logShortLinkEvent('info', 'detected query photo param', { photoIdParam });
+      const opened = openPhotoById(photoIdParam);
+      if (opened) return;
+    }
+    const normalizedShortCode = normalizeShortCode(shortCodeParam);
+    if (normalizedShortCode) {
+      logShortLinkEvent('info', 'detected route shortCode', { shortCode: normalizedShortCode });
+      openPhotoByShortCode(normalizedShortCode);
+    }
+  }, [location.search, shortCodeParam, openPhotoById, openPhotoByShortCode, logShortLinkEvent]);
+
+  useEffect(() => {
+    if (showModal && selectedPhoto) {
+      logShortLinkEvent('info', 'selectedPhoto changed', {
+        id: selectedPhoto.id,
+        code: getPhotoShortCode(selectedPhoto),
+        short_link: selectedPhoto.short_link
+      });
+      updateHistoryForPhoto(selectedPhoto, { replace: hasPushedShortLinkRef.current });
+    }
+  }, [showModal, selectedPhoto, updateHistoryForPhoto, logShortLinkEvent]);
+
+  const updateHistoryForPhoto = useCallback((photo, { replace = false } = {}) => {
+    const shortLinkPath = buildShortLinkPath(getPhotoShortCode(photo));
+    if (!shortLinkPath) {
+      logShortLinkEvent('warn', 'skip history update, missing short code', {
+        id: photo?.id,
+        rawShortCode: photo?._raw?.short_code
+      });
+      return;
+    }
+
+    logShortLinkEvent('info', 'updateHistoryForPhoto', {
+      shortLinkPath,
+      replace,
+      code: getPhotoShortCode(photo),
+      currentHref: window.location.href
+    });
+
+    const method = replace ? 'replaceState' : 'pushState';
+    if (!replace) {
+      hasPushedShortLinkRef.current = true;
+    }
+    window.history[method](
+      { modal: true, source: 'timeline' },
+      '',
+      shortLinkPath
+    );
+  }, []);
+
+  const restoreHistoryPath = useCallback(() => {
+    if (!hasPushedShortLinkRef.current) return;
+    window.history.replaceState(
+      { modal: false, source: 'timeline' },
+      '',
+      initialPathRef.current || '/timeline'
+    );
+    hasPushedShortLinkRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (hasPushedShortLinkRef.current) {
+        setShowModal(false);
+        setSelectedPhoto(null);
+        hasPushedShortLinkRef.current = false;
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => () => {
+    restoreHistoryPath();
+  }, [restoreHistoryPath]);
 
   // 控制页面滚动
   useEffect(() => {
@@ -50,7 +267,8 @@ const Timeline = () => {
       switch (e.key) {
         case 'Escape':
           setShowModal(false);
-          navigate('/timeline', { replace: true });
+          setSelectedPhoto(null);
+          restoreHistoryPath();
           break;
         case 'h':
         case 'H':
@@ -61,7 +279,7 @@ const Timeline = () => {
             const currentIndex = photos.findIndex(p => p.id === selectedPhoto?.id);
             const prevIndex = currentIndex > 0 ? currentIndex - 1 : photos.length - 1;
             setSelectedPhoto(photos[prevIndex]);
-            navigate(`/timeline?photo=${photos[prevIndex].id}`, { replace: true });
+            updateHistoryForPhoto(photos[prevIndex], { replace: true });
           }
           break;
         case 'ArrowRight':
@@ -69,7 +287,7 @@ const Timeline = () => {
             const currentIndex = photos.findIndex(p => p.id === selectedPhoto?.id);
             const nextIndex = currentIndex < photos.length - 1 ? currentIndex + 1 : 0;
             setSelectedPhoto(photos[nextIndex]);
-            navigate(`/timeline?photo=${photos[nextIndex].id}`, { replace: true });
+            updateHistoryForPhoto(photos[nextIndex], { replace: true });
           }
           break;
       }
@@ -77,7 +295,7 @@ const Timeline = () => {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showModal, photos, selectedPhoto, navigate]);
+  }, [showModal, photos, selectedPhoto, restoreHistoryPath, updateHistoryForPhoto]);
 
   // 按日期分组的照片
   const groupedPhotos = React.useMemo(() => {
@@ -101,55 +319,29 @@ const Timeline = () => {
   // 获取照片数据
   const fetchPhotos = async () => {
     try {
-      console.log('开始获取照片...');
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/photos`);
-      console.log('API响应状态:', response.status);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      console.log('API返回数据:', result);
-      
-      if (result.success && result.data && Array.isArray(result.data)) {
-        console.log('照片数据数量:', result.data.length);
-        
-        // 转换后端数据格式为前端需要的格式
-        const formattedPhotos = result.data.map(photo => {
-          // 使用后端返回的图片路径，如果没有则使用默认路径
-          const thumbnailPath = photo.thumbnail || `${API_CONFIG.BASE_URL}/uploads/thumbnails/${photo.filename.split('.')[0]}_thumb.jpg`;
-          const originalPath = photo.original || `${API_CONFIG.BASE_URL}/uploads/${photo.filename}`;
-          console.log('照片数据:', photo);
-          console.log('缩略图路径:', thumbnailPath);
-          console.log('原图路径:', originalPath);
-          
-          return {
-            id: photo.id,
-            title: photo.title || photo.photo_number?.toString() || '未命名照片',
-            thumbnail: thumbnailPath, // 缩略图用于列表显示
-            original: originalPath,   // 原图用于预览
-            camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
-            camera_brand: photo.camera_brand,
-            camera_model: photo.camera_model,
-            film: photo.film_roll_name || photo.film_roll_number || '未知胶卷',
-            film_roll_number: photo.film_roll_number,
-            date: photo.taken_date || photo.uploaded_at?.split(' ')[0] || '未知日期',
-            time: photo.taken_date ? '拍摄时间' : '上传时间',
-            taken_date: photo.taken_date,
-            photo_number: photo.photo_number,
-            uploaded_at: photo.uploaded_at,
-            // 保留原始数据用于加密检查
-            _raw: photo
-          };
+      const response = await photoApi.getAllPhotos();
+      const payload = response?.data;
+      const list = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.photos)
+            ? payload.photos
+            : [];
+      const formattedPhotos = list
+        .map((photo, index) => mapPhotoRecord(photo, { fallbackIdPrefix: `timeline-${index}` }))
+        .filter(Boolean);
+      if (formattedPhotos.length > 0) {
+        logShortLinkEvent('info', 'fetched first photo', {
+          id: formattedPhotos[0].id,
+          shortCode: formattedPhotos[0].shortCode,
+          short_link: formattedPhotos[0].short_link,
+          rawShortCode: formattedPhotos[0]._raw?.short_code
         });
-        
-        console.log('格式化后的照片:', formattedPhotos);
-        setPhotos(formattedPhotos);
       } else {
-        console.log('没有照片数据或数据格式错误');
-        setPhotos([]);
+        logShortLinkEvent('warn', 'fetched no photos or mapping failed');
       }
+      setPhotos(formattedPhotos);
     } catch (error) {
       console.error('获取照片失败:', error);
       setPhotos([]);
@@ -179,15 +371,18 @@ const Timeline = () => {
       try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; }
       catch (e) { return false; }
     })();
-    const effectivePrivate = !!(photo && photo._raw && photo._raw.effective_private);
+    const effectivePrivate = !!(photo?.effective_protection || photo?._raw?.effective_protection || photo?._raw?.effective_private);
     const isPrivateForViewer = effectivePrivate && !isAdmin;
 
     if (isPrivateForViewer) {
+      const protectionInfo = resolveProtectionLevelInfo(photo?.protection_level);
       return (
         <div className={`${className} bg-gray-100 text-gray-500 flex items-center justify-center`}>
-          <div className="text-center">
+          <div className="text-center px-4">
             <div className="text-3xl mb-2">🔒</div>
-            <div className="text-xs">该照片涉及隐私或他人肖像，已被管理员加密</div>
+            <div className="text-xs leading-relaxed">
+              {protectionInfo?.description || '该照片暂不公开展示。'}
+            </div>
           </div>
         </div>
       );
@@ -225,10 +420,10 @@ const Timeline = () => {
           key={photo.id} 
           className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer"
           onClick={() => {
+            const shouldReplace = hasPushedShortLinkRef.current;
             setSelectedPhoto(photo);
             setShowModal(true);
-            // 更新URL，添加照片ID参数
-            navigate(`/timeline?photo=${photo.id}`, { replace: true });
+            updateHistoryForPhoto(photo, { replace: shouldReplace });
           }}
         >
           <div className="relative">
@@ -242,10 +437,10 @@ const Timeline = () => {
           key={photo.id} 
           className="flex items-start space-x-6 bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200 cursor-pointer"
           onClick={() => {
+            const shouldReplace = hasPushedShortLinkRef.current;
             setSelectedPhoto(photo);
             setShowModal(true);
-            // 更新URL，添加照片ID参数
-            navigate(`/timeline?photo=${photo.id}`, { replace: true });
+            updateHistoryForPhoto(photo, { replace: shouldReplace });
           }}
         >
           <div className="flex-shrink-0">
@@ -279,10 +474,10 @@ const Timeline = () => {
           <div 
             className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer group"
             onClick={() => {
+              const shouldReplace = hasPushedShortLinkRef.current;
               setSelectedPhoto(photo);
               setShowModal(true);
-              // 更新URL，添加照片ID参数
-              navigate(`/timeline?photo=${photo.id}`, { replace: true });
+              updateHistoryForPhoto(photo, { replace: shouldReplace });
             }}
           >
             <div className="relative overflow-hidden">
@@ -390,8 +585,8 @@ const Timeline = () => {
               <button
                 onClick={() => {
                   setShowModal(false);
-                  // 清除URL中的照片参数
-                  navigate('/timeline', { replace: true });
+                  setSelectedPhoto(null);
+                  restoreHistoryPath();
                 }}
                 className={`absolute top-6 right-6 z-10 text-gray-600 hover:text-gray-800 transition-all duration-300 bg-white/80 hover:bg-white/90 rounded-full p-2 shadow-lg ${
                   showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -446,12 +641,15 @@ const Timeline = () => {
                     {/* 分享链接 */}
                     <button
                       onClick={() => {
-                        const shareUrl = `${window.location.origin}/timeline?photo=${selectedPhoto.id}`;
-                        navigator.clipboard.writeText(shareUrl);
+                        const shareUrl = resolvePhotoShortLink(selectedPhoto)
+                          || `${window.location.origin}${buildShortLinkPath(getPhotoShortCode(selectedPhoto))}`;
+                        if (shareUrl) {
+                          navigator.clipboard.writeText(shareUrl);
+                        }
                       }}
                       className="text-blue-600 hover:text-blue-500 transition-colors text-sm"
                     >
-                      复制链接
+                      复制短链
                     </button>
                   </div>
                   
@@ -478,6 +676,7 @@ const Timeline = () => {
                   const currentIndex = photos.findIndex(p => p.id === selectedPhoto.id);
                   const prevIndex = currentIndex > 0 ? currentIndex - 1 : photos.length - 1;
                   setSelectedPhoto(photos[prevIndex]);
+                  updateHistoryForPhoto(photos[prevIndex], { replace: true });
                 }}
                 className={`absolute left-6 top-1/2 transform -translate-y-1/2 text-gray-600 hover:text-gray-800 transition-all duration-300 bg-white/80 hover:bg-white/90 rounded-full p-2 shadow-lg ${
                   showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -491,6 +690,7 @@ const Timeline = () => {
                   const currentIndex = photos.findIndex(p => p.id === selectedPhoto.id);
                   const nextIndex = currentIndex < photos.length - 1 ? currentIndex + 1 : 0;
                   setSelectedPhoto(photos[nextIndex]);
+                  updateHistoryForPhoto(photos[nextIndex], { replace: true });
                 }}
                 className={`absolute right-6 top-1/2 transform -translate-y-1/2 text-gray-600 hover:text-gray-800 transition-all duration-300 bg-white/80 hover:bg-white/90 rounded-full p-2 shadow-lg ${
                   showUI ? 'opacity-100' : 'opacity-0 pointer-events-none'

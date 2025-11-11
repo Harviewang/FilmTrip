@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import API_CONFIG from '../config/api';
+import { resolvePhotoShortLink } from '../utils/shortLink.js';
 import { getFittedSize } from '../utils/imageFit.js';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon, ShareIcon, LinkIcon, ArrowUturnRightIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 import MapPicker from './MapPicker';
+import { resolveProtectionLevelInfo, isPhotoProtected } from '../constants/protectionLevels';
 
 /**
  * 全局通用照片预览组件
@@ -38,6 +40,18 @@ const PhotoPreview = ({
   const stableVRef = useRef(Date.now());
   // 迷你地图弹窗状态
   const [showMiniMap, setShowMiniMap] = useState(false);
+  const isAdminUser = (() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || 'null');
+      return user && user.username === 'admin';
+    } catch {
+      return false;
+    }
+  })();
+  const isProtectedPhoto = photo ? isPhotoProtected(photo) : false;
+  const protectionInfo = photo
+    ? resolveProtectionLevelInfo(photo.protection_level || photo._raw?.protection_level)
+    : null;
 
   // 计算适配尺寸
   const recomputeFittedSize = useCallback(() => {
@@ -187,7 +201,7 @@ const PhotoPreview = ({
   // 生成短链接
   const generateShortLink = useCallback(() => {
     if (!photo) return '';
-    return `${window.location.origin}/photo/${photo.id}`;
+    return resolvePhotoShortLink(photo) || `${window.location.origin}/photo/${photo.id}`;
   }, [photo]);
 
   // 复制照片链接
@@ -396,6 +410,24 @@ const PhotoPreview = ({
       >
         {/* 检查是否有图片URL */}
         {(() => {
+          if (isProtectedPhoto && !isAdminUser) {
+            return (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-2xl px-6">
+                <div className="text-center py-8 space-y-3 max-w-xs">
+                  <div className="w-24 h-24 mx-auto flex items-center justify-center bg-gray-200 rounded-full">
+                    <span className="text-4xl text-gray-400">🔒</span>
+                  </div>
+                  <div className="text-gray-600 text-lg font-medium">
+                    {protectionInfo?.label || '照片受保护'}
+                  </div>
+                  <div className="text-gray-400 text-sm leading-relaxed">
+                    {protectionInfo?.description || '该照片暂不公开展示。'}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
           const imageUrl = photo.size2048 
             ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${stableVRef.current}` 
             : (photo.size1024 
@@ -406,18 +438,20 @@ const PhotoPreview = ({
                   ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${stableVRef.current}` 
                   : null)));
           
-          // 如果没有图片URL（可能是受保护的照片）
+          // 如果没有图片URL
           if (!imageUrl || (!photo.size2048 && !photo.size1024 && !photo.original && !photo.thumbnail)) {
             return (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-2xl">
-                <div className="text-center p-8">
-                  <div className="w-24 h-24 mx-auto mb-4 flex items-center justify-center bg-gray-200 rounded-full">
-                    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-2xl px-6">
+                <div className="text-center py-8 space-y-3 max-w-xs">
+                  <div className="w-24 h-24 mx-auto flex items-center justify-center bg-gray-200 rounded-full">
+                    <span className="text-4xl text-gray-400">📷</span>
                   </div>
-                  <div className="text-gray-600 text-lg font-medium mb-2">照片受保护</div>
-                  <div className="text-gray-400 text-sm">该照片已加密，需要管理员权限才能查看</div>
+                  <div className="text-gray-600 text-lg font-medium">
+                    图片暂不可用
+                  </div>
+                  <div className="text-gray-400 text-sm">
+                    该照片暂时无法加载，请稍后重试
+                  </div>
                 </div>
               </div>
             );
@@ -555,8 +589,10 @@ const PhotoPreview = ({
               {/* 6. 加密状态 */}
               <div className="text-center">
                 <div className="text-gray-400 text-xs font-normal mb-1 whitespace-nowrap">加密状态</div>
-                {photo.is_protected ? (
-                  <div className="text-red-600">🔒 已加密</div>
+                {isProtectedPhoto ? (
+                  <div className="text-red-600 text-center">
+                    {protectionInfo?.label || '已加密'}
+                  </div>
                 ) : (
                   <div className="text-gray-400">未加密</div>
                 )}

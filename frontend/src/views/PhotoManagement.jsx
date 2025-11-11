@@ -1,15 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  PlusIcon, 
-  PencilIcon, 
-  TrashIcon, 
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
   EyeIcon,
   MagnifyingGlassIcon,
   FunnelIcon
 } from '@heroicons/react/24/outline';
 import { photoApi } from '../services/api';
+import API_CONFIG from '../config/api.js';
 import ImageRotateControl from '../components/ImageRotateControl';
 import MapPicker from '../components/MapPicker';
+import { resolvePhotoShortLink } from '../utils/shortLink.js';
+import { resolveProtectionLevelInfo } from '../constants/protectionLevels.js';
+
+const API_BASE_URL = API_CONFIG.BASE_URL;
+const API_BASE = API_CONFIG.API_BASE;
 
 const PhotoManagement = () => {
   const [photos, setPhotos] = useState([]);
@@ -85,6 +91,41 @@ const PhotoManagement = () => {
   const mapPickerRef = useRef(null); // MapPicker 组件的 ref
   const uploadMapPickerRef = useRef(null); // 单张上传的 MapPicker ref
   const editMapPickerRef = useRef(null); // 编辑表单的 MapPicker ref
+
+  const ensureAbsoluteUrl = useCallback((url) => {
+    if (!url) return null;
+    if (/^https?:\/\//i.test(url)) return url;
+    if (url.startsWith('//')) {
+      return `${window.location.protocol}${url}`;
+    }
+    const normalizedPath = url.startsWith('/') ? url : `/${url}`;
+    return `${API_BASE_URL}${normalizedPath}`;
+  }, []);
+
+  const resolveShortLink = useCallback((photo) => resolvePhotoShortLink(photo), []);
+
+  const handleCopyLink = useCallback(async (link) => {
+    if (!link) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = link;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      alert('短链已复制');
+    } catch (copyError) {
+      console.error('复制短链失败:', copyError);
+      alert('复制短链失败，请手动复制');
+    }
+  }, []);
 
   // 重置表单的辅助函数
   const resetUploadForm = () => {
@@ -171,7 +212,7 @@ const PhotoManagement = () => {
   // 获取胶卷实例列表
   const fetchFilmRolls = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/filmRolls');
+      const response = await fetch(`${API_BASE}/filmRolls`);
       const data = await response.json();
       if (data.success) {
         // API返回的是 { filmRolls: [...] } 结构
@@ -191,7 +232,7 @@ const PhotoManagement = () => {
   // 获取相机列表
   const fetchCameras = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/cameras');
+      const response = await fetch(`${API_BASE}/cameras`);
       const data = await response.json();
       if (data.success) {
         // API返回的是 { data: [...] } 结构
@@ -582,101 +623,128 @@ const PhotoManagement = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredPhotos.map((photo) => (
-            <div key={photo.id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-              <div className="aspect-square bg-gray-100 flex items-center justify-center">
-                {photo.thumbnail ? (
-                  <img 
-                    src={`http://localhost:3001${photo.thumbnail}`}
-                    alt={photo.title} 
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      // 如果缩略图加载失败，显示相机图标
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
-                    }}
-                  />
-                ) : (photo.effective_protection === 1 || photo.effective_protection === true || photo.is_protected === 1 || photo.is_protected === true) ? (
-                  <div className="flex flex-col items-center justify-center text-gray-400">
-                    <div className="text-4xl mb-2">🔒</div>
-                    <div className="text-sm text-center font-medium">加密内容</div>
-                    <div className="text-xs text-center mt-1">
-                      {(() => {
-                        const level = photo.protection_level;
-                        if (level === 'personal') return '个人隐私';
-                        if (level === 'sensitive') return '敏感内容';
-                        if (level === 'restricted') return '严格限制';
-                        if (level === 'portrait') return '肖像权保护';
-                        if (level === 'other') return '其他原因';
-                        return '需要管理员权限';
-                      })()}
+          {filteredPhotos.map((photo) => {
+            const shortLink = resolveShortLink(photo);
+            const thumbnailUrl = ensureAbsoluteUrl(photo.thumbnail || photo.variants?.thumbnail);
+            const size1024Url = ensureAbsoluteUrl(photo.size1024 || photo.variants?.size1024);
+            const originalUrl = ensureAbsoluteUrl(photo.original || photo.variants?.original);
+            const displayUrl = thumbnailUrl || size1024Url || originalUrl;
+
+            return (
+              <div key={photo.id} className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                <div className="aspect-square bg-gray-100 flex items-center justify-center">
+                  {displayUrl ? (
+                    <img 
+                      src={displayUrl}
+                      alt={photo.title} 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const fallbackUrl = size1024Url && e.target.src !== size1024Url ? size1024Url
+                          : (originalUrl && e.target.src !== originalUrl ? originalUrl : null);
+                        if (fallbackUrl) {
+                          e.target.src = fallbackUrl;
+                          return;
+                        }
+                        e.target.style.display = 'none';
+                        e.target.nextSibling.style.display = 'flex';
+                      }}
+                    />
+                  ) : (photo.effective_protection === 1 || photo.effective_protection === true || photo.is_protected === 1 || photo.is_protected === true) ? (
+                    <div className="flex flex-col items-center justify-center text-gray-400">
+                      <div className="text-4xl mb-2">🔒</div>
+                      <div className="text-sm text-center font-medium">
+                        {resolveProtectionLevelInfo(photo.protection_level)?.label || '已加密'}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className={`text-gray-400 text-4xl ${displayUrl ? 'hidden' : 'flex'} items-center justify-center`}>
+                    📷
+                  </div>
+                </div>
+                <div className="p-4">
+                  <h3 className="font-medium text-gray-900 mb-2 truncate">{photo.title || '无标题'}</h3>
+                  {photo.description && (
+                    <p className="text-gray-600 text-sm mb-3 line-clamp-2">{photo.description}</p>
+                  )}
+                  {shortLink && (
+                    <div className="mb-3">
+                      <div className="text-xs text-gray-500 uppercase tracking-wide">短链</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <a
+                          href={shortLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 break-all text-sm"
+                        >
+                          {shortLink}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyLink(shortLink)}
+                          className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                        >
+                          复制
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
+                    <span>{photo.film || photo.film_roll_id ? (photo.film || '未知胶片') : '无胶卷'}</span>
+                    <div className="flex items-center gap-2">
+                      {(photo.effective_protection === 1 || photo.effective_protection === true || photo.is_protected === 1 || photo.is_protected === true) && (
+                        <span className="text-red-500 text-xs" title="隐私保护已启用">🔒</span>
+                      )}
+                      <span>{photo.date ? new Date(photo.date).toLocaleDateString() : '未知日期'}</span>
                     </div>
                   </div>
-                ) : null}
-                <div className={`text-gray-400 text-4xl ${photo.thumbnail ? 'hidden' : 'flex'} items-center justify-center`}>
-                  📷
-                </div>
-              </div>
-              <div className="p-4">
-                <h3 className="font-medium text-gray-900 mb-2 truncate">{photo.title || '无标题'}</h3>
-                {photo.description && (
-                  <p className="text-gray-600 text-sm mb-3 line-clamp-2">{photo.description}</p>
-                )}
-                <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
-                  <span>{photo.film || photo.film_roll_id ? (photo.film || '未知胶片') : '无胶卷'}</span>
-                  <div className="flex items-center gap-2">
-                    {(photo.effective_protection === 1 || photo.effective_protection === true || photo.is_protected === 1 || photo.is_protected === true) && (
-                      <span className="text-red-500 text-xs" title="隐私保护已启用">🔒</span>
-                    )}
-                    <span>{photo.date ? new Date(photo.date).toLocaleDateString() : '未知日期'}</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedPhoto(photo);
+                        setShowViewModal(true);
+                      }}
+                      className="flex-1 px-3 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg flex items-center justify-center gap-1"
+                    >
+                      <EyeIcon className="h-4 w-4" />
+                      查看
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedPhoto(photo);
+                        setEditForm({
+                          title: photo.title || '',
+                          description: photo.description || '',
+                          film_roll_id: photo.film_roll_id || '',
+                          camera_id: photo.camera_id || '',
+                          taken_date: photo.taken_date ? photo.taken_date.split('T')[0] : '',
+                          tags: photo.tags || '',
+                          file: null, // 清空文件
+                          is_protected: photo.is_protected === 1 || photo.is_protected === true,
+                          protection_level: photo.protection_level || '',
+                          rotation: photo.rotation || 0
+                        });
+                        // 设置预览为现有照片
+                        const previewCandidate = ensureAbsoluteUrl(
+                          photo.size1024 || photo.variants?.size1024 || photo.thumbnail || photo.variants?.thumbnail || photo.original || photo.variants?.original
+                        );
+                        setPreviewUrl(previewCandidate || null);
+                        setShowEditModal(true);
+                      }}
+                      className="px-3 py-2 text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-lg"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(photo.id)}
+                      className="px-3 py-2 text-sm bg-red-100 hover:bg-red-200 text-red-700 rounded-lg"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedPhoto(photo);
-                      setShowViewModal(true);
-                    }}
-                    className="flex-1 px-3 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg flex items-center justify-center gap-1"
-                  >
-                    <EyeIcon className="h-4 w-4" />
-                    查看
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedPhoto(photo);
-                      setEditForm({
-                        title: photo.title || '',
-                        description: photo.description || '',
-                        film_roll_id: photo.film_roll_id || '',
-                        camera_id: photo.camera_id || '',
-                        taken_date: photo.taken_date ? photo.taken_date.split('T')[0] : '',
-                        tags: photo.tags || '',
-                        file: null, // 清空文件
-                        is_protected: photo.is_protected === 1 || photo.is_protected === true,
-                        protection_level: photo.protection_level || '',
-                        rotation: photo.rotation || 0
-                      });
-                      // 设置预览为现有照片
-                      if (photo.size1024 || photo.thumbnail) {
-                        setPreviewUrl(`http://localhost:3001${photo.size1024 || photo.thumbnail}`);
-                      }
-                      setShowEditModal(true);
-                    }}
-                    className="px-3 py-2 text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-lg"
-                  >
-                    <PencilIcon className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(photo.id)}
-                    className="px-3 py-2 text-sm bg-red-100 hover:bg-red-200 text-red-700 rounded-lg"
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1447,130 +1515,205 @@ const PhotoManagement = () => {
       )}
 
       {/* 查看照片模态框 */}
-      {showViewModal && selectedPhoto && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-xl font-bold">{selectedPhoto.title || '无标题'}</h2>
-              <button
-                onClick={() => setShowViewModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="aspect-square bg-gray-100 flex items-center justify-center rounded-lg">
-                {selectedPhoto.original ? (
-                  <img 
-                    src={`http://localhost:3001${selectedPhoto.original}`}
-                    alt={selectedPhoto.title} 
-                    className="w-full h-full object-cover rounded-lg"
-                    onError={(e) => {
-                      // 如果原图加载失败，尝试加载缩略图
-                      if (selectedPhoto.thumbnail) {
-                        e.target.src = `http://localhost:3001${selectedPhoto.thumbnail}`;
-                        e.target.onerror = () => {
-                          // 如果缩略图也失败，显示相机图标
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'flex';
-                        };
-                      } else {
+      {showViewModal && selectedPhoto && (() => {
+        const selectedShortLink = resolveShortLink(selectedPhoto);
+        const originalUrl = ensureAbsoluteUrl(
+          selectedPhoto.original ||
+          selectedPhoto.variants?.original ||
+          selectedPhoto.size2048 ||
+          selectedPhoto.variants?.size2048 ||
+          selectedPhoto.size1024 ||
+          selectedPhoto.variants?.size1024
+        );
+        const thumbnailUrl = ensureAbsoluteUrl(
+          selectedPhoto.size1024 ||
+          selectedPhoto.variants?.size1024 ||
+          selectedPhoto.thumbnail ||
+          selectedPhoto.variants?.thumbnail
+        );
+        const displayOriginalUrl = originalUrl || thumbnailUrl;
+        const storageVariant = selectedPhoto.storage_variant || selectedPhoto.storageVariant;
+        const originBucket = selectedPhoto.origin_bucket || selectedPhoto.originBucket;
+        const originPath = selectedPhoto.origin_path || selectedPhoto.originPath;
+        const fileHash = selectedPhoto.file_hash || selectedPhoto.hashes?.sha256;
+        const md5Hash = selectedPhoto.hashes?.md5;
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-bold">{selectedPhoto.title || '无标题'}</h2>
+                <button
+                  onClick={() => setShowViewModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="aspect-square bg-gray-100 flex items-center justify-center rounded-lg">
+                  {displayOriginalUrl ? (
+                    <img 
+                      src={displayOriginalUrl}
+                      alt={selectedPhoto.title} 
+                      className="w-full h-full object-cover rounded-lg"
+                      onError={(e) => {
+                        if (thumbnailUrl && e.target.src !== thumbnailUrl) {
+                          e.target.src = thumbnailUrl;
+                          return;
+                        }
                         e.target.style.display = 'none';
                         e.target.nextSibling.style.display = 'flex';
-                      }
-                    }}
-                  />
-                ) : (selectedPhoto.effective_protection === 1 || selectedPhoto.effective_protection === true || selectedPhoto.is_protected === 1 || selectedPhoto.is_protected === true) ? (
-                  <div className="flex flex-col items-center justify-center text-gray-400">
-                    <div className="text-6xl mb-4">🔒</div>
-                    <div className="text-lg text-center font-medium">加密保护内容</div>
-                    <div className="text-sm text-center mt-2">
-                      {(() => {
-                        const level = selectedPhoto.protection_level;
-                        if (level === 'personal') return '此照片包含个人隐私内容';
-                        if (level === 'sensitive') return '此照片包含敏感内容';
-                        if (level === 'restricted') return '此照片严格限制访问';
-                        if (level === 'portrait') return '此照片涉及他人肖像权';
-                        if (level === 'other') return '此照片已被管理员加密';
-                        return '需要管理员权限查看';
-                      })()}
+                      }}
+                    />
+                  ) : (selectedPhoto.effective_protection === 1 || selectedPhoto.effective_protection === true || selectedPhoto.is_protected === 1 || selectedPhoto.is_protected === true) ? (
+                    <div className="flex flex-col items-center justify-center text-gray-400">
+                      <div className="text-6xl mb-4">🔒</div>
+                      <div className="text-lg text-center font-medium">
+                        {resolveProtectionLevelInfo(selectedPhoto.protection_level)?.label || '加密内容'}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-                <div className={`text-gray-400 text-6xl ${selectedPhoto.original ? 'hidden' : 'flex'} items-center justify-center`}>
-                  📷
-                </div>
-              </div>
-              <div className="space-y-4">
-                {selectedPhoto.description && (
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">描述</h3>
-                    <p className="text-gray-600">{selectedPhoto.description}</p>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">胶卷实例</h3>
-                    <p className="text-gray-600">{selectedPhoto.film_roll_id ? '已关联胶卷实例' : '未关联'}</p>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">拍摄日期</h3>
-                    <p className="text-gray-600">
-                      {selectedPhoto.taken_date ? new Date(selectedPhoto.taken_date).toLocaleDateString() : '未知'}
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">拍摄地点</h3>
-                    <p className="text-gray-600">{selectedPhoto.location_name || '未知'}</p>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">上传时间</h3>
-                    <p className="text-gray-600">
-                      {selectedPhoto.uploaded_at ? new Date(selectedPhoto.uploaded_at).toLocaleDateString() : '未知'}
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">隐私保护</h3>
-                    <div className="flex items-center gap-2">
-                      {(selectedPhoto.effective_protection === 1 || selectedPhoto.effective_protection === true || selectedPhoto.is_protected === 1 || selectedPhoto.is_protected === true) ? (
-                        <>
-                          <span className="text-red-500">🔒</span>
-                          <span className="text-red-700 font-medium">已启用</span>
-                          {selectedPhoto.protection_level && (
-                            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                              {selectedPhoto.protection_level === 'personal' ? '个人隐私' :
-                               selectedPhoto.protection_level === 'sensitive' ? '敏感内容' :
-                               selectedPhoto.protection_level === 'restricted' ? '严格限制' : selectedPhoto.protection_level}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-green-500">🔓</span>
-                          <span className="text-green-700">公开</span>
-                        </>
-                      )}
-                    </div>
+                  ) : null}
+                  <div className={`text-gray-400 text-6xl ${displayOriginalUrl ? 'hidden' : 'flex'} items-center justify-center`}>
+                    📷
                   </div>
                 </div>
-                {selectedPhoto.tags && (
-                  <div>
-                    <h3 className="font-medium text-gray-900 mb-2">标签</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedPhoto.tags.split(',').map((tag, index) => (
-                        <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 text-sm rounded-full">
-                          {tag.trim()}
-                        </span>
-                      ))}
+                <div className="space-y-4">
+                  {selectedPhoto.description && (
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-2">描述</h3>
+                      <p className="text-gray-600">{selectedPhoto.description}</p>
+                    </div>
+                  )}
+
+                  {selectedShortLink && (
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-2">短链</h3>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={selectedShortLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 break-all text-sm"
+                        >
+                          {selectedShortLink}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyLink(selectedShortLink)}
+                          className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                        >
+                          复制
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-2">胶卷实例</h3>
+                      <p className="text-gray-600">{selectedPhoto.film_roll_id ? '已关联胶卷实例' : '未关联'}</p>
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-2">拍摄日期</h3>
+                      <p className="text-gray-600">
+                        {selectedPhoto.taken_date ? new Date(selectedPhoto.taken_date).toLocaleDateString() : '未知'}
+                      </p>
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-2">拍摄地点</h3>
+                      <p className="text-gray-600">{selectedPhoto.location_name || '未知'}</p>
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-2">上传时间</h3>
+                      <p className="text-gray-600">
+                        {selectedPhoto.uploaded_at ? new Date(selectedPhoto.uploaded_at).toLocaleDateString() : '未知'}
+                      </p>
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-2">隐私保护</h3>
+                      <div className="flex items-center gap-2">
+                        {(selectedPhoto.effective_protection === 1 || selectedPhoto.effective_protection === true || selectedPhoto.is_protected === 1 || selectedPhoto.is_protected === true) ? (
+                          (() => {
+                            const info = resolveProtectionLevelInfo(selectedPhoto.protection_level);
+                            return (
+                              <>
+                                <span className="text-red-500">🔒</span>
+                                <span className="text-red-700 font-medium">{info?.label || '已加密'}</span>
+                              </>
+                            );
+                          })()
+                        ) : (
+                          <>
+                            <span className="text-green-500">🔓</span>
+                            <span className="text-green-700">公开</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
+
+                  {(storageVariant || originBucket || originPath || fileHash || md5Hash) && (
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-2">存储信息</h3>
+                      <div className="space-y-2 text-sm text-gray-600">
+                        {storageVariant && (
+                          <div>
+                            版本：<span className="font-mono uppercase">{storageVariant}</span>
+                          </div>
+                        )}
+                        {originBucket && (
+                          <div>
+                            存储桶：<span className="font-mono break-all">{originBucket}</span>
+                          </div>
+                        )}
+                        {originPath && (
+                          <div className="flex items-start gap-2">
+                            <span className="text-gray-500 mt-0.5">路径：</span>
+                            <div className="flex-1">
+                              <code className="text-xs break-all bg-gray-100 px-2 py-1 rounded">{originPath}</code>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyLink(originPath)}
+                              className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                            >
+                              复制
+                            </button>
+                          </div>
+                        )}
+                        {fileHash && (
+                          <div>
+                            SHA256：<code className="text-xs break-all bg-gray-100 px-2 py-1 rounded inline-block">{fileHash}</code>
+                          </div>
+                        )}
+                        {md5Hash && (
+                          <div>
+                            MD5：<code className="text-xs break-all bg-gray-100 px-2 py-1 rounded inline-block">{md5Hash}</code>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedPhoto.tags && (
+                    <div>
+                      <h3 className="font-medium text-gray-900 mb-2">标签</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedPhoto.tags.split(',').map((tag, index) => (
+                          <span key={index} className="px-2 py-1 bg-blue-100 text-blue-700 text-sm rounded-full">
+                            {tag.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
