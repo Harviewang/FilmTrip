@@ -36,15 +36,18 @@ const UserLayout = ({ isFullscreen = false }) => {
       }
       try {
         const response = await authApi.getProfile();
-        const profile = response?.data || {};
+        const payload = response?.data || {};
+        const profile = payload?.data || payload;
         const roleField = profile.role || profile.roles;
         const roles = Array.isArray(roleField)
           ? roleField
           : roleField
             ? [roleField]
             : [];
+        const username = profile?.username;
         const isAdmin = Boolean(
           profile.isAdmin === true ||
+          username === 'admin' ||
           profile.username === 'admin' ||
           roles.includes('admin')
         );
