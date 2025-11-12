@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../models/db');
 const { adminAuth } = require('../middleware/auth');
+const { resolveIsAdmin, sanitizePhotoForViewer } = require('../utils/photoVisibility');
 
 // 获取地图上的所有照片位置
 router.get('/photos', async (req, res) => {
@@ -67,9 +68,14 @@ router.get('/photos', async (req, res) => {
         p.location_name,
         p.taken_date,
         p.rating,
+        p.short_code,
+        p.is_protected,
+        p.protection_level,
         c.name as camera_name,
         c.brand as camera_brand,
-        fr.roll_number as film_roll_name
+        fr.roll_number as film_roll_name,
+        fr.is_protected as roll_is_protected,
+        fr.protection_level as roll_protection_level
       FROM photos p
       LEFT JOIN cameras c ON p.camera_id = c.id
       LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
@@ -95,18 +101,13 @@ router.get('/photos', async (req, res) => {
     sql += ` ORDER BY p.taken_date DESC`;
     
     const photos = db.prepare(sql).all(params);
-    
-    // 为每个照片添加图片URL
-    const photosWithUrls = photos.map(photo => ({
-      ...photo,
-      thumbnail: photo.filename ? `/uploads/thumbnails/${photo.id}_thumb.jpg` : null,
-      original: photo.filename ? `/uploads/${photo.filename}` : null
-    }));
-    
+    const isAdminUser = resolveIsAdmin(req);
+    const sanitizedPhotos = photos.map((photo) => sanitizePhotoForViewer(photo, { isAdmin: isAdminUser }));
+
     res.json({
       success: true,
-      data: photosWithUrls,
-      count: photosWithUrls.length
+      data: sanitizedPhotos,
+      count: sanitizedPhotos.length
     });
   } catch (error) {
     console.error('获取地图照片失败:', error);

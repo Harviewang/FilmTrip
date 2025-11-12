@@ -25,6 +25,8 @@
 | SL-2 | 文档/测试 | 更新短链规范、帮助、测试记录 | ✅ 已完成 | 见 `docs/specifications/` 和 `docs/guides/` |
 | GALLERY-FIX | 前端修复 | 修复加密图片过滤、顺序、去重问题 | ✅ 已完成 | 见 CMT-20251112-001 |
 | BACKEND-FIX | 后端修复 | 修复服务器启动退出问题 | ✅ 已完成 | `index.js` 添加 `app.listen()` |
+| STORAGE-UPYUN | 规范/文档 | 输出又拍云存储与 CDN 接入规范 v1.0（含排期、API、审计模板） | ✅ 已完成 | 见 `docs/specifications/storage/upyun-integration.md` |
+| ROLL-SEC | 后端修复 | 回填胶卷 `name` 字段、统一 Map/Timeline 加密保护策略 | ✅ 已完成 | 见 `backend/routes/filmRolls.js`、`backend/routes/map.js`、`backend/database/2025-11-12-backfill-film-roll-names.sql`（2025-11-12 已执行，剩余空值 0 条） |
 
 ## 3. 技术方案总结
 
@@ -88,6 +90,21 @@ API请求 → mappedPhotos
   - 第 161-164 行：添加 `app.listen()`
 
 ### Token 验证日志
+### 又拍云存储接入规范
+
+- **输出内容**：新增《又拍云存储与 CDN 接入规范 v1.0》，覆盖背景目标、角色职责、接入步骤、安全策略、测试验收及上线清单。
+- **附录扩展**：补充实施排期、API 示例、审计报告模板，便于后续角色分工与审计落地。
+- **目录更新**：`docs/specifications/README.md` 已同步目录索引与最近更新记录。
+
+### 胶卷实例 name 与地图/时间轴加密修复
+
+- **问题复现**：`film_rolls.name` NOT NULL 约束触发；Map/Timeline 通过 `filename` 拼接 `/uploads/...` 暴露受保护图片。
+- **修复策略**：
+  - `POST /api/filmRolls`、`PUT /api/filmRolls/:id` 默认回填名称，历史空值通过 SQL 脚本统一回填；
+  - `GET /filmRolls/:id`、`GET /map/photos` 使用统一的 `sanitizePhotoForViewer` 工具，依据管理员身份/加密标记决定是否返回图片 URL；
+  - 去除所有 `/uploads/...` 自行拼接逻辑，访客仅收到锁定占位信息。
+- **工具化**：新增 `backend/utils/photoVisibility.js` 复用鉴权与变体生成逻辑，后端模块统一调用。
+- **回归验证**：访客身份访问 Gallery / Timeline / Map 仅显示锁屏提示，管理员可正常查看。创建胶卷实例返回 201 并成功写入数据库；`2025-11-12` 执行 SQL 回填后复查空值数为 `0`。
 
 #### 优化目标
 便于排查管理员权限问题。
@@ -119,6 +136,9 @@ API请求 → mappedPhotos
 - [x] 完成回归测试记录（`docs/work-plans/2025-11-10/tests/SL-2-shortlink-regression.md`）
 
 ### Gallery 加密图片修复
+- [x] 又拍云接入规范发布并由各角色审阅
+- [x] 胶卷实例创建/更新写入 `name` 字段，历史数据已回填
+- [x] Timeline / Map 访客不再泄露加密照片，管理员仍可访问
 - [x] 访客默认隐藏加密图片，管理员默认显示
 - [x] 勾选"隐藏加密"时立即过滤现有列表
 - [x] 取消"隐藏加密"时照片顺序保持不变
@@ -283,6 +303,8 @@ docs/work-plans/2025-11-10/tests/SL-2-shortlink-regression.md
 - 2025-11-12：修复后端服务器启动问题，添加 Token 验证日志
 - 2025-11-12：完成 SL-1-MAP、FILM-ASSET、SL-2 三项任务
 - 2025-11-12：创建详细的提交文档和技术方案说明
+- 2025-11-12：新增又拍云存储接入规范，附实施排期与审计模板
+- 2025-11-12：统一胶卷实例 `name` 写入与地图/时间轴加密保护策略
 
 ## 11. 总结与反思
 

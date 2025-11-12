@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const { query, insert, update } = require('../models/db');
+const { resolveIsAdmin, sanitizePhotoForViewer } = require('../utils/photoVisibility');
 
 // 获取随机胶卷实例（用于随机浏览功能）
 router.get('/random', (req, res) => {
@@ -159,14 +160,19 @@ router.put('/:id', (req, res) => {
       console.log('ID生成成功');
     }
 
-    // 允许更新的字段（不允许更新roll_number和name，因为roll_number是自动生成的，name字段已移除）
-    const allowed = ['film_stock_id','opened_date','location','camera_id','camera_name','notes','status','is_private','is_protected','protection_level'];
+    // 允许更新的字段（roll_number 自动生成）
+    const allowed = ['name','film_stock_id','opened_date','location','camera_id','camera_name','notes','status','is_private','is_protected','protection_level'];
     const sets = [];
     const params = [];
     
     for (const [k, v] of Object.entries(body)) {
       if (allowed.includes(k)) {
-        if (k === 'is_private' || k === 'is_protected') {
+        if (k === 'name') {
+          const nextNameRaw = typeof v === 'string' ? v.trim() : '';
+          const safeName = nextNameRaw || row[0].roll_number;
+          sets.push('name = ?');
+          params.push(safeName);
+        } else if (k === 'is_private' || k === 'is_protected') {
           sets.push(`${k} = ?`);
           const boolValue = typeof v === 'boolean' ? (v ? 1 : 0) : (v === 'true' || v === 1 || v === '1' ? 1 : 0);
           params.push(boolValue);
@@ -238,6 +244,8 @@ router.get('/:id', (req, res) => {
       });
     }
     
+    const isAdminUser = resolveIsAdmin(req);
+
     // 获取胶卷的照片
     const photosResult = query(`
       SELECT 
@@ -253,17 +261,14 @@ router.get('/:id', (req, res) => {
         p.longitude,
         p.location_name,
         p.uploaded_at,
-        -- 构建文件路径
-        CASE 
-          WHEN p.filename LIKE '%.jpg' OR p.filename LIKE '%.jpeg' OR p.filename LIKE '%.png' THEN
-            '/uploads/Film_roll/' || fr.roll_number || '/photos/' || p.filename
-          ELSE NULL
-        END as original,
-        CASE 
-          WHEN p.filename LIKE '%.jpg' OR p.filename LIKE '%.jpeg' OR p.filename LIKE '%.png' THEN
-            '/uploads/Film_roll/' || fr.roll_number || '/thumbnails/' || REPLACE(p.filename, '.jpg', '_thumb.jpg')
-          ELSE NULL
-        END as thumbnail
+        p.width,
+        p.height,
+        p.orientation,
+        p.short_code,
+        p.is_protected,
+        p.protection_level,
+        fr.is_protected AS roll_is_protected,
+        fr.protection_level AS roll_protection_level
       FROM photos p
       JOIN film_rolls fr ON p.film_roll_id = fr.id
       WHERE p.film_roll_id = ?
@@ -271,7 +276,7 @@ router.get('/:id', (req, res) => {
     `, [id]);
     
     const filmRoll = rollResult[0];
-    filmRoll.photos = photosResult;
+    filmRoll.photos = photosResult.map((photo) => sanitizePhotoForViewer(photo, { isAdmin: isAdminUser }));
     
     res.json({
       success: true,
@@ -423,13 +428,15 @@ router.post('/', (req, res) => {
     // 生成唯一ID
     const id = crypto.randomUUID();
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const rawName = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const displayName = rawName || roll_number_final;
     
     // 处理加密设置
     const isProtected = is_protected === true || is_protected === 1 || is_protected === 'true';
     const protectionLevel = isProtected ? (protection_level || null) : null;
     
     console.log('准备插入数据:', {
-      id, roll_number, film_stock_id, opened_date: opened_date || null,
+      id, roll_number, film_stock_id, name: displayName, opened_date: opened_date || null,
       camera_id: camera_id || null, status, is_private: is_private ? 1 : 0,
       is_protected: isProtected ? 1 : 0,
       protection_level: protectionLevel,
@@ -438,11 +445,11 @@ router.post('/', (req, res) => {
     
     const result = insert(`
       INSERT INTO film_rolls (
-        id, roll_number, film_stock_id, is_private, status, opened_date, 
+        id, roll_number, name, film_stock_id, is_private, status, opened_date, 
         camera_id, is_protected, protection_level, notes, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      id, roll_number_final, film_stock_id, is_private ? 1 : 0, status,
+      id, roll_number_final, displayName, film_stock_id, is_private ? 1 : 0, status,
       opened_date || null, camera_id || null,
       isProtected ? 1 : 0, protectionLevel,
       notes || '', now, now
