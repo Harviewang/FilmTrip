@@ -333,6 +333,17 @@ docs/work-plans/2025-11-10/tests/SL-2-shortlink-regression.md
 4. **文档要详细**：记录问题根因和修复方案，防止重复踩坑
 5. **日志要完善**：关键逻辑添加日志，便于排查问题
 
+## 12. 角色通知记录
+
+- 2025-11-12 22:10：已向 @planner、@devops、@backend、@frontend 发送内部通知，依据《又拍云存储与 CDN 接入规范 v1.0》启动排期（详见附录实施排期 M1~M4）。
+- 后续跟踪：各角色需在 2025-11-13 Stand-up 反馈排期进度及资源依赖。
+
+## 13. 回归测试安排
+
+- 2025-11-13 上午：@tester 使用访客身份验证 Gallery / Timeline / Map 不返回真实图片 URL；记录网络面板请求。
+- 2025-11-13 下午：@tester / @backend 联合管理员账号回归，确认图片可正常访问并生成签名 URL 日志。
+- 产出：将截图与网络日志追加到 `tests/SL-2-shortlink-regression.md`，并在 `docs/work-plans/2025-11-13/summary.md` 中记录结果。
+
 ---
 
 *工作流程版本：v2025.10.28-workflow04；执行角色：AI 助手 (Claude Sonnet 4.5 via Cursor)。*
