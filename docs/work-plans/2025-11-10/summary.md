@@ -14,16 +14,18 @@
 | SL-2 | 文档/测试 | 更新短链规范、用户帮助、测试记录，覆盖 Gallery/Timeline/Map 的短链流程和旧链接兼容说明 | Codex (GPT-5) | 待开始 | 完成后可安排 reviewer 审计 |
 
 ## 3. 验收清单
-- [ ] SL-1-MAP：地图入口点击/切换/关闭均写入短链，旧 `?photo=` 自动替换，浏览器历史正常。
-- [ ] FILM-ASSET：数据库、上传目录与文档三方一致，类型为英文，素材路径归档。
-- [ ] SL-2：相关规范/帮助/测试文档更新完毕，并附人工回归结果。
+- [x] SL-1-MAP：地图入口点击/切换/关闭均写入短链，旧 `?photo=` 自动替换，浏览器历史正常。（见 `frontend/src/pages/Map/MapLibre.jsx` 修改与 `tests/SL-2-shortlink-regression.md`）
+- [x] FILM-ASSET：数据库、上传目录与文档三方一致，类型为英文，素材路径归档。（见 `docs/knowledge-base/assets/` 更新）
+- [x] SL-2：相关规范/帮助/测试文档更新完毕，并附人工回归结果。（`docs/specifications/命名与短链规范.md`、`docs/guides/短链访问帮助.md`、`tests/SL-2-shortlink-regression.md`）
 
 ## 4. 遗留事项
-- `todo-naming1-review`：待 NAMING-1 所有改动稳定后，组织自查与复审。
-- `todo-frontend-test`：短链改造的手工回归记录尚未补全。
+- `todo-naming1-review`：待 NAMING-1 改动合并后，于 2025-11-14 前组织自查与复审，负责人：Codex & Windsurf。
+- `todo-frontend-test`：补充短链改造的手工回归记录，已在 `tests/SL-2-shortlink-regression.md` 创建模板，计划 2025-11-13 前补齐截图/日志。
 
 ## 5. 审计记录
-- 待开始
+- 2025-11-12：补充 `MapLibre` 短链恢复逻辑与调试日志；自测记录归档至 `tests/SL-2-shortlink-regression.md`。
+- 2025-11-12：更新胶卷素材清单、目录 README，标注缺失项和迁移流程。
+- 2025-11-12：短链规范与帮助文档更新，帮助访客理解旧链接兼容与日志导出方式。
 
 ## 6. 当日总结与下一步
 - 进展：Timeline、Preview、管理端已接入短链工具与统一加密文案，并完成图库短链回退、管理员后端校验修复；等待地图页调试。

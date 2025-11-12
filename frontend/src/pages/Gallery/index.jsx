@@ -1,12 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import API_CONFIG from '../../config/api.js';
+import { photoApi } from '../../services/api';
+import { resolvePhotoShortLink, getPhotoShortCode, buildShortLinkPath, normalizeShortCode } from '../../utils/shortLink.js';
 import AdaptiveLayout, { AdaptiveCard } from '../../components/AdaptiveLayout';
 // 使用原生 CSS Grid Masonry
 import PhotoPreview from '../../components/PhotoPreview';
 import LazyImage from '../../components/LazyImage';
 import RandomFilmStrip from './RandomFilmStrip';
 import { useScrollContainer } from '../../contexts/ScrollContainerContext';
+import { FILM_TYPE_DEFINITIONS, resolveFilmTypeEntry } from '../../constants/filmTypes';
+import { isPhotoProtected, resolveProtectionLevelInfo } from '../../constants/protectionLevels';
  
 // import useStablePullToRefresh from '../../hooks/useStablePullToRefresh';
 // import PullToRefreshIndicator from '../../components/PullToRefreshIndicator';
@@ -25,12 +29,17 @@ const normalizeProtectionFlag = (value) => {
 const Gallery = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams();
+  const shortCodeParam = params?.shortCode;
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  
+  // 维护完整的照片列表（包含加密照片），用于过滤
+  const [allPhotos, setAllPhotos] = useState([]);
   
   // 分页相关状态
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,10 +61,20 @@ const Gallery = () => {
   const [randomError, setRandomError] = useState(null);
   const [isRandomizing, setIsRandomizing] = useState(false);
   
-  // 筛选状态
+  // 筛选状态 - 访客默认隐藏加密图片，管理员默认显示
   const [hideEncryptedPhotos, setHideEncryptedPhotos] = useState(() => {
     const stored = localStorage.getItem('hideEncryptedPhotos');
-    return stored ? JSON.parse(stored) : false; // 默认显示加密图片
+    if (stored !== null) {
+      return JSON.parse(stored);
+    }
+    // 如果没有存储记录，检查用户身份
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const isAdmin = user && user.username === 'admin';
+      return !isAdmin; // 访客默认隐藏，管理员默认显示
+    } catch {
+      return true; // 异常情况下默认隐藏
+    }
   });
   const [filmTypeFilter, setFilmTypeFilter] = useState('all');
   const [filmFormatFilter, setFilmFormatFilter] = useState('all');
@@ -81,6 +100,189 @@ const Gallery = () => {
   
   // 懒加载修复：使用 state 确保在 ref 准备好后触发重渲染
   const [scrollRoot, setScrollRoot] = useState(null);
+
+  const navigateToPhotoShortLink = useCallback((photo) => {
+    if (!photo) return;
+    const shortCode = getPhotoShortCode(photo);
+    const shortLinkPath = buildShortLinkPath(shortCode);
+    if (shortLinkPath) {
+      navigate(shortLinkPath, { replace: true });
+    } else if (photo.id) {
+      navigate(`/gallery?photo=${photo.id}`, { replace: true });
+    }
+  }, [navigate]);
+
+  const mapPhotoRecord = useCallback((photo, { fallbackIdPrefix = 'photo', fallbackTitle = '未命名照片' } = {}) => {
+    if (!photo) return null;
+
+    const effectiveProtection = normalizeProtectionFlag(
+      photo.effective_protection !== undefined ? photo.effective_protection : photo.is_protected
+    );
+
+    const backendThumbnail = photo.thumbnail || null;
+    const backendSize1024 = photo.size1024 || null;
+    const backendSize2048 = photo.size2048 || null;
+    const backendOriginal = photo.original || null;
+    const hasBackendImageUrl = Boolean(backendThumbnail || backendSize1024 || backendSize2048 || backendOriginal);
+
+    const filename = hasBackendImageUrl ? (photo.filename || photo.original_name || '') : '';
+
+    const takenDate = photo.taken_date;
+    const uploadedAt = photo.uploaded_at;
+    const displayDate = takenDate
+      ? takenDate.split(' ')[0]
+      : uploadedAt
+        ? uploadedAt.split(' ')[0]
+        : '未知日期';
+
+    const safeTitle = photo.title
+      || photo.photo_number?.toString()
+      || (hasBackendImageUrl ? filename : '')
+      || fallbackTitle;
+
+    const sanitizedRaw = hasBackendImageUrl ? photo : {
+      ...photo,
+      filename: undefined,
+      original: undefined,
+      size1024: undefined,
+      size2048: undefined,
+      thumbnail: undefined
+    };
+
+    return {
+      id: photo.id || (fallbackIdPrefix ? `${fallbackIdPrefix}-${photo.photo_number || Date.now()}` : undefined),
+      title: safeTitle,
+      description: photo.description || '',
+      thumbnail: backendThumbnail,
+      original: backendOriginal,
+      size1024: backendSize1024,
+      size2048: backendSize2048,
+      filename: filename || undefined,
+      camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
+      camera_brand: photo.camera_brand,
+      camera_model: photo.camera_model,
+      film: photo.film_roll_name || photo.film_roll_number || '无',
+      film_roll_number: photo.film_roll_number,
+      date: displayDate,
+      time: takenDate ? '拍摄时间' : '上传时间',
+      taken_date: takenDate,
+      photo_number: photo.photo_number,
+      uploaded_at: uploadedAt,
+      rating: photo.rating || 0,
+      location_name: photo.location_name,
+      country: photo.country,
+      province: photo.province,
+      city: photo.city,
+      categories: photo.categories,
+      trip_name: photo.trip_name,
+      trip_start_date: photo.trip_start_date,
+      trip_end_date: photo.trip_end_date,
+      aperture: photo.aperture,
+      shutter_speed: photo.shutter_speed,
+      focal_length: photo.focal_length,
+      iso: photo.iso,
+      camera_model: photo.camera_model,
+      lens_model: photo.lens_model,
+      is_protected: photo.is_protected,
+      protection_level: photo.protection_level,
+      effective_protection: effectiveProtection,
+      width: photo.width,
+      height: photo.height,
+      orientation: photo.orientation,
+      shortCode: getPhotoShortCode(photo),
+      short_link: resolvePhotoShortLink(photo),
+      raw_effective_protection: photo.effective_protection,
+      raw_is_protected: photo.is_protected,
+      _raw: sanitizedRaw
+    };
+  }, []);
+
+  const openPhotoById = useCallback((targetId) => {
+    if (!targetId) return false;
+    const source = viewMode === 'random' ? randomPhotos : photos;
+    if (!Array.isArray(source) || source.length === 0) return false;
+    const stringId = targetId.toString();
+    const targetIndex = source.findIndex((p) => p.id?.toString() === stringId);
+    if (targetIndex === -1) return false;
+    const targetPhoto = source[targetIndex];
+    setSelectedPhoto(targetPhoto);
+    setShowModal(true);
+    if (viewMode === 'random') {
+      setCurrentRandomIndex(targetIndex);
+    }
+    navigateToPhotoShortLink(targetPhoto);
+    return true;
+  }, [photos, randomPhotos, viewMode, navigateToPhotoShortLink]);
+
+  const fetchPhotoByShortCode = useCallback(async (code) => {
+    const normalized = normalizeShortCode(code);
+    if (!normalized) return null;
+    try {
+      const response = await photoApi.getPhotoByShortCode(normalized);
+      const payload = response?.data;
+      const list = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : [];
+      const record = list.length > 0 ? list[0] : null;
+      if (!record) return null;
+      return mapPhotoRecord(record, { fallbackIdPrefix: `photo-${normalized}`, fallbackTitle: '无标题' });
+    } catch (error) {
+      console.error('通过短链获取照片失败:', error);
+      return null;
+    }
+  }, [mapPhotoRecord]);
+
+  const openPhotoByShortCode = useCallback(async (code) => {
+    const normalized = normalizeShortCode(code);
+    if (!normalized) return;
+
+    if (showModal && selectedPhoto && getPhotoShortCode(selectedPhoto) === normalized) {
+      return;
+    }
+
+    const source = viewMode === 'random' ? randomPhotos : photos;
+    let targetIndex = Array.isArray(source)
+      ? source.findIndex((p) => getPhotoShortCode(p) === normalized)
+      : -1;
+    let targetPhoto = targetIndex !== -1 ? source[targetIndex] : null;
+
+    if (!targetPhoto) {
+      const fetched = await fetchPhotoByShortCode(normalized);
+      if (fetched) {
+        targetPhoto = fetched;
+        if (viewMode === 'random') {
+          setRandomPhotos((prev) => {
+            if (prev.some((p) => p.id === fetched.id)) {
+              targetIndex = prev.findIndex((p) => p.id === fetched.id);
+              return prev;
+            }
+            targetIndex = 0;
+            return [fetched, ...prev];
+          });
+        } else {
+          setPhotos((prev) => {
+            if (prev.some((p) => p.id === fetched.id)) {
+              targetIndex = prev.findIndex((p) => p.id === fetched.id);
+              return prev;
+            }
+            targetIndex = 0;
+            return [fetched, ...prev];
+          });
+        }
+      }
+    }
+
+    if (targetPhoto) {
+      setSelectedPhoto(targetPhoto);
+      setShowModal(true);
+      if (viewMode === 'random' && targetIndex !== -1) {
+        setCurrentRandomIndex(targetIndex);
+      }
+      navigateToPhotoShortLink(targetPhoto);
+    }
+  }, [fetchPhotoByShortCode, navigateToPhotoShortLink, photos, randomPhotos, selectedPhoto, showModal, viewMode]);
   
   useEffect(() => {
     // 使用 requestAnimationFrame 确保 DOM 已完全渲染
@@ -176,77 +378,51 @@ const Gallery = () => {
         // 不再在开发环境注入模拟数据；数据为空时直接呈现空态
         
         // 数据映射：将后端字段映射到前端期望的字段
-        const mappedPhotos = photoArray.map((photo, index) => {
-          const effectiveProtection = normalizeProtectionFlag(
-            photo.effective_protection !== undefined
-              ? photo.effective_protection
-              : photo.is_protected
-          );
-
-          return {
-            id: photo.id || `photo-${page}-${index}`, // 使用稳定的ID，避免刷新时位置错乱
-            title: photo.title || photo.filename || '无标题',
-            description: photo.description || '',
-            thumbnail: photo.thumbnail || photo.original,
-            original: photo.original,
-            size1024: photo.size1024,
-            size2048: photo.size2048,
-            camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
-            film: photo.film || '无',
-            date: photo.date || (photo.taken_date ? photo.taken_date.split(' ')[0] : (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期')), // 优先使用后端映射的date字段
-            rating: photo.rating || 0,
-            location_name: photo.location_name,
-            photo_serial_number: photo.photo_serial_number,
-            country: photo.country,
-            province: photo.province,
-            city: photo.city,
-            district: photo.district,
-            township: photo.township,
-            latitude: photo.latitude,
-            longitude: photo.longitude,
-            categories: photo.categories,
-            trip_name: photo.trip_name,
-            trip_start_date: photo.trip_start_date,
-            trip_end_date: photo.trip_end_date,
-            aperture: photo.aperture,
-            shutter_speed: photo.shutter_speed,
-            focal_length: photo.focal_length,
-            iso: photo.iso,
-            camera_model: photo.camera_model,
-            lens_model: photo.lens_model,
-            // 图片尺寸和方向(用于瀑布流布局计算)
-            width: photo.width,
-            height: photo.height,
-            orientation: photo.orientation,
-            // 提升 effective_protection 到顶层，避免依赖 _raw 嵌套
-            effective_protection: effectiveProtection,
-            protection_level: photo.protection_level,
-            raw_effective_protection: photo.effective_protection,
-            raw_is_protected: photo.is_protected,
-            // 保留原始数据用于调试
-            _raw: photo
-          };
-        });
+        const mappedPhotos = photoArray
+          .map((photo) => mapPhotoRecord(photo, { fallbackIdPrefix: `photo-${page}`, fallbackTitle: '无标题' }))
+          .filter(Boolean);
         
-        // 过滤加密照片（如果开关开启）
-        const filteredPhotos = hideEncryptedPhotos 
-          ? mappedPhotos.filter(photo => !photo.effective_protection)
-          : mappedPhotos;
-        
-        // 设置照片数据
+        // 设置照片数据 - 先更新完整列表，再根据过滤条件更新显示列表
         if (append) {
-          setPhotos(prevPhotos => [...prevPhotos, ...filteredPhotos]);
+          // 追加模式：更新完整列表和显示列表
+          setAllPhotos(prevAll => {
+            // 去重合并：创建一个 Map 来确保 ID 唯一
+            const allMap = new Map(prevAll.map(p => [p.id, p]));
+            mappedPhotos.forEach(p => allMap.set(p.id, p));
+            return Array.from(allMap.values());
+          });
+          
+          const filteredNew = hideEncryptedPhotos 
+            ? mappedPhotos.filter((photo) => !isPhotoProtected(photo))
+            : mappedPhotos;
+            
+          setPhotos(prevPhotos => {
+            // 去重合并
+            const photosMap = new Map(prevPhotos.map(p => [p.id, p]));
+            filteredNew.forEach(p => photosMap.set(p.id, p));
+            return Array.from(photosMap.values());
+          });
+          
           setCurrentPage(page);
           setLoadingMore(false);
         } else if (isRefresh) {
           // 刷新时直接替换所有照片
+          setAllPhotos(mappedPhotos);
+          const filteredPhotos = hideEncryptedPhotos 
+            ? mappedPhotos.filter((photo) => !isPhotoProtected(photo))
+            : mappedPhotos;
           setPhotos(filteredPhotos);
           setCurrentPage(page);
           setLoading(false);
         } else {
+          // 首次加载
+          setAllPhotos(mappedPhotos);
+          const filteredPhotos = hideEncryptedPhotos 
+            ? mappedPhotos.filter((photo) => !isPhotoProtected(photo))
+            : mappedPhotos;
           setPhotos(filteredPhotos);
-      setCurrentPage(page);
-      setLoading(false);
+          setCurrentPage(page);
+          setLoading(false);
         }
         
         // 检查是否还有更多数据
@@ -276,54 +452,13 @@ const Gallery = () => {
 
 
   const mapRandomPhoto = (photoData, index) => {
-    const effectiveProtection = normalizeProtectionFlag(
-      photoData.effective_protection !== undefined
-        ? photoData.effective_protection
-        : photoData.is_protected
-    );
-
-    return {
-      id: photoData.id || `random-photo-${index}`,
-      title: photoData.title || photoData.filename || '随机照片',
-      description: photoData.description || '',
-      thumbnail: photoData.thumbnail || photoData.original,
-      original: photoData.original,
-      size1024: photoData.size1024,
-      size2048: photoData.size2048,
-      filename: photoData.filename,
-      camera: photoData.camera_name || photoData.camera_model || photoData.camera_brand || '未知相机',
-      film: photoData.film_roll_name || photoData.film_roll_number || '无',
-      date: photoData.taken_date
-        ? photoData.taken_date.split(' ')[0]
-        : photoData.uploaded_at
-          ? photoData.uploaded_at.split(' ')[0]
-          : '未知日期',
-      rating: photoData.rating || 0,
-      location_name: photoData.location_name,
-      photo_serial_number: photoData.photo_serial_number,
-      country: photoData.country,
-      province: photoData.province,
-      city: photoData.city,
-      categories: photoData.categories,
-      trip_name: photoData.trip_name,
-      trip_start_date: photoData.trip_start_date,
-      trip_end_date: photoData.trip_end_date,
-      aperture: photoData.aperture,
-      shutter_speed: photoData.shutter_speed,
-      focal_length: photoData.focal_length,
-      iso: photoData.iso,
-      camera_model: photoData.camera_model,
-      lens_model: photoData.lens_model,
-      is_protected: effectiveProtection,
-      protection_level: photoData.protection_level,
-      effective_protection: effectiveProtection,
-      raw_effective_protection: photoData.effective_protection,
-      raw_is_protected: photoData.is_protected,
-      width: photoData.width,
-      height: photoData.height,
-      orientation: photoData.orientation,
-      _raw: photoData
-    };
+    const mapped = mapPhotoRecord(photoData, {
+      fallbackIdPrefix: `random-photo-${index}`,
+      fallbackTitle: '随机照片'
+    });
+    if (!mapped) return null;
+    mapped.id = mapped.id || `random-photo-${index}`;
+    return mapped;
   };
 
   const fetchRandomPhoto = async () => {
@@ -341,6 +476,7 @@ const Gallery = () => {
 
       let randomFilmRoll = null;
       const MAX_RANDOM_ATTEMPTS = 5;
+      const filterTypeEntry = filmTypeFilter === 'all' ? null : resolveFilmTypeEntry(filmTypeFilter);
 
       for (let attempt = 0; attempt < MAX_RANDOM_ATTEMPTS; attempt++) {
         const filmRollResponse = await fetch('/api/filmRolls/random', {
@@ -357,7 +493,8 @@ const Gallery = () => {
           const matchesType =
             filmTypeFilter === 'all' ||
             !candidate.film_roll_type ||
-            candidate.film_roll_type === filmTypeFilter;
+            (filterTypeEntry &&
+              resolveFilmTypeEntry(candidate.film_roll_type)?.value === filterTypeEntry.value);
           const matchesFormat =
             filmFormatFilter === 'all' ||
             !candidate.film_roll_format ||
@@ -401,14 +538,21 @@ const Gallery = () => {
           ? photosResult
           : [];
 
-      const mappedPhotos = rawList.map(mapRandomPhoto);
+      const mappedPhotos = rawList.map(mapRandomPhoto).filter(Boolean);
       const limitedPhotos = mappedPhotos.slice(0, 6);
+      const filteredRandomPhotos = hideEncryptedPhotos
+        ? limitedPhotos.filter((photo) => !isPhotoProtected(photo))
+        : limitedPhotos;
       
       // 即使没有照片也设置状态，让空状态在列表页显示而不是显示错误
       setRandomFilmRoll(randomFilmRoll);
-      setRandomPhotos(limitedPhotos);
+      setRandomPhotos(filteredRandomPhotos);
       setCurrentRandomIndex(0);
-      setRandomError(null); // 清除错误
+      setRandomError(
+        filteredRandomPhotos.length === 0
+          ? '筛选条件下暂无可展示的随机照片'
+          : null
+      ); // 根据筛选结果更新提示
     } catch (error) {
       console.error('随机照片获取失败:', error);
       setRandomError(error.message || '随机浏览失败，请稍后再试');
@@ -461,32 +605,31 @@ const Gallery = () => {
 
   // 筛选状态变化时重新加载数据
   useEffect(() => {
-    if (photos.length > 0 && viewMode !== 'random') { // 只有在已有数据且非随机模式时才重新加载
-      fetchPhotos(1, false, true); // 刷新模式
+    if (viewMode === 'random') {
+      fetchRandomPhoto();
+      return;
     }
-  }, [hideEncryptedPhotos, filmTypeFilter, filmFormatFilter]);
+    if (photos.length > 0) {
+      fetchPhotos(1, false, true);
+    }
+  }, [hideEncryptedPhotos, filmTypeFilter, filmFormatFilter, viewMode]);
 
 
 
-  // 检查URL中是否有照片ID参数
+  // 检查URL中是否有照片ID或短链参数
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
-    const photoId = urlParams.get('photo');
-    if (!photoId) return;
-
-    const source = viewMode === 'random' ? randomPhotos : photos;
-    if (source.length === 0) return;
-
-    const targetIndex = source.findIndex((p) => p.id?.toString() === photoId);
-    if (targetIndex !== -1) {
-      const targetPhoto = source[targetIndex];
-      setSelectedPhoto(targetPhoto);
-      setShowModal(true);
-      if (viewMode === 'random') {
-        setCurrentRandomIndex(targetIndex);
-      }
+    const photoIdParam = urlParams.get('photo');
+    if (photoIdParam) {
+      const opened = openPhotoById(photoIdParam);
+      if (opened) return;
     }
-  }, [location.search, photos, randomPhotos, viewMode]);
+
+    const normalizedShortCode = normalizeShortCode(shortCodeParam);
+    if (normalizedShortCode) {
+      openPhotoByShortCode(normalizedShortCode);
+    }
+  }, [location.search, shortCodeParam, openPhotoById, openPhotoByShortCode]);
 
   // 控制页面滚动
   useEffect(() => {
@@ -507,7 +650,7 @@ const Gallery = () => {
     if (viewMode === 'random') {
       setCurrentRandomIndex(newIndex);
     }
-    navigate(`/gallery?photo=${newPhoto.id}`, { replace: true });
+    navigateToPhotoShortLink(newPhoto);
   };
 
   // 关闭预览
@@ -576,7 +719,7 @@ const Gallery = () => {
     
     setSelectedPhoto(photo);
     setShowModal(true);
-    navigate(`/gallery?photo=${photo.id}`, { replace: true });
+    navigateToPhotoShortLink(photo);
   };
 
   // 清理过期的拖拽状态
@@ -604,82 +747,49 @@ const Gallery = () => {
   }, []);
 
   const renderPhotoCard = (photo, isRandomMode = false, isMasonry = false) => {
+    if (!photo) return null;
     const isAdmin = (() => {
       try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; } catch (e) { return false; }
     })();
-    
-    // 随机模式下的照片已经由后端过滤，不需要再次检查保护状态
-    if (isRandomMode) {
-      const randomContent = (
-        <div className={'relative w-full overflow-hidden rounded-lg'} style={{ paddingTop: '75%' /* 4:3 aspect ratio */ }}>
-          <div className="absolute inset-0">
-            <LazyImage
-              src={(photo.size1024 || photo.thumbnail) ? `${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}` : null}
-              alt={photo.title || '照片'}
-              className={`transition-transform duration-300 group-hover:scale-110 w-full h-full object-cover`}
-              onClick={(e) => handlePhotoClick(photo, e)}
-              onMouseDown={(e) => handlePhotoMouseDown(photo, e)}
-              onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
-              autoOrientation={true}
-              lazyOptions={{
-                root: scrollRoot,
-                rootMargin: '0px 0px 400px 0px',
-                threshold: 0.05
-              }}
-            />
+    const effectiveProtection = isPhotoProtected(photo);
+    if (hideEncryptedPhotos && effectiveProtection) {
+      return null;
+    }
+    const protectionInfo = resolveProtectionLevelInfo(photo.protection_level);
+    const isProtectedForViewer = effectiveProtection && !isAdmin;
+    const hasValidImageUrl = photo.size1024 || photo.thumbnail;
+
+    const renderPlaceholder = () => {
+      if (isProtectedForViewer) {
+        return (
+          <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+            <div className="flex flex-col items-center px-6 text-center gap-2">
+              <div className="text-3xl">🔒</div>
+              {!isAdmin && (
+                <>
+                  <div className="text-xs text-gray-600">{protectionInfo.label}</div>
+                  <div className="text-[11px] leading-snug text-gray-400 max-w-[12rem]">
+                    {protectionInfo.description}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
+        );
+      }
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+          图片不可用
         </div>
       );
-      
-      if (isMasonry) {
-        return randomContent;
-      }
-      
-      return (
-        <AdaptiveCard 
-          key={photo.id} 
-          className="h-full group photo-card cursor-pointer"
-          hover={true}
-          shadow={'default'}
-        >
-          {randomContent}
-        </AdaptiveCard>
-      );
-    }
-    
-    // 普通模式：检查保护状态（使用顶层字段）
-    const effectiveProtection = !!photo.effective_protection;
-    const isProtectedForViewer = effectiveProtection && !isAdmin;
-    
-    // 检查是否有有效的图片URL
-    const hasValidImageUrl = photo.size1024 || photo.thumbnail;
-    
-    const content = (
+    };
+
+    const mediaContent = (
       <div className={'relative w-full overflow-hidden rounded-lg'} style={{ paddingTop: '75%' /* 4:3 aspect ratio */ }}>
         <div className="absolute inset-0">
           {isProtectedForViewer || !hasValidImageUrl ? (
-            // 非管理员用户或没有有效URL时显示锁图标
-            <div
-              className={`w-full h-full flex items-center justify-center bg-gray-100 text-gray-500 relative`}
-              title={isProtectedForViewer ? "已加密：未登录用户不可查看详情" : "图片不可用"}
-            >
-              <div className="flex flex-col items-center">
-                <div className="text-3xl mb-2">🔒</div>
-                <div className="text-xs">
-                  {isProtectedForViewer ? (() => {
-                    const level = photo.protection_level;
-                    if (level === 'personal') return '此照片包含个人隐私内容，已加密保护';
-                    if (level === 'sensitive') return '此照片包含敏感内容，已加密保护';
-                    if (level === 'restricted') return '此照片严格限制访问，已加密保护';
-                    if (level === 'portrait') return '此照片涉及他人肖像权，已加密保护';
-                    if (level === 'other') return '此照片已被管理员加密保护';
-                    return '该照片涉及隐私或他人肖像，已被管理员加密';
-                  })() : "图片不可用"}
-                </div>
-              </div>
-            </div>
+            renderPlaceholder()
           ) : (
-            // 普通用户或管理员可以查看的照片
             <LazyImage
               src={`${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}`}
               alt={photo.title || '照片'}
@@ -695,15 +805,33 @@ const Gallery = () => {
               }}
             />
           )}
-          {/* 管理员视图：加密则常显锁图标（无文案） */}
-          {!isProtectedForViewer && effectiveProtection && (
-            <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">
-              🔒
+          {effectiveProtection && isAdmin && (
+            <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+              <span aria-hidden="true">🔒</span>
             </div>
           )}
         </div>
       </div>
     );
+
+    if (isRandomMode) {
+      if (isMasonry) {
+        return mediaContent;
+      }
+      
+      return (
+        <AdaptiveCard 
+          key={photo.id} 
+          className="h-full group photo-card cursor-pointer"
+          hover={true}
+          shadow={'default'}
+        >
+          {mediaContent}
+        </AdaptiveCard>
+      );
+    }
+    
+    const content = mediaContent;
     
     if (isMasonry) {
       return (
@@ -847,7 +975,24 @@ const Gallery = () => {
                   <input
                     type="checkbox"
                     checked={hideEncryptedPhotos}
-                    onChange={(e) => setHideEncryptedPhotos(e.target.checked)}
+                    onChange={(e) => {
+                      const newValue = e.target.checked;
+                      setHideEncryptedPhotos(newValue);
+                      localStorage.setItem('hideEncryptedPhotos', JSON.stringify(newValue));
+                      
+                      // 立即从完整列表中过滤，保持照片顺序不变
+                      if (newValue) {
+                        // 隐藏加密：过滤掉受保护的照片
+                        const filtered = allPhotos.filter(photo => !isPhotoProtected(photo));
+                        // 去重，以防万一
+                        const uniqueFiltered = Array.from(new Map(filtered.map(p => [p.id, p])).values());
+                        setPhotos(uniqueFiltered);
+                      } else {
+                        // 显示全部：恢复完整列表（去重）
+                        const uniqueAll = Array.from(new Map(allPhotos.map(p => [p.id, p])).values());
+                        setPhotos(uniqueAll);
+                      }
+                    }}
                     className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                   />
                   <span className="text-sm text-gray-700">隐藏加密图片</span>
@@ -862,9 +1007,11 @@ const Gallery = () => {
                       className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="all">全部类型</option>
-                      <option value="Color Negative">彩色</option>
-                      <option value="Black & White">黑白</option>
-                      <option value="Slide">反转片</option>
+                      {FILM_TYPE_DEFINITIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                     
                     <select
@@ -935,7 +1082,14 @@ const Gallery = () => {
                     
                     // 计算每张图片的位置
                     const columnHeights = Array(columnCount).fill(0);
-                    const photoPositions = photos.map((photo, index) => {
+                    const adminForMasonry = (() => {
+                      try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; }
+                      catch (e) { return false; }
+                    })();
+                    // photos 已经在状态层面过滤过了，不需要重复过滤
+                    const visiblePhotos = photos;
+
+                    const photoPositions = visiblePhotos.map((photo, index) => {
                       // 根据原始物理尺寸和EXIF Orientation计算显示宽高比
                       let aspectRatio = 1.5; // 默认3:2横图
                       
@@ -984,12 +1138,9 @@ const Gallery = () => {
                     return (
                       <div className="relative" style={{ height: `${maxHeight}px` }}>
                         {photoPositions.map(({ photo, left, top, width, height }) => {
-                          const isAdmin = (() => {
-                            try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; }
-                            catch (e) { return false; }
-                          })();
-                          const effectiveProtection = !!photo.effective_protection;
-                          const isProtectedForViewer = effectiveProtection && !isAdmin;
+                          const effectiveProtection = isPhotoProtected(photo);
+                          const isProtectedForViewer = effectiveProtection && !adminForMasonry;
+                          const protectionInfo = resolveProtectionLevelInfo(photo.protection_level);
                           
                           return (
                             <div 
@@ -1005,21 +1156,20 @@ const Gallery = () => {
                               <div className={`masonry-content relative w-full h-full overflow-hidden rounded-lg bg-gray-100 shadow-sm hover:shadow-lg transition-shadow ${isProtectedForViewer ? 'cursor-not-allowed' : 'cursor-pointer'}`} onClick={(e)=>{ if (isProtectedForViewer) return; handlePhotoClick(photo, e); }}>
                                 {isProtectedForViewer ? (
                                   <div className="w-full h-full bg-gray-100 text-gray-500 flex items-center justify-center text-center px-3">
-                                    <div>
-                                      <div className="text-3xl mb-2">🔒</div>
-                                      <div className="text-xs">
-                                        {(() => {
-                                          const level = photo.protection_level;
-                                          if (level === 'personal') return '此照片包含个人隐私内容，已加密保护';
-                                          if (level === 'sensitive') return '此照片包含敏感内容，已加密保护';
-                                          if (level === 'restricted') return '此照片严格限制访问，已加密保护';
-                                          if (level === 'portrait') return '此照片涉及他人肖像权，已加密保护';
-                                          if (level === 'other') return '此照片已被管理员加密保护';
-                                          return '该照片涉及隐私或他人肖像，已被管理员加密';
-                                        })()}
-                                      </div>
-                            </div>
-                            </div>
+                                    <div className="flex flex-col items-center gap-2">
+                                      <div className="text-3xl">🔒</div>
+                                      {!adminForMasonry && (
+                                        <>
+                                          <div className="text-xs text-gray-600">{protectionInfo.label}</div>
+                                          {protectionInfo.description && (
+                                            <div className="text-[11px] text-gray-400 leading-snug max-w-[10rem]">
+                                              {protectionInfo.description}
+                                            </div>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
                                 ) : (
                                   <img
                                     src={(photo.size1024 || photo.thumbnail) ? `${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}` : ''}
@@ -1032,7 +1182,19 @@ const Gallery = () => {
                                   />
                                 )}
                                 {!isProtectedForViewer && effectiveProtection && (
-                                  <div className="pointer-events-none absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded" title="加密">🔒</div>
+                                  <div className="pointer-events-none absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+                                    <span aria-hidden="true">🔒</span>
+                                    {!adminForMasonry && (
+                                      <div className="flex flex-col leading-snug">
+                                        <span>{protectionInfo.label}</span>
+                                        {protectionInfo.description && (
+                                          <span className="text-[10px] text-gray-200 mt-0.5">
+                                            {protectionInfo.description}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </div>

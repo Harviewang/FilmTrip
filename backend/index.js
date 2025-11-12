@@ -157,6 +157,8 @@ app.listen(PORT, () => {
   } else {
     console.log('管理员账号已存在');
   }
+  
+  console.log(`✅ HTTP Server is running on http://localhost:${PORT}`);
 });
 
 module.exports = app;

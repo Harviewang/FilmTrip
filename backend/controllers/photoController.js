@@ -6,6 +6,95 @@ const sizeOf = require('image-size').default || require('image-size');
 const crypto = require('crypto');
 const ExifParser = require('exif-parser');
 const jwt = require('jsonwebtoken');
+const {
+  ensureVariant,
+  calcHashes,
+  generateObjectPath,
+  generateShortCode,
+  buildShortLink,
+  SHORT_LINK_PREFIX
+} = require('../storage/namingService');
+const { normalizeFilmType } = require('../utils/filmTypes');
+
+const DEFAULT_BUCKET = process.env.DEFAULT_BUCKET || 'local-dev';
+const SHORT_LINK_LOG_DIR = process.env.SHORT_LINK_LOG_DIR || path.join(__dirname, '../logs');
+const SHORT_LINK_LOG_FILE = process.env.SHORT_LINK_LOG_FILE || path.join(SHORT_LINK_LOG_DIR, 'short-links.log');
+
+const ensureLogDir = () => {
+  if (!fs.existsSync(SHORT_LINK_LOG_DIR)) {
+    fs.mkdirSync(SHORT_LINK_LOG_DIR, { recursive: true });
+  }
+};
+
+const logShortLinkEvent = (payload, { uploadSource } = {}) => {
+  if (!payload) return;
+  try {
+    ensureLogDir();
+    const record = {
+      timestamp: new Date().toISOString(),
+      uploadSource: uploadSource || 'unknown',
+      duplicate: !!payload.duplicate,
+      photoId: payload.id,
+      shortCode: payload.shortCode,
+      shortLink: payload.shortLink || buildShortLink(payload.shortCode),
+      storageVariant: payload.storageVariant,
+      originBucket: payload.bucket,
+      originPath: payload.objectPath,
+      hashes: payload.hashes || {}
+    };
+    fs.appendFileSync(SHORT_LINK_LOG_FILE, `${JSON.stringify(record)}\n`, 'utf8');
+  } catch (logError) {
+    console.error('短链日志写入失败:', logError);
+  }
+};
+
+const buildVariantUrls = (filename) => {
+  if (!filename) {
+    return {
+      original: null,
+      thumbnail: null,
+      size1024: null,
+      size2048: null
+    };
+  }
+  const baseName = filename.replace(/\.[^.]+$/, '');
+  return {
+    original: `/uploads/${filename}`,
+    thumbnail: `/uploads/thumbnails/${baseName}_thumb.jpg`,
+    size1024: `/uploads/size1024/${baseName}_1024.jpg`,
+    size2048: `/uploads/size2048/${baseName}_2048.jpg`
+  };
+};
+
+const buildUploadPayload = (photo, { duplicate = false, hashes } = {}) => {
+  if (!photo) return null;
+  const variants = buildVariantUrls(photo.filename);
+  return {
+    id: photo.id,
+    film_roll_id: photo.film_roll_id,
+    photo_number: photo.photo_number,
+    filename: photo.filename,
+    original_name: photo.original_name,
+    shortCode: photo.short_code,
+    shortLink: buildShortLink(photo.short_code),
+    storageVariant: photo.storage_variant,
+    bucket: photo.origin_bucket,
+    objectPath: photo.origin_path,
+    hashes: {
+      sha256: hashes?.sha256 || photo.file_hash || null,
+      md5: hashes?.md5 || null
+    },
+    duplicate,
+    variants,
+    metadata: {
+      width: photo.width,
+      height: photo.height,
+      orientation: photo.orientation,
+      rotation: photo.rotation,
+      uploaded_at: photo.uploaded_at
+    }
+  };
+};
 
 /**
  * 获取所有照片
@@ -59,14 +148,26 @@ const getAllPhotos = async (req, res) => {
     
     // 胶卷类型筛选
     if (film_type && film_type !== 'all') {
+      const filmTypeEntry = normalizeFilmType(film_type);
+      if (!filmTypeEntry) {
+        return res.status(400).json({
+          success: false,
+          message: `胶卷类型无效: ${film_type}`
+        });
+      }
       whereConditions.push('fs.type = ?');
-      queryParams.push(film_type);
+      queryParams.push(filmTypeEntry.code);
     }
     
     // 胶卷画幅筛选
     if (film_format && film_format !== 'all') {
       whereConditions.push('fs.format = ?');
       queryParams.push(film_format);
+    }
+    const shortCodeFilter = req.query.short_code || req.query.shortCode;
+    if (shortCodeFilter) {
+      whereConditions.push('p.short_code = ?');
+      queryParams.push(shortCodeFilter.toString().trim());
     }
     
     const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
@@ -115,9 +216,13 @@ const getAllPhotos = async (req, res) => {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
         isAdmin = decoded.username === 'admin';
+        console.log('[Auth][/api/photos] Token验证成功, 用户:', decoded.username, '是否管理员:', isAdmin);
       } catch (e) {
         // Token 无效，视为普通用户
+        console.log('[Auth][/api/photos] Token验证失败:', e.message);
       }
+    } else {
+      console.log('[Auth][/api/photos] 未提供Token，视为访客');
     }
     
     photos.forEach(photo => {
@@ -136,16 +241,19 @@ const getAllPhotos = async (req, res) => {
       photo._raw = originalPhoto; // 保存原始数据副本
       photo._raw.effective_protection = effectiveProtection;
       photo._raw.protection_level = photo.protection_level; // 确保_raw中也有protection_level
+
+      const variants = buildVariantUrls(photo.filename);
+      photo.short_link = buildShortLink(photo.short_code);
+      photo.variants = variants;
       
       // 根据用户角色和保护状态决定是否生成URL
       if (photo.filename && photo.filename.trim()) {
         // 如果用户是管理员或者照片未受保护，才生成URL
         if (isAdmin || !effectiveProtection) {
-          const baseName = photo.filename.replace(/\.[^.]+$/, '');
-          photo.original = `/uploads/${photo.filename}`;
-          photo.thumbnail = `/uploads/thumbnails/${baseName}_thumb.jpg`;
-          photo.size1024 = `/uploads/size1024/${baseName}_1024.jpg`;
-          photo.size2048 = `/uploads/size2048/${baseName}_2048.jpg`;
+          photo.original = variants.original;
+          photo.thumbnail = variants.thumbnail;
+          photo.size1024 = variants.size1024;
+          photo.size2048 = variants.size2048;
           
           // 尝试读取EXIF信息
           try {
@@ -187,11 +295,22 @@ const getAllPhotos = async (req, res) => {
       size1024: photo.size1024,
       size2048: photo.size2048,
       filename: photo.filename,
+      shortCode: photo.short_code,
+      short_code: photo.short_code,
+      short_link: photo.short_link,
+      storage_variant: photo.storage_variant,
+      origin_bucket: photo.origin_bucket,
+      origin_path: photo.origin_path,
+      file_hash: photo.file_hash,
+      variants: photo.variants,
       camera: photo.camera || (photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机'),
       // 优先显示胶卷规格（品牌+系列+ISO），其次显示实例名称
       film: (photo.film_roll_brand && photo.film_roll_series ? `${photo.film_roll_brand} ${photo.film_roll_series}${photo.film_roll_iso ? ` ${photo.film_roll_iso}` : ''}` : null) || photo.film_roll_name_display || photo.film_roll_number || '无',
       date: photo.taken_date || (photo.uploaded_at ? photo.uploaded_at.split(' ')[0] : '未知日期'),
       taken_date: photo.taken_date,
+    shortCode: photo.short_code,
+    short_code: photo.short_code,
+    short_link: photo.short_link || (photo.short_code ? buildShortLink(photo.short_code) : null),
       rating: photo.rating || 0,
       location_name: photo.location_name,
       photo_serial_number: photo.photo_serial_number,
@@ -315,6 +434,7 @@ const uploadPhotosBatch = async (req, res) => {
     } = req.body;
     const isProtectedFlag = normalizeBoolean(is_protected);
     console.log('[批量上传] is_protected 原始值:', is_protected, '=>', isProtectedFlag ? 1 : 0);
+    const storageVariant = ensureVariant(req.body.storage_variant || 'WEB');
     const resolvedProtectionLevel = isProtectedFlag ? (protection_level || null) : null;
     if (!film_roll_id) {
       return res.status(400).json({ success: false, message: '胶卷实例为必填字段' });
@@ -346,12 +466,26 @@ const uploadPhotosBatch = async (req, res) => {
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const results = [];
     let processed = 0;
-    const toProcess = Math.min(remainingSlots, req.files.length);
-    for (let i = 0; i < toProcess; i++) {
+    let duplicates = 0;
+    let capacitySkipped = 0;
+    for (let i = 0; i < req.files.length; i++) {
+      if (processed >= remainingSlots) {
+        capacitySkipped += (req.files.length - i);
+        break;
+      }
       const file = req.files[i];
+      const hashes = calcHashes(file.buffer);
+      const duplicateRows = query('SELECT * FROM photos WHERE file_hash = ? AND storage_variant = ?', [hashes.sha256, storageVariant]);
+      if (duplicateRows.length > 0) {
+        duplicates += 1;
+      const payload = buildUploadPayload(duplicateRows[0], { duplicate: true, hashes });
+      results.push(payload);
+      logShortLinkEvent(payload, { uploadSource: 'batch' });
+        continue;
+      }
       const id = crypto.randomUUID();
       const photoNumber = nextNumber++;
-      const ext = path.extname(file.originalname) || '.jpg';
+      const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
       const base = `${id}_${photoNumber.toString().padStart(3, '0')}`;
       const filePath = path.join(uploadDir, `${base}${ext}`);
       const thumbPath = path.join(thumbDir, `${base}_thumb.jpg`);
@@ -436,6 +570,10 @@ const uploadPhotosBatch = async (req, res) => {
           }
         }
       } catch (e) {}
+      const shortCode = await generateShortCode({
+        exists: (code) => query('SELECT 1 FROM photos WHERE short_code = ?', [code]).length > 0
+      });
+      const { objectPath } = generateObjectPath({ variant: storageVariant, extension: ext });
       const result = insert(
         `INSERT INTO photos (
           id, film_roll_id, photo_number, filename, original_name, title, description,
@@ -444,8 +582,9 @@ const uploadPhotosBatch = async (req, res) => {
           exposure_compensation, metering_mode, focus_mode,
           latitude, longitude, location_name, country, province, city,
           categories, trip_name, trip_start_date, trip_end_date,
-          tags, is_protected, protection_level, width, height, orientation, rotation
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          tags, is_protected, protection_level, width, height, orientation, rotation,
+          file_hash, storage_variant, short_code, origin_bucket, origin_path
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           film_roll_id,
@@ -482,20 +621,38 @@ const uploadPhotosBatch = async (req, res) => {
           imageWidth,
           imageHeight,
           imageOrientation, // EXIF orientation
-          0 // rotation字段设为0,不再使用
+          0, // rotation字段设为0,不再使用
+          hashes.sha256,
+          storageVariant,
+          shortCode,
+          DEFAULT_BUCKET,
+          objectPath
         ]
       );
       if (result.changes > 0) {
         const row = query('SELECT * FROM photos WHERE id = ?', [id]);
-        results.push(row[0]);
+        if (row && row[0]) {
+          const payload = buildUploadPayload(row[0], { hashes });
+          results.push(payload);
+          logShortLinkEvent(payload, { uploadSource: 'batch' });
+        }
+        processed += 1;
       }
-      processed++;
     }
-    const skipped = req.files.length - processed;
-    const msg = skipped > 0 
-      ? `批量上传完成：成功 ${processed} 张，跳过 ${skipped} 张（已达每卷上限 36 张）`
-      : '批量上传成功';
-    return res.status(201).json({ success: true, message: msg, count: results.length, skipped, data: results });
+    const skipped = capacitySkipped;
+    const summaryParts = [`成功 ${processed} 张`];
+    if (duplicates > 0) summaryParts.push(`重复 ${duplicates} 张`);
+    if (skipped > 0) summaryParts.push(`额外 ${skipped} 张待下个批次`);
+    const msg = `批量上传完成：${summaryParts.join('，')}`;
+    return res.status(201).json({
+      success: true,
+      message: msg,
+      count: results.length,
+      processed,
+      duplicates,
+      skipped,
+      data: results
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: '批量上传失败', error: error.message });
   }
@@ -568,15 +725,18 @@ const getPhotoById = (req, res) => {
     photo._raw.effective_protection = effectiveProtection;
     photo._raw.protection_level = photo.protection_level; // 确保_raw中也有protection_level
 
+    const variants = buildVariantUrls(photo.filename);
+    photo.short_link = buildShortLink(photo.short_code);
+    photo.variants = variants;
+
     // 根据用户角色和保护状态决定是否生成URL
     if (photo.filename && photo.filename.trim()) {
       // 如果用户是管理员或者照片未受保护，才生成URL
       if (isAdmin || !effectiveProtection) {
-        const baseName = photo.filename.replace(/\.[^.]+$/, '');
-        photo.original = `/uploads/${photo.filename}`;
-        photo.thumbnail = `/uploads/thumbnails/${baseName}_thumb.jpg`;
-        photo.size1024 = `/uploads/size1024/${baseName}_1024.jpg`;
-        photo.size2048 = `/uploads/size2048/${baseName}_2048.jpg`;
+        photo.original = variants.original;
+        photo.thumbnail = variants.thumbnail;
+        photo.size1024 = variants.size1024;
+        photo.size2048 = variants.size2048;
 
         // 尝试读取EXIF信息
         try {
@@ -617,6 +777,14 @@ const getPhotoById = (req, res) => {
       size1024: photo.size1024,
       size2048: photo.size2048,
       filename: photo.filename,
+      shortCode: photo.short_code,
+      short_code: photo.short_code,
+      short_link: photo.short_link,
+      storage_variant: photo.storage_variant,
+      origin_bucket: photo.origin_bucket,
+      origin_path: photo.origin_path,
+      file_hash: photo.file_hash,
+      variants: photo.variants,
       camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
       // 优先显示胶卷规格（品牌+系列+ISO），其次显示实例名称
       film: (photo.film_roll_brand && photo.film_roll_series ? `${photo.film_roll_brand} ${photo.film_roll_series}${photo.film_roll_iso ? ` ${photo.film_roll_iso}` : ''}` : null) || photo.film_roll_name_display || photo.film_roll_number || '无',
@@ -920,6 +1088,7 @@ const uploadPhoto = async (req, res) => {
     } = req.body;
     const isProtectedFlag = normalizeBoolean(is_protected);
     console.log('[单张上传] is_protected 原始值:', is_protected, '=>', isProtectedFlag ? 1 : 0);
+    const storageVariant = ensureVariant(req.body.storage_variant || 'WEB');
     const resolvedProtectionLevel = isProtectedFlag ? (protection_level || null) : null;
 
     // 验证必填字段
@@ -966,10 +1135,22 @@ const uploadPhoto = async (req, res) => {
       });
     }
 
+    const hashes = calcHashes(req.file.buffer);
+    const duplicateRows = query('SELECT * FROM photos WHERE file_hash = ? AND storage_variant = ?', [hashes.sha256, storageVariant]);
+    if (duplicateRows.length > 0) {
+      const payload = buildUploadPayload(duplicateRows[0], { duplicate: true, hashes });
+    logShortLinkEvent(payload, { uploadSource: 'single' });
+      return res.status(200).json({
+        success: true,
+        message: '照片已存在，返回已保存的记录',
+        duplicate: true,
+        data: payload
+      });
+    }
+ 
     // 生成唯一ID
     const id = crypto.randomUUID();
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-
+ 
     // 创建上传目录
     const uploadDir = path.join(__dirname, '../uploads');
     const thumbnailDir = path.join(__dirname, '../uploads/thumbnails');
@@ -990,7 +1171,7 @@ const uploadPhoto = async (req, res) => {
     }
 
     // 生成文件名（包含照片序号，便于恢复）
-    const fileExtension = path.extname(req.file.originalname);
+    const fileExtension = (path.extname(req.file.originalname) || '.jpg').toLowerCase();
     const base = `${id}_${photoNumber.toString().padStart(3, '0')}`;
     const filename = `${base}${fileExtension}`;
     const filePath = path.join(uploadDir, filename);
@@ -1100,6 +1281,11 @@ const uploadPhoto = async (req, res) => {
       }
     } catch (e) {}
 
+    const shortCode = await generateShortCode({
+      exists: (code) => query('SELECT 1 FROM photos WHERE short_code = ?', [code]).length > 0
+    });
+    const { objectPath } = generateObjectPath({ variant: storageVariant, extension: fileExtension });
+
     const result = insert(
       `INSERT INTO photos (
         id, film_roll_id, photo_number, filename, original_name, title, description,
@@ -1108,8 +1294,9 @@ const uploadPhoto = async (req, res) => {
         exposure_compensation, metering_mode, focus_mode,
         latitude, longitude, location_name, country, province, city,
         categories, trip_name, trip_start_date, trip_end_date,
-        tags, is_protected, protection_level, width, height, orientation, rotation
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        tags, is_protected, protection_level, width, height, orientation, rotation,
+        file_hash, storage_variant, short_code, origin_bucket, origin_path
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         film_roll_id,
@@ -1146,7 +1333,12 @@ const uploadPhoto = async (req, res) => {
         imageWidth,
         imageHeight,
         imageOrientation, // EXIF orientation
-        0 // rotation字段设为0,不再使用
+        0, // rotation字段设为0,不再使用
+        hashes.sha256,
+        storageVariant,
+        shortCode,
+        DEFAULT_BUCKET,
+        objectPath
       ]
     );
 
@@ -1169,6 +1361,10 @@ const uploadPhoto = async (req, res) => {
 
     // 生成照片流水号
     const photoSerialNumber = `${newPhoto[0].film_roll_number}-${photoNumber.toString().padStart(3, '0')}`;
+    const enrichedPhoto = { ...newPhoto[0] };
+  enrichedPhoto.short_link = buildShortLink(enrichedPhoto.short_code);
+    enrichedPhoto.variants = buildVariantUrls(enrichedPhoto.filename);
+    const payload = buildUploadPayload(enrichedPhoto, { hashes });
 
     console.log('=== 照片上传成功 ===');
     console.log('照片流水号:', photoSerialNumber);
@@ -1178,10 +1374,16 @@ const uploadPhoto = async (req, res) => {
     console.log('缩略图路径:', thumbnailPath);
     console.log('数据库结果:', result);
 
+  logShortLinkEvent(payload, { uploadSource: 'single' });
+
     res.status(201).json({
       success: true,
       message: '照片上传成功',
-      data: newPhoto[0]
+      data: {
+        photo_serial_number: photoSerialNumber,
+        photo: enrichedPhoto,
+        payload
+      }
     });
   } catch (error) {
     console.error('照片上传失败:', error);
@@ -1257,13 +1459,16 @@ const getRandomPhotos = (req, res) => {
       photo._raw.effective_protection = effectiveProtection;
       photo._raw.protection_level = photo.protection_level; // 确保_raw中也有protection_level
 
+      const variants = buildVariantUrls(photo.filename);
+      photo.short_link = buildShortLink(photo.short_code);
+      photo.variants = variants;
+
       // 随机照片API总是返回URL，因为查询时已过滤保护内容
       if (photo.filename && photo.filename.trim()) {
-        const baseName = photo.filename.replace(/\.[^.]+$/, '');
-        photo.original = `/uploads/${photo.filename}`;
-        photo.thumbnail = `/uploads/thumbnails/${baseName}_thumb.jpg`;
-        photo.size1024 = `/uploads/size1024/${baseName}_1024.jpg`;
-        photo.size2048 = `/uploads/size2048/${baseName}_2048.jpg`;
+        photo.original = variants.original;
+        photo.thumbnail = variants.thumbnail;
+        photo.size1024 = variants.size1024;
+        photo.size2048 = variants.size2048;
 
         // 尝试读取EXIF信息
         try {
@@ -1300,6 +1505,14 @@ const getRandomPhotos = (req, res) => {
       size1024: photo.size1024,
       size2048: photo.size2048,
       filename: photo.filename,
+      shortCode: photo.short_code,
+      short_code: photo.short_code,
+      short_link: photo.short_link,
+      storage_variant: photo.storage_variant,
+      origin_bucket: photo.origin_bucket,
+      origin_path: photo.origin_path,
+      file_hash: photo.file_hash,
+      variants: photo.variants,
       camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
       // 优先显示胶卷规格（品牌+系列+ISO），其次显示实例名称
       film: (photo.film_roll_brand && photo.film_roll_series ? `${photo.film_roll_brand} ${photo.film_roll_series}${photo.film_roll_iso ? ` ${photo.film_roll_iso}` : ''}` : null) || photo.film_roll_name_display || photo.film_roll_number || '无',
