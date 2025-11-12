@@ -49,6 +49,13 @@ export const authApi = {
 export const photoApi = {
   getAllPhotos: (params) => api.get('/photos', { params }),
   getPhotoById: (id) => api.get(`/photos/${id}`),
+  getPhotoByShortCode: (shortCode) =>
+    api.get('/photos', {
+      params: {
+        short_code: shortCode,
+        limit: 1
+      }
+    }),
   updatePhoto: (id, data) => api.put(`/photos/${id}`, data),
   deletePhoto: (id) => api.delete(`/photos/${id}`),
   uploadPhoto: (formData) => api.post('/photos', formData, {

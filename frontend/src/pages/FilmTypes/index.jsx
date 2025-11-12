@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getFilmTypeLabel } from '../../constants/filmTypes';
 
 const FilmTypes = () => {
   const [filmTypes, setFilmTypes] = useState([]);
@@ -13,7 +14,7 @@ const FilmTypes = () => {
           name: 'Kodak Portra 400',
           brand: 'Kodak',
           iso: '400',
-          type: '彩色负片',
+          type: 'color-negative',
           format: '135mm',
           photoCount: 12,
           coverImage: '/placeholder-photo.svg'
@@ -23,7 +24,7 @@ const FilmTypes = () => {
           name: 'Ilford HP5 Plus',
           brand: 'Ilford',
           iso: '400',
-          type: '黑白负片',
+          type: 'black-white-negative',
           format: '135mm',
           photoCount: 8,
           coverImage: '/placeholder-photo.jpg'
@@ -62,7 +63,7 @@ const FilmTypes = () => {
               <div className="space-y-2 text-sm text-gray-600 mb-4">
                 <p>品牌: {filmType.brand}</p>
                 <p>ISO: {filmType.iso}</p>
-                <p>类型: {filmType.type}</p>
+                <p>类型: {getFilmTypeLabel(filmType.type)}</p>
                 <p>规格: {filmType.format}</p>
                 <p>照片数量: {filmType.photoCount}</p>
               </div>

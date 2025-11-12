@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import { ArrowsPointingOutIcon, ArrowsPointingInIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -6,6 +7,14 @@ import API_CONFIG from '../../config/api.js';
 import LazyImage from '../../components/LazyImage';
 import PhotoPreview from '../../components/PhotoPreview';
 import './Map.css';
+import { photoApi } from '../../services/api';
+import {
+  getPhotoShortCode,
+  resolvePhotoShortLink,
+  buildShortLinkPath,
+  normalizeShortCode
+} from '../../utils/shortLink.js';
+import { useScrollContainer } from '../../contexts/ScrollContainerContext';
 
 // 修复Leaflet默认图标问题
 delete L.Icon.Default.prototype._getIconUrl;
@@ -16,6 +25,9 @@ L.Icon.Default.mergeOptions({
 });
 
 const Map = () => {
+  const location = useLocation();
+  const params = useParams();
+  const shortCodeParam = params?.shortCode;
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
@@ -24,9 +36,144 @@ const Map = () => {
   const [locationLoading, setLocationLoading] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(2);
   const [photoIndex, setPhotoIndex] = useState(0); // 当前照片索引
-  const isAdmin = (() => {
-    try { const u = JSON.parse(localStorage.getItem('user')||'{}'); return u && u.username === 'admin'; } catch { return false; }
-  })();
+  const initialPathRef = useRef(window.location.pathname || '/map');
+  const hasPushedShortLinkRef = useRef(false);
+  const { authRef } = useScrollContainer() || {};
+  const isAdminUser = Boolean(authRef?.isAdmin);
+
+  const logShortLinkEvent = useCallback((level, message, payload = {}) => {
+    if (typeof window !== 'undefined') {
+      window.__mapShortLinkLogs = window.__mapShortLinkLogs || [];
+      window.__mapShortLinkLogs.push({
+        timestamp: new Date().toISOString(),
+        level,
+        message,
+        ...payload
+      });
+    }
+    const prefix = '[Map][ShortLink]';
+    if (level === 'warn') {
+      console.warn(prefix, message, payload);
+    } else {
+      console.log(prefix, message, payload);
+    }
+  }, []);
+
+  const mapPhotoRecord = useCallback((photo, { fallbackIdPrefix = 'map-photo', fallbackTitle = '地图照片' } = {}) => {
+    if (!photo) return null;
+
+    const normalizeUrl = (url) => {
+      if (!url) return null;
+      if (typeof url !== 'string') return null;
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+      return `${API_CONFIG.BASE_URL}${url}`;
+    };
+
+    const backendThumbnail = normalizeUrl(photo.thumbnail);
+    const backendOriginal = normalizeUrl(photo.original);
+    const backendSize1024 = normalizeUrl(photo.size1024);
+    const backendSize2048 = normalizeUrl(photo.size2048);
+    const hasBackendImageUrl = Boolean(backendThumbnail || backendSize1024 || backendSize2048 || backendOriginal);
+
+    const filename = hasBackendImageUrl ? (photo.filename || photo.original_name || '') : '';
+    const effectiveProtection = Boolean(
+      photo.effective_protection !== undefined ? photo.effective_protection : photo.is_protected
+    );
+
+    const sanitizedRaw = hasBackendImageUrl ? photo : {
+      ...photo,
+      filename: undefined,
+      original: undefined,
+      size1024: undefined,
+      size2048: undefined,
+      thumbnail: undefined
+    };
+
+    const mapped = {
+      id: photo.id || `${fallbackIdPrefix}-${photo.photo_number || Date.now()}`,
+      title: photo.title || (hasBackendImageUrl ? filename : '') || fallbackTitle,
+      description: photo.description || '',
+      thumbnail: backendThumbnail,
+      original: backendOriginal,
+      size1024: backendSize1024,
+      size2048: backendSize2048,
+      filename: filename || undefined,
+      camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
+      film: photo.film_roll_name || photo.film_roll_number || '未知胶卷',
+      date: photo.date || photo.taken_date || photo.uploaded_at || '未知日期',
+      latitude: photo.latitude,
+      longitude: photo.longitude,
+      location_name: photo.location_name,
+      is_protected: photo.is_protected,
+      protection_level: photo.protection_level,
+      effective_protection: effectiveProtection,
+      shortCode: getPhotoShortCode(photo),
+      short_link: resolvePhotoShortLink(photo),
+      _raw: sanitizedRaw
+    };
+    if (!mapped.shortCode) {
+      logShortLinkEvent('warn', 'mapped photo missing shortCode', {
+        id: mapped.id,
+        rawShortCode: photo.short_code,
+        source: 'mapPhotoRecord'
+      });
+    }
+    return mapped;
+  }, [logShortLinkEvent]);
+
+  const updateHistoryForPhoto = useCallback((photo, { replace = false } = {}) => {
+    const shortLinkPath = buildShortLinkPath(getPhotoShortCode(photo));
+    if (!shortLinkPath) {
+      logShortLinkEvent('warn', 'skip history update, missing short code', {
+        id: photo?.id,
+        rawShortCode: photo?._raw?.short_code
+      });
+      return;
+    }
+    logShortLinkEvent('info', 'updateHistoryForPhoto', {
+      shortLinkPath,
+      replace,
+      code: getPhotoShortCode(photo),
+      currentHref: window.location.href
+    });
+    const method = replace ? 'replaceState' : 'pushState';
+    if (!replace) {
+      hasPushedShortLinkRef.current = true;
+    }
+    window.history[method](
+      { modal: true, source: 'map' },
+      '',
+      shortLinkPath
+    );
+  }, []);
+
+  const restoreHistoryPath = useCallback(() => {
+    if (!hasPushedShortLinkRef.current) return;
+    window.history.replaceState(
+      { modal: false, source: 'map' },
+      '',
+      initialPathRef.current || '/map'
+    );
+    hasPushedShortLinkRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (hasPushedShortLinkRef.current) {
+        setSelectedPhoto(null);
+        hasPushedShortLinkRef.current = false;
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => () => {
+    restoreHistoryPath();
+  }, [restoreHistoryPath]);
+  const isAdmin = isAdminUser;
   // 将当前底图状态提前声明，供后续 useEffect 使用
   const [currentTileLayer, setCurrentTileLayer] = useState('');
   const currentTileLayerRef = useRef('');
@@ -48,6 +195,7 @@ const Map = () => {
       switch (e.key) {
         case 'Escape':
           setSelectedPhoto(null);
+          restoreHistoryPath();
           break;
       }
     };
@@ -60,70 +208,31 @@ const Map = () => {
   const fetchMapPhotos = async () => {
     try {
       setLoading(true);
-      console.log('开始获取地图照片数据...');
+      const response = await photoApi.getAllPhotos();
+      const payload = response?.data;
+      const list = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.photos)
+            ? payload.photos
+            : [];
       
-      const response = await fetch('/api/photos');
-      console.log('API响应状态:', response.status);
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('API响应数据:', result);
-        
-        // 处理后端API的标准响应格式
-        let photoArray = [];
-        if (result.success && result.data && Array.isArray(result.data)) {
-          // 标准格式：{ success: true, data: [...] }
-          photoArray = result.data;
-        } else if (Array.isArray(result)) {
-          // 直接是数组
-          photoArray = result;
-        } else if (result && result.data && Array.isArray(result.data)) {
-          // 包装在data字段中的数组
-          photoArray = result.data;
-        } else if (result && result.photos && Array.isArray(result.photos)) {
-          // 包装在photos字段中的数组
-          photoArray = result.photos;
-        } else if (result && typeof result === 'object') {
-          // 如果是对象，尝试提取数组
-          const keys = Object.keys(result);
-          if (keys.length > 0) {
-            const firstKey = keys[0];
-            if (Array.isArray(result[firstKey])) {
-              photoArray = result[firstKey];
-            }
-          }
-        }
-        
-        console.log('处理后的照片数组:', photoArray);
-        
-        // 数据映射：将后端字段映射到前端期望的字段
-        const mappedPhotos = photoArray.map((photo, index) => ({
-          id: photo.id || `photo-${index}`,
-          title: photo.title || photo.filename || '无标题',
-          description: photo.description || '',
-          thumbnail: photo.thumbnail || photo.original,
-          original: photo.original,
-          camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
-          film: photo.film_roll_name || photo.film_roll_number || '无',
-          date: photo.taken_date || photo.uploaded_at || '未知日期',
-          rating: photo.rating || 0,
-          latitude: photo.latitude,
-          longitude: photo.longitude,
-          location_name: photo.location_name,
-          // 保留原始数据用于调试
-          _raw: photo
-        }));
-        
-        console.log('映射后的照片数据:', mappedPhotos);
-        
-        // 设置照片数据
-        setPhotos(mappedPhotos);
-        
-        console.log(`成功获取 ${mappedPhotos.length} 张照片`);
+      const mappedPhotos = list
+        .map((photo, index) => mapPhotoRecord(photo, { fallbackIdPrefix: `map-${index}` }))
+        .filter(Boolean);
+      if (mappedPhotos.length > 0) {
+        logShortLinkEvent('info', 'fetched first photo', {
+          id: mappedPhotos[0].id,
+          shortCode: mappedPhotos[0].shortCode,
+          short_link: mappedPhotos[0].short_link,
+          rawShortCode: mappedPhotos[0]._raw?.short_code,
+          total: mappedPhotos.length
+        });
       } else {
-        console.error('获取地图照片失败:', response.status);
-        throw new Error(`获取照片失败: ${response.status}`);
+        logShortLinkEvent('warn', 'fetched no photos or mapping failed');
       }
+      setPhotos(mappedPhotos);
     } catch (error) {
       console.error('获取地图照片出错:', error);
       // 显示错误信息给用户
@@ -132,6 +241,92 @@ const Map = () => {
       setLoading(false);
     }
   };
+
+  const openPhotoById = useCallback((targetId) => {
+    if (!targetId) return false;
+    const stringId = targetId.toString();
+    const targetIndex = photos.findIndex((p) => p.id?.toString() === stringId);
+    if (targetIndex === -1) return false;
+    const targetPhoto = photos[targetIndex];
+    setSelectedPhoto(targetPhoto);
+    setPhotoIndex(targetIndex);
+    updateHistoryForPhoto(targetPhoto, { replace: !hasPushedShortLinkRef.current });
+    return true;
+  }, [photos, updateHistoryForPhoto]);
+
+  const fetchPhotoByShortCode = useCallback(async (code) => {
+    const normalized = normalizeShortCode(code);
+    if (!normalized) return null;
+    try {
+      const response = await photoApi.getPhotoByShortCode(normalized);
+      const payload = response?.data;
+      const list = Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload)
+          ? payload
+          : [];
+      if (!list.length) return null;
+      return mapPhotoRecord(list[0], { fallbackIdPrefix: `map-${normalized}` });
+    } catch (error) {
+      console.error('通过短链获取地图照片失败:', error);
+      return null;
+    }
+  }, [mapPhotoRecord]);
+
+  const openPhotoByShortCode = useCallback(async (code) => {
+    const normalized = normalizeShortCode(code);
+    if (!normalized) return;
+    const existingIndex = photos.findIndex((p) => getPhotoShortCode(p) === normalized);
+    let targetPhoto = existingIndex !== -1 ? photos[existingIndex] : null;
+    if (!targetPhoto) {
+      const fetched = await fetchPhotoByShortCode(normalized);
+      if (fetched) {
+        targetPhoto = fetched;
+        setPhotos((prev) => {
+          if (prev.some((p) => p.id === fetched.id)) return prev;
+          return [fetched, ...prev];
+        });
+        setPhotoIndex(0);
+      }
+    } else {
+      setPhotoIndex(existingIndex);
+    }
+    if (targetPhoto) {
+      setSelectedPhoto(targetPhoto);
+      logShortLinkEvent('info', 'openPhotoByShortCode resolved target', {
+        code: normalized,
+        id: targetPhoto.id,
+        shortLink: targetPhoto.short_link
+      });
+      updateHistoryForPhoto(targetPhoto, { replace: !hasPushedShortLinkRef.current });
+    }
+  }, [fetchPhotoByShortCode, photos, updateHistoryForPhoto, logShortLinkEvent]);
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const photoIdParam = urlParams.get('photo');
+    if (photoIdParam) {
+      logShortLinkEvent('info', 'detected query photo param', { photoIdParam });
+      const opened = openPhotoById(photoIdParam);
+      if (opened) return;
+    }
+    const normalizedShortCode = normalizeShortCode(shortCodeParam);
+    if (normalizedShortCode) {
+      logShortLinkEvent('info', 'detected route shortCode', { shortCode: normalizedShortCode });
+      openPhotoByShortCode(normalizedShortCode);
+    }
+  }, [location.search, shortCodeParam, openPhotoById, openPhotoByShortCode, logShortLinkEvent]);
+
+  useEffect(() => {
+    if (selectedPhoto) {
+      logShortLinkEvent('info', 'selectedPhoto changed', {
+        id: selectedPhoto.id,
+        code: getPhotoShortCode(selectedPhoto),
+        short_link: selectedPhoto.short_link
+      });
+      updateHistoryForPhoto(selectedPhoto, { replace: hasPushedShortLinkRef.current });
+    }
+  }, [selectedPhoto, updateHistoryForPhoto, logShortLinkEvent]);
 
   // 获取用户位置
   const getUserLocation = () => {
@@ -187,13 +382,21 @@ const Map = () => {
     // 找到当前照片在数组中的索引，用于导航
     const photoIndex = photos.findIndex(p => p.id === photo.id);
     setPhotoIndex(photoIndex);
+    updateHistoryForPhoto(photo, { replace: hasPushedShortLinkRef.current });
   };
 
   // 处理照片切换
   const handlePhotoChange = (newPhoto, newIndex) => {
     setSelectedPhoto(newPhoto);
     setPhotoIndex(newIndex);
+    updateHistoryForPhoto(newPhoto, { replace: true });
   };
+
+  useEffect(() => {
+    if (selectedPhoto) {
+      updateHistoryForPhoto(selectedPhoto, { replace: hasPushedShortLinkRef.current });
+    }
+  }, [selectedPhoto, updateHistoryForPhoto]);
 
   // 控制页面滚动 - 与其他页面保持一致
   useEffect(() => {
@@ -986,7 +1189,10 @@ const Map = () => {
         photo={selectedPhoto}
         photos={photos}
         isOpen={!!selectedPhoto}
-        onClose={() => setSelectedPhoto(null)}
+        onClose={() => {
+          setSelectedPhoto(null);
+          restoreHistoryPath();
+        }}
         currentPath="/map"
         showNavigation={true}
         onPhotoChange={handlePhotoChange}

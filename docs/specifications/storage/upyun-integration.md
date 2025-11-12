@@ -272,6 +272,8 @@ FilmTrip Backend ──────┘
 | `/api/storage/protected/:photoId` | GET | 获取受保护资源临时 URL | 用户身份 Token |
 | `/api/storage/purge` | POST | 刷新 CDN 缓存 | 管理端 Bearer Token |
 
+> 配置开关：通过环境变量 `UPYUN_IMAGE_PROCESSING_ENABLED` 控制是否使用又拍云云处理（缩略图/水印）。启用时统一返回带样式的 URL，关闭时回退到本地生成的多规格文件。
+
 ### `POST /api/storage/policy`
 - **请求头**：`Authorization: Bearer <admin_token>`
 - **请求体**
@@ -334,9 +336,9 @@ FilmTrip Backend ──────┘
 - **响应示例**
   ```
   {
-    "signedUrl": "https://filmtrip-prod.b0.upaiyun.com/filmtrip/prod/alb_123/photo_456/v1/cover.jpg?_upt=token.expire",
+    "signedUrl": "https://filmtrip-prod.b0.upaiyun.com/filmtrip/prod/alb_123/photo_456/v1/cover.jpg!watermark?_upt=token.expire",
     "expireAt": 1731427500,
-    "cdnFallback": "https://img.filmtrip.cn/filmtrip/prod/alb_123/photo_456/v1/cover.jpg?version=1731427200"
+    "cdnFallback": "https://img.filmtrip.cn/filmtrip/prod/alb_123/photo_456/v1/cover.jpg!thumb?version=1731427200"
   }
   ```
 - **错误码**
@@ -388,6 +390,8 @@ FilmTrip Backend ──────┘
 - 审计人（@reviewer）：
 - 涉及版本 / 分支：
 - 关联需求 / Jira 编号：
+- 又拍云图片处理开关（本地/云端）：
+- 缩略图/水印样式配置：
 
 ## 2. 代码核查清单
 - [ ] 上传策略：限制 MIME、大小、有效期，密钥未曝光（文件/日志）

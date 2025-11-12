@@ -1,5 +1,6 @@
 const { query, insert, update, delete: deleteRecord } = require('../models/db');
 const crypto = require('crypto');
+const { normalizeFilmType, ensureFilmType, getFilmTypeLabel } = require('../utils/filmTypes');
 
 /**
  * 获取所有胶卷品类
@@ -8,7 +9,7 @@ const getAllFilmStocks = (req, res) => {
   try {
     console.log('=== 获取所有胶卷品类 ===');
     
-    const { page = 1, limit = 20, brand, series, iso, format, type } = req.query;
+    const { page = 1, limit = 20, brand, series, iso, format, type: rawType } = req.query;
     const offset = (page - 1) * limit;
     
     // 构建查询条件
@@ -35,9 +36,16 @@ const getAllFilmStocks = (req, res) => {
       params.push(format);
     }
     
-    if (type) {
+    if (rawType) {
+      const normalizedType = normalizeFilmType(rawType);
+      if (!normalizedType) {
+        return res.status(400).json({
+          success: false,
+          message: `胶卷类型无效: ${rawType}`
+        });
+      }
       whereClause += ' AND type = ?';
-      params.push(type);
+      params.push(normalizedType.code);
     }
     
     // 获取总数
@@ -67,9 +75,14 @@ const getAllFilmStocks = (req, res) => {
     
     console.log('查询结果:', { total, count: filmStocks.length, page, limit });
     
+    const enrichedFilmStocks = filmStocks.map((item) => ({
+      ...item,
+      type_label: getFilmTypeLabel(item.type)
+    }));
+    
     res.json({
       success: true,
-      filmStocks,
+      filmStocks: enrichedFilmStocks,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -104,11 +117,16 @@ const getFilmStockById = (req, res) => {
       });
     }
     
-    console.log('胶卷品类详情:', filmStock[0]);
+    const detail = {
+      ...filmStock[0],
+      type_label: getFilmTypeLabel(filmStock[0].type)
+    };
+    
+    console.log('胶卷品类详情:', detail);
     
     res.json({
       success: true,
-      data: filmStock[0]
+      data: detail
     });
   } catch (error) {
     console.error('获取胶卷品类详情失败:', error);
@@ -134,7 +152,7 @@ const createFilmStock = (req, res) => {
     const series = (req.body.series || '').trim();
     const iso = (req.body.iso || '').trim();
     const format = (req.body.format || '').trim();
-    const type = (req.body.type || '').trim();
+    const typeInput = (req.body.type || '').trim();
     const description = (req.body.description || '').trim();
     
     // 处理文件上传
@@ -151,7 +169,7 @@ const createFilmStock = (req, res) => {
     }
     
     // 验证必填字段
-    if (!brand || !series || !iso || !format || !type) {
+    if (!brand || !series || !iso || !format || !typeInput) {
       return res.status(400).json({
         success: false,
         message: '品牌、系列、ISO、规格、类型为必填字段'
@@ -159,16 +177,16 @@ const createFilmStock = (req, res) => {
     }
     
     // 验证品牌和系列长度（至少3个字符才能生成编号）
-    if (brand.length < 3) {
+    if (brand.length < 2) {
       return res.status(400).json({
         success: false,
-        message: '品牌名称至少需要3个字符'
+        message: '品牌名称至少需要2个字符'
       });
     }
-    if (series.length < 3) {
+    if (series.length < 2) {
       return res.status(400).json({
         success: false,
-        message: '系列名称至少需要3个字符'
+        message: '系列名称至少需要2个字符'
       });
     }
     
@@ -181,10 +199,21 @@ const createFilmStock = (req, res) => {
       });
     }
     
+    let filmType;
+    try {
+      filmType = ensureFilmType(typeInput);
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: err.message
+      });
+    }
+    const typeCode = filmType.code;
+    
     // 检查是否已存在相同的胶卷品类（基于标准化后的数据）
     const existingStock = query(
       'SELECT id, stock_serial_number FROM film_stocks WHERE brand = ? AND series = ? AND iso = ? AND format = ? AND type = ?',
-      [brand, series, isoNum, format, type]
+      [brand, series, isoNum, format, typeCode]
     );
     
     if (existingStock.length > 0) {
@@ -203,31 +232,17 @@ const createFilmStock = (req, res) => {
     // 系列：取前3个字母（去除空格），如 POR, SUP, EKT
     // 格式：去除mm后缀，如 135, 120, 45
     // 类型：CN(彩色负片), BW(黑白), SL(反转片)
-    const brandShort = brand.substring(0, 3).toUpperCase();
-    const seriesShort = series.substring(0, 3).toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
+    const brandShort = brand.substring(0, Math.min(3, brand.length)).padEnd(3, brand.slice(-1)).toUpperCase();
+    const seriesShort = series.substring(0, Math.min(3, series.length)).padEnd(3, series.slice(-1)).toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
     const formatShort = format.replace(/mm|MM/g, '').toUpperCase(); // 135mm -> 135
-    let typeShort = '';
-    const typeLower = type.toLowerCase();
-    if (typeLower.includes('color') || typeLower.includes('彩色')) {
-      if (typeLower.includes('negative') || typeLower.includes('负片')) {
-        typeShort = 'CN'; // Color Negative
-      } else if (typeLower.includes('slide') || typeLower.includes('反转')) {
-        typeShort = 'SL'; // Slide 反转片
-      } else {
-        typeShort = 'CN';
-      }
-    } else if (typeLower.includes('black') || typeLower.includes('white') || typeLower.includes('黑白')) {
-      typeShort = 'BW'; // Black & White
-    } else {
-      typeShort = type.substring(0, 2).toUpperCase().replace(/[^A-Z]/g, '');
-    }
+    const typeShort = filmType.shortCode || filmType.code.substring(0, 2).toUpperCase();
     
     // 无分隔符，更简洁：KODPOR135CN
     const stockSerialNumber = `${brandShort}${seriesShort}${formatShort}${typeShort}`;
     
     console.log('生成的品类编号:', {
       原始输入: { brand: req.body.brand, series: req.body.series, format: req.body.format, type: req.body.type },
-      标准化后: { brand, series, format, type },
+      标准化后: { brand, series, format, type: typeCode },
       生成结果: { brandShort, seriesShort, formatShort, typeShort, stockSerialNumber }
     });
     
@@ -245,7 +260,7 @@ const createFilmStock = (req, res) => {
     const result = insert(
       `INSERT INTO film_stocks (id, stock_serial_number, brand, series, iso, format, type, description, package_image, cartridge_image, created_at, updated_at) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, stockSerialNumber, brand, series, isoNum, format, type, description || '', packageImagePath, cartridgeImagePath, now, now]
+      [id, stockSerialNumber, brand, series, isoNum, format, typeCode, description || '', packageImagePath, cartridgeImagePath, now, now]
     );
     
     if (result.changes === 0) {
@@ -256,7 +271,10 @@ const createFilmStock = (req, res) => {
     }
     
     // 获取新创建的胶卷品类
-    const newFilmStock = query('SELECT * FROM film_stocks WHERE id = ?', [id]);
+    const newFilmStock = query('SELECT * FROM film_stocks WHERE id = ?', [id]).map((item) => ({
+      ...item,
+      type_label: getFilmTypeLabel(item.type)
+    }));
     
     console.log('胶卷品类创建成功:', { id, result, newFilmStock: newFilmStock[0] });
     
@@ -286,7 +304,12 @@ const updateFilmStock = (req, res) => {
     console.log('请求体:', req.body);
     console.log('上传的文件:', req.files);
     
-    const { brand, series, iso, format, type, description } = req.body;
+    const brand = (req.body.brand || '').trim();
+    const series = (req.body.series || '').trim();
+    const iso = (req.body.iso || '').toString().trim();
+    const format = (req.body.format || '').trim();
+    const typeInput = (req.body.type || '').trim();
+    const description = (req.body.description || '').trim();
     
     // 处理文件上传
     let packageImagePath = null;
@@ -316,23 +339,21 @@ const updateFilmStock = (req, res) => {
     }
     
     // 生成新的胶卷品类编号：品牌缩写+系列缩写+格式+类型缩写（无分隔符）
-    const brandShort = brand.substring(0, 3).toUpperCase();
-    const seriesShort = series.substring(0, 3).toUpperCase().replace(/\s+/g, '');
-    const formatShort = format.replace('mm', '').toUpperCase();
-    let typeShort = '';
-    if (type.toLowerCase().includes('color') || type.toLowerCase().includes('彩色')) {
-      if (type.toLowerCase().includes('negative') || type.toLowerCase().includes('负片')) {
-        typeShort = 'CN';
-      } else if (type.toLowerCase().includes('slide') || type.toLowerCase().includes('反转')) {
-        typeShort = 'SL'; // Slide 反转片
-      } else {
-        typeShort = 'CN';
-      }
-    } else if (type.toLowerCase().includes('black') || type.toLowerCase().includes('white') || type.toLowerCase().includes('黑白')) {
-      typeShort = 'BW';
-    } else {
-      typeShort = type.substring(0, 2).toUpperCase();
+    const brandShort = brand.substring(0, Math.min(3, brand.length)).padEnd(3, brand.slice(-1)).toUpperCase();
+    const seriesShort = series.substring(0, Math.min(3, series.length)).padEnd(3, series.slice(-1)).toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
+    const formatShort = format.replace(/mm|MM/g, '').toUpperCase();
+    
+    let filmType;
+    try {
+      filmType = ensureFilmType(typeInput);
+    } catch (err) {
+      return res.status(400).json({
+        success: false,
+        message: err.message
+      });
     }
+    const typeCode = filmType.code;
+    const typeShort = filmType.shortCode || filmType.code.substring(0, 2).toUpperCase();
     
     // 无分隔符，更简洁：KODPOR135CN
     const stockSerialNumber = `${brandShort}${seriesShort}${formatShort}${typeShort}`;
@@ -359,7 +380,7 @@ const updateFilmStock = (req, res) => {
     }
     
     // 验证必填字段
-    if (!brand || !series || !iso || !format || !type) {
+    if (!brand || !series || !iso || !format || !typeCode) {
       return res.status(400).json({
         success: false,
         message: '品牌、系列、ISO、规格、类型为必填字段'
@@ -377,7 +398,7 @@ const updateFilmStock = (req, res) => {
     // 检查是否与其他胶卷品类冲突（排除自己）
     const conflictingStock = query(
       'SELECT id FROM film_stocks WHERE brand = ? AND series = ? AND iso = ? AND format = ? AND type = ? AND id != ?',
-      [brand, series, parseInt(iso), format, type, id]
+      [brand, series, parseInt(iso), format, typeCode, id]
     );
     
     if (conflictingStock.length > 0) {
@@ -393,7 +414,7 @@ const updateFilmStock = (req, res) => {
     const result = insert(
       `UPDATE film_stocks SET stock_serial_number = ?, brand = ?, series = ?, iso = ?, format = ?, type = ?, description = ?, package_image = ?, cartridge_image = ?, updated_at = ? 
        WHERE id = ?`,
-      [stockSerialNumber, brand, series, parseInt(iso), format, type, description || '', packageImagePath, cartridgeImagePath, now, id]
+      [stockSerialNumber, brand, series, parseInt(iso), format, typeCode, description || '', packageImagePath, cartridgeImagePath, now, id]
     );
     
     if (result.changes === 0) {
@@ -404,7 +425,10 @@ const updateFilmStock = (req, res) => {
     }
     
     // 获取更新后的胶卷品类
-    const updatedStock = query('SELECT * FROM film_stocks WHERE id = ?', [id]);
+    const updatedStock = query('SELECT * FROM film_stocks WHERE id = ?', [id]).map((item) => ({
+      ...item,
+      type_label: getFilmTypeLabel(item.type)
+    }));
     
     console.log('胶卷品类更新成功:', { id, result, updatedStock: updatedStock[0] });
     

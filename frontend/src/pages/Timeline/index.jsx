@@ -10,6 +10,7 @@ import {
   normalizeShortCode
 } from '../../utils/shortLink.js';
 import { resolveProtectionLevelInfo } from '../../constants/protectionLevels.js';
+import { useScrollContainer } from '../../contexts/ScrollContainerContext';
 
 const Timeline = () => {
   const navigate = useNavigate();
@@ -24,6 +25,8 @@ const Timeline = () => {
   const [showUI, setShowUI] = useState(true); // 控制UI显示状态
   const initialPathRef = useRef(window.location.pathname || '/timeline');
   const hasPushedShortLinkRef = useRef(false);
+  const { authRef } = useScrollContainer() || {};
+  const isAdminUser = Boolean(authRef?.isAdmin);
 
   const logShortLinkEvent = useCallback((level, message, payload = {}) => {
     const prefix = '[Timeline][ShortLink]';
@@ -74,12 +77,23 @@ const Timeline = () => {
 
   const mapPhotoRecord = useCallback((photo, { fallbackIdPrefix = 'timeline-photo', fallbackTitle = '未命名照片' } = {}) => {
     if (!photo) return null;
-    const filename = photo.filename || photo.original_name || '';
-    const baseName = filename ? filename.replace(/\.[^.]+$/, '') : '';
-    const thumbnail = photo.thumbnail || (baseName ? `${API_CONFIG.BASE_URL}/uploads/thumbnails/${baseName}_thumb.jpg` : '');
-    const original = photo.original || (filename ? `${API_CONFIG.BASE_URL}/uploads/${filename}` : thumbnail);
-    const size1024 = photo.size1024 || (baseName ? `${API_CONFIG.BASE_URL}/uploads/size1024/${baseName}_1024.jpg` : thumbnail);
-    const size2048 = photo.size2048 || (baseName ? `${API_CONFIG.BASE_URL}/uploads/size2048/${baseName}_2048.jpg` : original);
+
+    const normalizeUrl = (url) => {
+      if (!url) return null;
+      if (typeof url !== 'string') return null;
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+      return `${API_CONFIG.BASE_URL}${url}`;
+    };
+
+    const backendThumbnail = normalizeUrl(photo.thumbnail);
+    const backendOriginal = normalizeUrl(photo.original);
+    const backendSize1024 = normalizeUrl(photo.size1024);
+    const backendSize2048 = normalizeUrl(photo.size2048);
+    const hasBackendImageUrl = Boolean(backendThumbnail || backendSize1024 || backendSize2048 || backendOriginal);
+
+    const filename = hasBackendImageUrl ? (photo.filename || photo.original_name || '') : '';
     const takenDate = photo.taken_date;
     const uploadedAt = photo.uploaded_at;
     const displayDate = photo.date
@@ -88,15 +102,24 @@ const Timeline = () => {
       photo.effective_protection !== undefined ? photo.effective_protection : photo.is_protected
     );
 
+    const sanitizedRaw = hasBackendImageUrl ? photo : {
+      ...photo,
+      filename: undefined,
+      original: undefined,
+      size1024: undefined,
+      size2048: undefined,
+      thumbnail: undefined
+    };
+
     const mapped = {
       id: photo.id || `${fallbackIdPrefix}-${photo.photo_number || Date.now()}`,
-      title: photo.title || filename || fallbackTitle,
+      title: photo.title || (hasBackendImageUrl ? filename : '') || fallbackTitle,
       description: photo.description || '',
-      thumbnail,
-      original,
-      size1024,
-      size2048,
-      filename,
+      thumbnail: backendThumbnail,
+      original: backendOriginal,
+      size1024: backendSize1024,
+      size2048: backendSize2048,
+      filename: filename || undefined,
       camera: photo.camera_name || photo.camera_model || photo.camera_brand || '未知相机',
       camera_brand: photo.camera_brand,
       camera_model: photo.camera_model,
@@ -122,7 +145,7 @@ const Timeline = () => {
       effective_protection: effectiveProtection,
       shortCode: getPhotoShortCode(photo),
       short_link: resolvePhotoShortLink(photo),
-      _raw: photo
+      _raw: sanitizedRaw
     };
     if (!mapped.shortCode) {
       logShortLinkEvent('warn', 'mapped photo missing shortCode', {
@@ -358,12 +381,8 @@ const Timeline = () => {
 
   // 渲染照片内容（处理加密照片）
   const renderPhotoContent = (photo, className = "w-full h-64 object-cover hover:scale-105 transition-transform duration-300") => {
-    const isAdmin = (() => {
-      try { const u = JSON.parse(localStorage.getItem('user')); return u && u.username === 'admin'; }
-      catch (e) { return false; }
-    })();
     const effectivePrivate = !!(photo?.effective_protection || photo?._raw?.effective_protection || photo?._raw?.effective_private);
-    const isPrivateForViewer = effectivePrivate && !isAdmin;
+    const isPrivateForViewer = effectivePrivate && !isAdminUser;
 
     if (isPrivateForViewer) {
       const protectionInfo = resolveProtectionLevelInfo(photo?.protection_level);

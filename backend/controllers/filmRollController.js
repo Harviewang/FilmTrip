@@ -146,10 +146,10 @@ const createFilmRoll = async (req, res) => {
     } = req.body;
     
     // 验证必填字段
-    if (!film_stock_id || !name) {
+    if (!film_stock_id) {
       return res.status(400).json({
         success: false,
-        message: '胶卷品类、名称为必填字段'
+        message: '胶卷品类为必填字段'
       });
     }
     
@@ -180,6 +180,7 @@ const createFilmRoll = async (req, res) => {
     
     // 格式化编号为 YYYYMMDD-XXX 格式
     const roll_number = `${today}-${nextNumber.toString().padStart(3, '0')}`;
+    const displayName = typeof name === 'string' && name.trim() ? name.trim() : roll_number;
     
     // 检查生成的编号是否唯一（理论上不会重复，但为了安全）
     const existingRoll = query('SELECT id FROM film_rolls WHERE roll_number = ?', [roll_number]);
@@ -207,7 +208,7 @@ const createFilmRoll = async (req, res) => {
     
     // 插入数据
     console.log('准备插入数据:', {
-      id, film_stock_id, roll_number, name, opened_date: opened_date || null, 
+      id, film_stock_id, roll_number, name: displayName, opened_date: opened_date || null, 
       location: location || null, camera_id: camera_id || null, 
       status: '未启封', notes: notes || '', created_at: now, updated_at: now
     });
@@ -218,7 +219,7 @@ const createFilmRoll = async (req, res) => {
         camera_id, status, notes, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      id, film_stock_id, roll_number, name, opened_date || null, location || null,
+      id, film_stock_id, roll_number, displayName, opened_date || null, location || null,
       camera_id || null, '未启封', notes || '', now, now
     ]);
     
@@ -294,10 +295,10 @@ const updateFilmRoll = async (req, res) => {
     }
     
     // 验证必填字段
-    if (!film_stock_id || !roll_number || !name) {
+    if (!film_stock_id || !roll_number) {
       return res.status(400).json({
         success: false,
-        message: '胶卷品类、编号、名称为必填字段'
+        message: '胶卷品类、编号为必填字段'
       });
     }
     
@@ -342,6 +343,8 @@ const updateFilmRoll = async (req, res) => {
     }
     
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const safeNameSource = typeof name === 'string' ? name.trim() : '';
+    const resolvedName = safeNameSource || existingRoll[0].roll_number;
     
     // 更新数据
     const result = insert(`
@@ -351,7 +354,7 @@ const updateFilmRoll = async (req, res) => {
         scanner_id = ?, status = ?, is_private = COALESCE(?, is_private), notes = ?, updated_at = ?
       WHERE id = ?
     `, [
-      film_stock_id, roll_number, name, opened_date || null, location || null,
+      film_stock_id, roll_number, resolvedName, opened_date || null, location || null,
       camera_id || null, developed_date || null, developer || null, development_method || null,
       scanner_id || null, status || '未启封', (is_private === undefined ? null : (is_private ? 1 : 0)), notes || '', now, id
     ]);

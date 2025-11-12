@@ -126,6 +126,9 @@ const initialize = () => {
         country TEXT,
         province TEXT,
         city TEXT,
+        district TEXT,
+        street TEXT,
+        township TEXT,
         rating INTEGER DEFAULT 0,
         categories TEXT,
         trip_name TEXT,
@@ -134,14 +137,20 @@ const initialize = () => {
         is_encrypted BOOLEAN DEFAULT 0,
         is_private BOOLEAN DEFAULT 0,
         is_protected INTEGER DEFAULT 0,
-        protection_level INTEGER DEFAULT 0,
+        protection_level TEXT DEFAULT NULL,
+        tags TEXT,
         width INTEGER,
         height INTEGER,
         orientation INTEGER DEFAULT 1,
         rotation INTEGER DEFAULT 0,
-        tags TEXT,
         uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        file_hash TEXT,
+        storage_variant TEXT NOT NULL DEFAULT 'WEB',
+        short_code TEXT,
+        origin_bucket TEXT DEFAULT 'local-dev',
+        origin_path TEXT,
+        deleted_at TIMESTAMP,
         FOREIGN KEY (film_roll_id) REFERENCES film_rolls(id),
         FOREIGN KEY (camera_id) REFERENCES cameras(id)
       );
@@ -159,6 +168,64 @@ const initialize = () => {
         
         -- 优化：taken_date索引（如果ORDER BY taken_date需要）
         CREATE INDEX IF NOT EXISTS idx_photos_taken_date ON photos(taken_date DESC);
+        
+        -- 命名与存储规范相关索引
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_photos_file_hash_variant
+          ON photos(file_hash, storage_variant)
+          WHERE file_hash IS NOT NULL AND storage_variant IS NOT NULL;
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_photos_short_code
+          ON photos(short_code)
+          WHERE short_code IS NOT NULL;
+
+        -- 命名与存储规范错误记录表
+        CREATE TABLE IF NOT EXISTS storage_variant_errors (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          photo_id TEXT,
+          variant TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          message TEXT
+        );
+
+        -- 重新创建存储变体与短链触发器约束
+        DROP TRIGGER IF EXISTS trg_photos_storage_variant_insert;
+        DROP TRIGGER IF EXISTS trg_photos_storage_variant_update;
+
+        CREATE TRIGGER IF NOT EXISTS trg_photos_storage_variant_insert
+        BEFORE INSERT ON photos
+        FOR EACH ROW
+        BEGIN
+          SELECT CASE
+            WHEN NEW.storage_variant IN ('RAW','WEB','THUMB','SHARE') THEN 0
+            ELSE RAISE(ABORT, 'INVALID_STORAGE_VARIANT')
+          END;
+          SELECT CASE
+            WHEN NEW.file_hash IS NULL OR LENGTH(NEW.file_hash) = 64 THEN 0
+            ELSE RAISE(ABORT, 'INVALID_FILE_HASH')
+          END;
+          SELECT CASE
+            WHEN NEW.short_code IS NULL OR LENGTH(NEW.short_code) = 5 THEN 0
+            ELSE RAISE(ABORT, 'INVALID_SHORT_CODE_LENGTH')
+          END;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS trg_photos_storage_variant_update
+        BEFORE UPDATE ON photos
+        FOR EACH ROW
+        BEGIN
+          SELECT CASE
+            WHEN NEW.storage_variant IN ('RAW','WEB','THUMB','SHARE') THEN 0
+            ELSE RAISE(ABORT, 'INVALID_STORAGE_VARIANT')
+          END;
+          SELECT CASE
+            WHEN NEW.file_hash IS NULL OR LENGTH(NEW.file_hash) = 64 THEN 0
+            ELSE RAISE(ABORT, 'INVALID_FILE_HASH')
+          END;
+          SELECT CASE
+            WHEN NEW.short_code IS NULL OR LENGTH(NEW.short_code) = 5 THEN 0
+            ELSE RAISE(ABORT, 'INVALID_SHORT_CODE_LENGTH')
+          END;
+        END;
       `);
       console.log('地图相关索引创建成功');
     } catch (indexError) {
@@ -262,6 +329,27 @@ const initialize = () => {
           console.log(`已添加 ${field.name} 字段到 photos 表`);
         }
       });
+
+      const storageFields = [
+        { name: 'file_hash', type: 'TEXT' },
+        { name: 'storage_variant', type: "TEXT DEFAULT 'WEB'" },
+        { name: 'short_code', type: 'TEXT' },
+        { name: 'origin_bucket', type: "TEXT DEFAULT 'local-dev'" },
+        { name: 'origin_path', type: 'TEXT' },
+        { name: 'deleted_at', type: 'TIMESTAMP' }
+      ];
+
+      storageFields.forEach(field => {
+        if (!existingColumns.includes(field.name)) {
+          db.exec(`ALTER TABLE photos ADD COLUMN ${field.name} ${field.type}`);
+          console.log(`已添加 ${field.name} 字段到 photos 表`);
+        }
+      });
+
+      if (!existingColumns.includes('storage_variant')) {
+        db.exec("UPDATE photos SET storage_variant = 'WEB' WHERE storage_variant IS NULL");
+        console.log('已回填 storage_variant 默认值 WEB');
+      }
 
       // 2025-10-23 添加照片尺寸和方向相关字段
       const sizeOrientationFields = [

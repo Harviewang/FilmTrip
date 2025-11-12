@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ArrowsPointingOutIcon, ArrowsPointingInIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -6,8 +7,14 @@ import API_CONFIG from '../../config/api.js';
 import LazyImage from '../../components/LazyImage';
 import PhotoPreview from '../../components/PhotoPreview';
 import './Map.css';
+import {
+  getPhotoShortCode,
+  resolvePhotoShortLink,
+  buildShortLinkPath
+} from '../../utils/shortLink.js';
 
 const MapLibre = () => {
+  const location = useLocation();
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
@@ -15,7 +22,120 @@ const MapLibre = () => {
   const [userLocation, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(3);
-  
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const getInitialPath = () => {
+    if (typeof window === 'undefined') return '/map';
+    try {
+      const url = new URL(window.location.href);
+      if (url.pathname === '/map' && url.searchParams.has('photo')) {
+        return '/map';
+      }
+      if (/^\/s\/[0-9A-Za-z]{5,8}$/.test(url.pathname)) {
+        return url.pathname; // 嵌套场景下保持原短链
+      }
+      return `${url.pathname}${url.search}`;
+    } catch (error) {
+      console.warn('[MapLibre][ShortLink]', 'failed to parse initial URL', { error });
+      return '/map';
+    }
+  };
+
+  const initialPathRef = useRef(getInitialPath());
+  const hasPushedShortLinkRef = useRef(false);
+  const pendingHistoryModeRef = useRef('auto');
+
+  const logShortLinkEvent = useCallback((level, message, payload = {}) => {
+    if (typeof window !== 'undefined') {
+      window.__mapShortLinkLogs = window.__mapShortLinkLogs || [];
+      window.__mapShortLinkLogs.push({
+        timestamp: new Date().toISOString(),
+        level,
+        message,
+        ...payload
+      });
+    }
+    const prefix = '[MapLibre][ShortLink]';
+    if (level === 'warn') {
+      console.warn(prefix, message, payload);
+    } else {
+      console.log(prefix, message, payload);
+    }
+  }, []);
+
+  const updateHistoryForPhoto = useCallback((photo, { replace = false } = {}) => {
+    if (typeof window === 'undefined' || !photo) return;
+    const shortCode = getPhotoShortCode(photo);
+    const shortLinkPath = buildShortLinkPath(shortCode);
+    if (!shortLinkPath) {
+      logShortLinkEvent('warn', 'skip history update, missing short code', {
+        id: photo?.id,
+        rawShortCode: photo?._raw?.short_code
+      });
+      return;
+    }
+    logShortLinkEvent('info', 'updateHistoryForPhoto', {
+      shortLinkPath,
+      replace,
+      code: shortCode,
+      currentHref: window.location.href
+    });
+    const method = replace ? 'replaceState' : 'pushState';
+    if (!replace) {
+      hasPushedShortLinkRef.current = true;
+    }
+    window.history[method](
+      { modal: true, source: 'map' },
+      '',
+      shortLinkPath
+    );
+  }, [logShortLinkEvent]);
+
+  const restoreHistoryPath = useCallback(() => {
+    if (typeof window === 'undefined' || !hasPushedShortLinkRef.current) return;
+    const fallbackPath = initialPathRef.current || '/map';
+    window.history.replaceState(
+      { modal: false, source: 'map' },
+      '',
+      fallbackPath
+    );
+    hasPushedShortLinkRef.current = false;
+    logShortLinkEvent('info', 'restoreHistoryPath', { path: fallbackPath });
+  }, [logShortLinkEvent]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
+      if (hasPushedShortLinkRef.current) {
+        setSelectedPhoto(null);
+        hasPushedShortLinkRef.current = false;
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => () => {
+    restoreHistoryPath();
+  }, [restoreHistoryPath]);
+
+  useEffect(() => {
+    if (!selectedPhoto || selectedPhoto.loading) return;
+    const historyMode = pendingHistoryModeRef.current;
+    const shouldReplace = historyMode === 'replace'
+      || (historyMode === 'auto' && hasPushedShortLinkRef.current);
+
+    logShortLinkEvent('info', 'updateHistoryEffect', {
+      mode: historyMode,
+      hasPushed: hasPushedShortLinkRef.current,
+      replace: shouldReplace,
+      id: selectedPhoto.id,
+      shortCode: getPhotoShortCode(selectedPhoto)
+    });
+
+    updateHistoryForPhoto(selectedPhoto, { replace: shouldReplace });
+    pendingHistoryModeRef.current = 'auto';
+  }, [selectedPhoto, updateHistoryForPhoto]);
+
   // 自动降级：检查月初重置和配额限制
   const getAutoMapStyle = () => {
     const today = new Date();
@@ -165,8 +285,6 @@ const MapLibre = () => {
     }
   };
   
-  const [photoIndex, setPhotoIndex] = useState(0);
-  
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
@@ -273,6 +391,7 @@ const MapLibre = () => {
       }
       
       // 映射到前端期望的格式
+      const shortCode = getPhotoShortCode(photo);
       const mappedPhoto = {
         id: photo.id || photoId,
         title: photo.title || photo.filename || '无标题',
@@ -293,8 +412,24 @@ const MapLibre = () => {
         district: photo.district,
         township: photo.township,
         effective_protection: photo.effective_protection,
+        shortCode,
+        short_link: resolvePhotoShortLink(photo),
         _raw: photo
       };
+      
+      if (!shortCode) {
+        logShortLinkEvent('warn', 'photo detail missing shortCode', {
+          photoId,
+          rawShortCode: photo?.short_code,
+          source: 'fetchPhotoDetail'
+        });
+      } else {
+        logShortLinkEvent('info', 'photo detail resolved', {
+          photoId,
+          shortCode,
+          short_link: mappedPhoto.short_link
+        });
+      }
       
       return mappedPhoto;
     } catch (error) {
@@ -305,9 +440,48 @@ const MapLibre = () => {
   
   // 照片详情缓存（避免重复请求）
   const photoDetailCache = useRef(new Map());
+  const openPhotoById = useCallback(async (photoId, { replaceHistory = false } = {}) => {
+    if (!photoId) return false;
+    const normalizedId = photoId.toString();
+    pendingHistoryModeRef.current = replaceHistory ? 'replace' : 'auto';
+    logShortLinkEvent('info', 'openPhotoById', { photoId: normalizedId, replaceHistory });
+    if (photoDetailCache.current.has(normalizedId)) {
+      setSelectedPhoto(photoDetailCache.current.get(normalizedId));
+      return true;
+    }
+    setSelectedPhoto({ id: normalizedId, loading: true, _pendingSource: replaceHistory ? 'legacy-query' : 'direct' });
+    const detail = await fetchPhotoDetail(normalizedId);
+    if (detail) {
+      photoDetailCache.current.set(normalizedId, detail);
+      setSelectedPhoto(detail);
+      return true;
+    }
+    pendingHistoryModeRef.current = 'auto';
+    setSelectedPhoto(null);
+    return false;
+  }, [fetchPhotoDetail, logShortLinkEvent]);
+
+  useEffect(() => {
+    const search = location?.search || '';
+    if (!search) return;
+    const urlParams = new URLSearchParams(search);
+    const photoIdParam = urlParams.get('photo');
+    if (photoIdParam) {
+      logShortLinkEvent('info', 'detected photo query param', { photoIdParam });
+      openPhotoById(photoIdParam, { replaceHistory: true });
+    }
+  }, [location?.search, openPhotoById, logShortLinkEvent]);
   
   // 防抖函数引用：避免地图移动时频繁请求标点
   const debouncedFetchMarkersRef = useRef(null);
+  const handlePreviewClose = useCallback(() => {
+    setSelectedPhoto(null);
+    restoreHistoryPath();
+  }, [restoreHistoryPath]);
+  const handlePreviewPhotoChange = useCallback((newPhoto, newIndex) => {
+    setSelectedPhoto(newPhoto);
+    setPhotoIndex(newIndex);
+  }, []);
 
   // 获取用户位置
   const getUserLocation = () => {
@@ -780,17 +954,13 @@ const MapLibre = () => {
         photo={selectedPhoto}
         photos={photos}
         isOpen={!!selectedPhoto}
-        onClose={() => setSelectedPhoto(null)}
+        onClose={handlePreviewClose}
         currentPath="/map"
         showNavigation={true}
-        onPhotoChange={(newPhoto, newIndex) => {
-          setSelectedPhoto(newPhoto);
-          setPhotoIndex(newIndex);
-        }}
+        onPhotoChange={handlePreviewPhotoChange}
       />
     </div>
   );
 };
 
 export default MapLibre;
-

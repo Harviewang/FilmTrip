@@ -34,15 +34,19 @@ const RandomFilmStrip = ({
 
       {photos && photos.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {photos.map((photo, index) => (
-            <div
-              key={photo.id || index}
-              className="group"
-              onClick={() => handleClick(photo, index)}
-            >
-              {renderPhotoCard ? renderPhotoCard(photo, true, false) : null}
-            </div>
-          ))}
+          {photos.map((photo, index) => {
+            const rendered = renderPhotoCard ? renderPhotoCard(photo, true, false) : null;
+            if (!rendered) return null;
+            return (
+              <div
+                key={photo.id || index}
+                className="group"
+                onClick={() => handleClick(photo, index)}
+              >
+                {rendered}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="w-full py-16 flex flex-col items-center justify-center text-center">
