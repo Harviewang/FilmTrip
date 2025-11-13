@@ -74,9 +74,11 @@ cat .env | grep UPYUN
 
 # 应该看到：
 # UPYUN_BUCKET=filmtrip-dev
-# UPYUN_OPERATOR=2f7e682861014d71a9119678f8027deb
-# UPYUN_PASSWORD=...
-# UPYUN_FORM_API_SECRET=402e4c36b7c75b85586f5fa12b27bc89
+# UPYUN_OPERATOR=[存储在.env文件中]
+# UPYUN_PASSWORD=[存储在.env文件中]
+# UPYUN_FORM_API_SECRET=[存储在.env文件中]
+
+⚠️ **安全提示**：密钥应存储在 `.env` 文件中，不要出现在文档中！
 ```
 
 ### 步骤3: 测试策略生成
