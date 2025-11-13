@@ -1,23 +1,34 @@
 const betterSqlite3 = require('better-sqlite3');
 const path = require('path');
 
-// 数据库连接
-const dbPath = path.join(__dirname, '../data/filmtrip.db');
-const db = betterSqlite3(dbPath);
+// 检查是否使用PostgreSQL
+const usePostgreSQL = Boolean(process.env.DATABASE_URL || process.env.DB_HOST);
 
-// 数据库初始化
-const initialize = () => {
-  try {
-    // 创建用户表
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        username TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
+// 如果配置了PostgreSQL，使用PostgreSQL连接层
+if (usePostgreSQL) {
+  console.log('📊 使用PostgreSQL数据库');
+  module.exports = require('./db-pg');
+} else {
+  // 否则使用SQLite（默认）
+  console.log('📊 使用SQLite数据库');
+
+  // 数据库连接
+  const dbPath = path.join(__dirname, '../data/filmtrip.db');
+  const db = betterSqlite3(dbPath);
+
+  // 数据库初始化
+  const initialize = () => {
+    try {
+      // 创建用户表
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          username TEXT NOT NULL UNIQUE,
+          password TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
 
                 // 创建胶卷品类表
             db.exec(`
@@ -497,3 +508,4 @@ module.exports = {
   update,
   delete: deleteRecord
 };
+}
