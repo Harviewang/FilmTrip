@@ -10,6 +10,7 @@
     "fix-dimensions": "node scripts/fix-photo-dimensions.js",
     "check-dimensions": "node scripts/fix-photo-dimensions.js check",
     "backup-sqlite": "bash scripts/backup-sqlite.sh",
+    "test:pg": "node scripts/test-postgresql-connection.js",
     "migrate:pg:schema": "node scripts/migrate-to-postgresql-schema.js",
     "migrate:pg:data": "node scripts/migrate-to-postgresql-data.js"
   },
