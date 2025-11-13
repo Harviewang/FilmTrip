@@ -1,0 +1,51 @@
+# Vercel忽略文件
+# 排除不需要部署到Vercel的文件
+
+# 依赖（Vercel会自动安装）
+node_modules/
+
+# 上传的文件（不应该部署）
+uploads/
+uploads/**
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+database.sqlite
+database.db
+
+# 日志文件
+*.log
+logs/
+server.log
+
+# 环境变量文件（Vercel使用环境变量设置）
+.env
+.env.local
+.env.test
+.env.production
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 测试文件
+test/
+tests/
+test-*.js
+*.test.js
+*.spec.js
+
+# 构建产物（如果需要）
+dist/
+build/
+
+# Vercel配置
+.vercel/
+
