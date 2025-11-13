@@ -144,7 +144,7 @@
 - `UPYUN_BUCKET`: `filmtrip-dev`（开发环境）
 - `UPYUN_OPERATOR`: 已配置
 - `UPYUN_PASSWORD`: 已配置
-- `UPYUN_FORM_API_SECRET`: 已配置（`KsdvRi49VRNj7W9NcHQj9BYDAPw=`）
+- `UPYUN_FORM_API_SECRET`: 已配置（密钥存储在.env文件中，已从文档中移除）⚠️ **安全提示：密钥不应出现在文档中**
 - `UPYUN_CDN_DOMAIN`: `http://filmtrip-dev.test.upcdn.net`（开发环境）
 - `UPYUN_NOTIFY_URL`: `https://api.filmtrip.cn/api/storage/callback`
 - `UPYUN_IMAGE_PROCESSING_ENABLED`: `true`

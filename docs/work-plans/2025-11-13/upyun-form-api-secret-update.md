@@ -6,7 +6,7 @@
 ## 问题描述
 
 用户提供了又拍云控制台中的"文件密钥"（File Key）：
-- 密钥值: `KsdvRi49VRNj7W9NcHQj9BYDAPw=`
+- 密钥值: `[已配置，已从文档中移除]` ⚠️ **安全提示：密钥不应出现在文档中**
 - 状态: 已开启（绿色 ON 开关）
 - 这是 FORM API 签名密钥，用于生成上传策略
 
@@ -20,7 +20,7 @@
    - 开关: 绿色 ON 开关（控制文件密钥功能）
 
 2. **密钥信息**：
-   - 密钥值: `KsdvRi49VRNj7W9NcHQj9BYDAPw=`（被掩码显示）
+   - 密钥值: `[已配置，已从文档中移除]` ⚠️ **安全提示：密钥不应出现在文档中**
    - 操作按钮: "隐藏"、"更换密钥"、"复制密钥"
 
 3. **警告信息**（红色）：
@@ -38,13 +38,15 @@
 
 **修改前**:
 ```env
-UPYUN_FORM_API_SECRET=402e4c36b7c75b85586f5fa12b27bc89
+UPYUN_FORM_API_SECRET=[旧密钥，已从文档中移除]
 ```
 
 **修改后**:
 ```env
-UPYUN_FORM_API_SECRET=KsdvRi49VRNj7W9NcHQj9BYDAPw=
+UPYUN_FORM_API_SECRET=[新密钥，已从文档中移除]
 ```
+
+⚠️ **安全提示**：密钥应存储在 `.env` 文件中，不要出现在文档中！
 
 ### 2. 重启后端服务
 - 更新 `.env` 文件后，需要重启后端服务
@@ -63,7 +65,7 @@ UPYUN_FORM_API_SECRET=KsdvRi49VRNj7W9NcHQj9BYDAPw=
 
 ### 2. 密钥格式
 - 又拍云 FORM API 密钥通常是 base64 编码的字符串
-- 例如: `KsdvRi49VRNj7W9NcHQj9BYDAPw=`
+- 例如: `[示例已移除]` ⚠️ **不要在文档中展示真实密钥**
 
 ### 3. 密钥安全
 - 密钥应该保密，不要提交到代码仓库

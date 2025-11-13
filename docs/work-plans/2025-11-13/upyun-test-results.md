@@ -13,9 +13,9 @@
 
 ### ✅ 已配置
 - **UPYUN_BUCKET**: `filmtrip-dev`
-- **UPYUN_OPERATOR**: `2f7e682861014d71a9119678f8027deb`
-- **UPYUN_PASSWORD**: `2f7e682861014d71a9119678f8027deb`（第一个值）
-- **UPYUN_FORM_API_SECRET**: `402e4c36b7c75b85586f5fa12b27bc89`（第二个值）
+- **UPYUN_OPERATOR**: `[已配置，存储在.env文件中]` ⚠️ **安全提示：密钥不应出现在文档中**
+- **UPYUN_PASSWORD**: `[已配置，存储在.env文件中]`（第一个值）⚠️ **安全提示：密钥不应出现在文档中**
+- **UPYUN_FORM_API_SECRET**: `[已配置，存储在.env文件中]`（第二个值）⚠️ **安全提示：密钥不应出现在文档中**
 - **UPYUN_CDN_DOMAIN**: `https://filmtrip-dev.test.upcdn.net`
 - **UPYUN_NOTIFY_URL**: `https://api.filmtrip.cn/api/storage/callback`
 - **UPYUN_IMAGE_PROCESSING_ENABLED**: `true`
@@ -108,7 +108,7 @@ UPYUN form API configured: true
 ### 2. 配置问题
 **问题**: `UPYUN_PASSWORD` 未设置，导致配置验证失败
 
-**修复**: 将第一个值（`2f7e682861014d71a9119678f8027deb`）作为 `UPYUN_PASSWORD`
+**修复**: 将第一个值作为 `UPYUN_PASSWORD`（密钥已从文档中移除）⚠️ **安全提示：密钥不应出现在文档中**
 
 **文件**: `backend/.env`
 

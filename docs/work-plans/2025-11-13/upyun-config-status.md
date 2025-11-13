@@ -6,15 +6,15 @@
 ## 配置值
 
 已提供的两个值：
-1. `2f7e682861014d71a9119678f8027deb`
-2. `402e4c36b7c75b85586f5fa12b27bc89`
+1. `[密钥1，已从文档中移除]` ⚠️ **安全提示：密钥不应出现在文档中**
+2. `[密钥2，已从文档中移除]` ⚠️ **安全提示：密钥不应出现在文档中**
 
 ## 当前配置状态
 
 ### ✅ 已配置
 - **UPYUN_BUCKET**: `filmtrip-dev`（需要确认实际值）
-- **UPYUN_OPERATOR**: `2f7e682861014d71a9119678f8027deb`（第一个值）
-- **UPYUN_FORM_API_SECRET**: `402e4c36b7c75b85586f5fa12b27bc89`（第二个值）
+- **UPYUN_OPERATOR**: `[已配置，已从文档中移除]` ⚠️ **安全提示：密钥不应出现在文档中**
+- **UPYUN_FORM_API_SECRET**: `[已配置，已从文档中移除]` ⚠️ **安全提示：密钥不应出现在文档中**
 - **UPYUN_CDN_DOMAIN**: `https://img.filmtrip.cn`（需要确认实际值）
 - **UPYUN_NOTIFY_URL**: `https://api.filmtrip.cn/api/storage/callback`（需要确认实际值）
 - **UPYUN_IMAGE_PROCESSING_ENABLED**: `true`
@@ -38,8 +38,10 @@ UPYUN configured: false  # ❌ 配置未生效
 
 ### 1. 两个值的具体用途
 请确认这两个值分别对应哪个配置项：
-- `2f7e682861014d71a9119678f8027deb` = UPYUN_OPERATOR 还是 UPYUN_PASSWORD？
-- `402e4c36b7c75b85586f5fa12b27bc89` = UPYUN_FORM_API_SECRET 还是 UPYUN_PASSWORD？
+- `[密钥1]` = UPYUN_OPERATOR 还是 UPYUN_PASSWORD？
+- `[密钥2]` = UPYUN_FORM_API_SECRET 还是 UPYUN_PASSWORD？
+
+⚠️ **安全提示**：密钥值不应出现在文档中，应存储在 `.env` 文件中。
 
 ### 2. 必需的配置项
 - [ ] **UPYUN_PASSWORD**: 操作员密码（**必需**）
@@ -57,24 +59,26 @@ UPYUN configured: false  # ❌ 配置未生效
 
 ### 选项 A：如果第一个值是操作员名称
 ```env
-UPYUN_OPERATOR=2f7e682861014d71a9119678f8027deb
+UPYUN_OPERATOR=[密钥1，存储在.env文件中]
 UPYUN_PASSWORD=<需要提供>
-UPYUN_FORM_API_SECRET=402e4c36b7c75b85586f5fa12b27bc89
+UPYUN_FORM_API_SECRET=[密钥2，存储在.env文件中]
 ```
 
 ### 选项 B：如果第一个值是密码
 ```env
 UPYUN_OPERATOR=<需要提供>
-UPYUN_PASSWORD=2f7e682861014d71a9119678f8027deb
-UPYUN_FORM_API_SECRET=402e4c36b7c75b85586f5fa12b27bc89
+UPYUN_PASSWORD=[密钥1，存储在.env文件中]
+UPYUN_FORM_API_SECRET=[密钥2，存储在.env文件中]
 ```
 
 ### 选项 C：如果第二个值是密码
 ```env
-UPYUN_OPERATOR=2f7e682861014d71a9119678f8027deb
-UPYUN_PASSWORD=402e4c36b7c75b85586f5fa12b27bc89
+UPYUN_OPERATOR=[密钥1，存储在.env文件中]
+UPYUN_PASSWORD=[密钥2，存储在.env文件中]
 UPYUN_FORM_API_SECRET=<需要提供>
 ```
+
+⚠️ **安全提示**：密钥应存储在 `.env` 文件中，不要出现在文档中！
 
 ## 下一步操作
 

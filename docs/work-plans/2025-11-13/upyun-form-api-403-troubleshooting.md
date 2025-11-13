@@ -26,9 +26,9 @@ POST https://v0.api.upyun.com/filmtrip-dev/ 403 (Forbidden)
 
 ### 后端配置
 - `UPYUN_BUCKET`: `filmtrip-dev`
-- `UPYUN_OPERATOR`: `2f7e682861014d71a9119678f8027deb`
+- `UPYUN_OPERATOR`: `[已配置，存储在.env文件中]` ⚠️ **安全提示：密钥不应出现在文档中**
 - `UPYUN_PASSWORD`: 已配置
-- `UPYUN_FORM_API_SECRET`: `KsdvRi49VRNj7W9NcHQj9BYDAPw=`
+- `UPYUN_FORM_API_SECRET`: `[已配置，存储在.env文件中]` ⚠️ **安全提示：密钥不应出现在文档中**
 
 ### 策略生成验证
 - ✅ 策略生成成功
