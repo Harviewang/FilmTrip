@@ -23,8 +23,17 @@ const corsOptions = {
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3002',
       'https://filmtrip.cn',  // 生产环境前端
-      'https://filmtrip.imhw.top'  // 测试环境前端（兼容旧配置）
+      'https://www.filmtrip.cn',  // 生产环境前端（www）
+      'https://filmtrip.imhw.top',  // 测试环境前端（兼容旧配置）
+      'https://dbdog.com',  // Vercel自定义域名
+      'https://www.dbdog.com'  // Vercel自定义域名（www）
     ];
+    
+    // 允许Vercel域名（通配符匹配）
+    // Vercel部署地址格式：*.vercel.app
+    if (origin && origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
 
     // 检查环境变量中是否有额外的允许域名
     const additionalOrigins = process.env.CORS_ALLOWED_ORIGINS;
