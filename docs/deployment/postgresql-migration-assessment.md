@@ -457,3 +457,499 @@
 **评估人员**：Auto (AI Assistant)
 **状态**：待决策
 
+---
+
+## 10. 迁移实施步骤（详细版）
+
+### 10.1 准备阶段（第1天）
+
+#### 步骤1：创建Supabase项目
+1. 访问 https://supabase.com
+2. 注册账号（使用GitHub或邮箱）
+3. 点击 "New Project"
+4. 填写项目信息：
+   - Project Name: `filmtrip-prod` 或 `filmtrip-test`
+   - Database Password: 设置强密码（保存好！）
+   - Region: 选择 `East Asia (Singapore)` 或 `West US`
+5. 等待项目创建完成（约2-3分钟）
+
+#### 步骤2：获取数据库连接信息
+1. 在Supabase项目页面，点击左侧 "Settings" → "Database"
+2. 找到 "Connection string" → "Connection pooling"
+3. 复制连接字符串（格式：`postgresql://postgres:[password]@[host]:5432/postgres`）
+4. 保存以下信息：
+   - Host: `[host].supabase.co`
+   - Port: `5432`
+   - Database: `postgres`
+   - User: `postgres`
+   - Password: 刚才设置的密码
+
+#### 步骤3：备份SQLite数据库
+```bash
+# 在项目根目录执行
+cd backend
+cp data/filmtrip.db data/filmtrip.db.backup-$(date +%Y%m%d)
+# 验证备份
+ls -lh data/filmtrip.db.backup-*
+```
+
+#### 步骤4：测试PostgreSQL连接
+```bash
+# 安装PostgreSQL客户端（如果未安装）
+# macOS: brew install postgresql
+# 或使用Supabase CLI: npm install -g supabase
+
+# 使用psql测试连接
+psql "postgresql://postgres:[password]@[host].supabase.co:5432/postgres"
+# 如果连接成功，输入 \q 退出
+```
+
+---
+
+### 10.2 开发阶段（第2-3天）
+
+#### 步骤1：安装PostgreSQL客户端库
+```bash
+cd backend
+npm install pg
+# 或使用pg-promise（推荐，更简单）
+npm install pg-promise
+```
+
+#### 步骤2：创建PostgreSQL数据库连接层
+
+**创建新文件** `backend/models/db-pg.js`：
+
+```javascript
+const pgp = require('pg-promise')();
+const connectionString = process.env.DATABASE_URL || 
+  `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT || 5432}/${process.env.DB_NAME || 'postgres'}`;
+
+const db = pgp(connectionString);
+
+// 导出数据库操作方法（兼容现有API）
+const query = async (sql, params = []) => {
+  // 将SQLite的?占位符转换为PostgreSQL的$1, $2格式
+  let paramIndex = 0;
+  const convertedSql = sql.replace(/\?/g, () => {
+    paramIndex++;
+    return `$${paramIndex}`;
+  });
+  
+  return await db.any(convertedSql, params);
+};
+
+const insert = async (sql, params = []) => {
+  let paramIndex = 0;
+  const convertedSql = sql.replace(/\?/g, () => {
+    paramIndex++;
+    return `$${paramIndex}`;
+  });
+  
+  return await db.one(convertedSql, params);
+};
+
+const update = async (sql, params = []) => {
+  let paramIndex = 0;
+  const convertedSql = sql.replace(/\?/g, () => {
+    paramIndex++;
+    return `$${paramIndex}`;
+  });
+  
+  return await db.result(convertedSql, params);
+};
+
+const deleteRecord = async (sql, params = []) => {
+  let paramIndex = 0;
+  const convertedSql = sql.replace(/\?/g, () => {
+    paramIndex++;
+    return `$${paramIndex}`;
+  });
+  
+  return await db.result(convertedSql, params);
+};
+
+// 初始化数据库表结构
+const initialize = async () => {
+  try {
+    // 创建表结构（从SQLite迁移）
+    // ... 表创建SQL ...
+    
+    // 创建索引
+    // ... 索引创建SQL ...
+    
+    console.log('PostgreSQL数据库初始化完成');
+  } catch (error) {
+    console.error('PostgreSQL数据库初始化失败:', error);
+    throw error;
+  }
+};
+
+module.exports = {
+  db,
+  query,
+  insert,
+  update,
+  delete: deleteRecord,
+  initialize
+};
+```
+
+#### 步骤3：创建表结构迁移脚本
+
+**创建新文件** `backend/database/migrate-to-postgresql.sql`：
+
+```sql
+-- PostgreSQL表结构迁移脚本
+-- 从SQLite迁移到PostgreSQL
+
+-- 1. 用户表
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  password TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. 胶卷品类表
+CREATE TABLE IF NOT EXISTS film_stocks (
+  id TEXT PRIMARY KEY,
+  stock_serial_number TEXT UNIQUE NOT NULL,
+  brand TEXT NOT NULL,
+  series TEXT NOT NULL,
+  iso INTEGER NOT NULL,
+  format TEXT NOT NULL,
+  type TEXT NOT NULL,
+  description TEXT,
+  package_image TEXT,
+  cartridge_image TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ... 其他表结构 ...
+
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_photos_film_roll_id ON photos(film_roll_id);
+CREATE INDEX IF NOT EXISTS idx_photos_uploaded_at ON photos(uploaded_at);
+CREATE INDEX IF NOT EXISTS idx_film_rolls_status ON film_rolls(status);
+-- ... 其他索引 ...
+```
+
+#### 步骤4：修改Controller使用异步API
+
+**示例** `backend/controllers/photoController.js`：
+
+```javascript
+// 修改前（同步）
+const getAllPhotos = (req, res) => {
+  try {
+    const photos = query('SELECT * FROM photos');
+    res.json({ success: true, photos });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// 修改后（异步）
+const getAllPhotos = async (req, res) => {
+  try {
+    const photos = await query('SELECT * FROM photos');
+    res.json({ success: true, photos });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+```
+
+#### 步骤5：创建数据迁移脚本
+
+**创建新文件** `backend/scripts/migrate-data-to-postgresql.js`：
+
+```javascript
+const betterSqlite3 = require('better-sqlite3');
+const pgp = require('pg-promise')();
+const path = require('path');
+
+// SQLite数据库
+const sqliteDb = betterSqlite3(path.join(__dirname, '../data/filmtrip.db'));
+
+// PostgreSQL数据库
+const pgDb = pgp(process.env.DATABASE_URL);
+
+// 迁移数据
+async function migrateData() {
+  try {
+    console.log('开始迁移数据...');
+    
+    // 1. 迁移用户
+    const users = sqliteDb.prepare('SELECT * FROM users').all();
+    for (const user of users) {
+      await pgDb.none(
+        'INSERT INTO users (id, username, password, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING',
+        [user.id, user.username, user.password, user.created_at, user.updated_at]
+      );
+    }
+    console.log(`✅ 迁移用户: ${users.length} 条`);
+    
+    // 2. 迁移胶卷品类
+    // ... 类似操作 ...
+    
+    // 3. 迁移照片
+    // ... 类似操作 ...
+    
+    console.log('✅ 数据迁移完成');
+  } catch (error) {
+    console.error('❌ 数据迁移失败:', error);
+    throw error;
+  } finally {
+    sqliteDb.close();
+    pgp.end();
+  }
+}
+
+migrateData();
+```
+
+---
+
+### 10.3 测试阶段（第3天）
+
+#### 步骤1：在测试环境部署
+1. 在Supabase创建测试数据库项目
+2. 执行表结构迁移
+3. 执行数据迁移
+4. 部署代码到Vercel测试环境
+
+#### 步骤2：功能测试
+- [ ] 登录功能
+- [ ] 照片列表查询
+- [ ] 照片上传
+- [ ] 胶卷管理
+- [ ] 相机管理
+- [ ] 统计功能
+
+#### 步骤3：性能测试
+- [ ] 查询响应时间（目标：<500ms）
+- [ ] 并发访问测试
+- [ ] 数据库连接池测试
+
+---
+
+### 10.4 生产迁移（第4天）
+
+#### 步骤1：备份生产数据
+```bash
+# 完整备份SQLite数据库
+cp data/filmtrip.db data/filmtrip.db.backup-production-$(date +%Y%m%d-%H%M%S)
+```
+
+#### 步骤2：执行迁移
+1. 创建生产Supabase项目
+2. 执行表结构迁移
+3. 执行数据迁移
+4. 验证数据完整性
+
+#### 步骤3：部署到生产
+1. 更新环境变量（DATABASE_URL）
+2. 部署代码到Vercel生产环境
+3. 验证功能正常
+
+#### 步骤4：回滚准备
+- 保留SQLite数据库备份
+- 保留回滚脚本
+- 监控生产环境24小时
+
+---
+
+## 11. 风险清单
+
+### 11.1 技术风险
+
+| 风险 | 严重程度 | 概率 | 影响 | 缓解措施 |
+|------|---------|------|------|---------|
+| **数据丢失** | 🔴 高 | 低 | 数据丢失 | ✅ 完整备份SQLite数据库<br>✅ 迁移前验证数据完整性<br>✅ 迁移后对比数据数量 |
+| **功能回归** | 🔴 高 | 中 | 功能不工作 | ✅ 完整功能测试<br>✅ 逐步迁移，逐个验证<br>✅ 保留回滚方案 |
+| **性能下降** | 🟡 中 | 低 | 响应变慢 | ✅ 添加索引优化查询<br>✅ 使用连接池<br>✅ 监控查询性能 |
+| **连接问题** | 🟡 中 | 低 | 服务中断 | ✅ 配置连接池<br>✅ 设置超时和重试<br>✅ 监控连接状态 |
+| **SQL兼容性** | 🟡 中 | 中 | SQL错误 | ✅ 完整测试所有SQL<br>✅ 使用参数化查询<br>✅ 代码审查 |
+
+### 11.2 业务风险
+
+| 风险 | 严重程度 | 概率 | 影响 | 缓解措施 |
+|------|---------|------|------|---------|
+| **服务中断** | 🔴 高 | 低 | 用户无法访问 | ✅ 在低峰期迁移<br>✅ 维护窗口通知<br>✅ 快速回滚方案 |
+| **数据泄露** | 🔴 高 | 极低 | 数据安全 | ✅ 使用SSL连接<br>✅ 环境变量管理密钥<br>✅ 访问控制 |
+| **成本超支** | 🟡 中 | 低 | 产生费用 | ✅ 监控使用量<br>✅ 设置告警<br>✅ 使用免费额度 |
+
+### 11.3 运维风险
+
+| 风险 | 严重程度 | 概率 | 影响 | 缓解措施 |
+|------|---------|------|------|---------|
+| **备份缺失** | 🔴 高 | 低 | 数据无法恢复 | ✅ 自动备份配置<br>✅ 手动备份验证<br>✅ 多地点备份 |
+| **监控缺失** | 🟡 中 | 中 | 问题发现延迟 | ✅ 配置监控告警<br>✅ 日志记录<br>✅ 定期检查 |
+| **文档缺失** | 🟡 中 | 中 | 维护困难 | ✅ 完善文档<br>✅ 迁移步骤记录<br>✅ 知识分享 |
+
+---
+
+### 11.4 风险应对预案
+
+#### 🔴 数据丢失预案
+
+**触发条件**：迁移后发现数据丢失或损坏
+
+**应对步骤**：
+1. **立即停止**：停止使用新数据库
+2. **恢复数据**：从SQLite备份恢复数据
+3. **分析原因**：分析数据丢失原因
+4. **修复问题**：修复迁移脚本
+5. **重新迁移**：重新执行迁移
+
+**时间要求**：2小时内恢复数据
+
+---
+
+#### 🔴 功能回归预案
+
+**触发条件**：迁移后某些功能不工作
+
+**应对步骤**：
+1. **记录问题**：记录所有不工作的功能
+2. **分析日志**：查看错误日志，定位问题
+3. **修复代码**：修复SQL或代码问题
+4. **测试验证**：测试修复后的功能
+5. **重新部署**：部署修复后的代码
+
+**时间要求**：24小时内修复关键功能
+
+---
+
+#### 🟡 性能问题预案
+
+**触发条件**：迁移后响应时间>1秒
+
+**应对步骤**：
+1. **分析慢查询**：使用EXPLAIN分析慢查询
+2. **添加索引**：为慢查询添加索引
+3. **优化SQL**：优化SQL查询语句
+4. **调整连接池**：调整连接池配置
+5. **监控性能**：持续监控查询性能
+
+**时间要求**：48小时内优化完成
+
+---
+
+#### 🟡 服务中断预案
+
+**触发条件**：生产环境无法访问
+
+**应对步骤**：
+1. **切换回SQLite**：临时切换回SQLite数据库
+2. **恢复服务**：使用SQLite恢复服务
+3. **分析问题**：分析PostgreSQL连接问题
+4. **修复问题**：修复连接或配置问题
+5. **再次迁移**：问题解决后重新迁移
+
+**时间要求**：1小时内恢复服务
+
+---
+
+### 11.5 回滚方案
+
+#### 回滚条件
+
+以下情况需要立即回滚：
+- 🔴 数据丢失或损坏
+- 🔴 关键功能无法使用
+- 🔴 性能严重下降（响应时间>2秒）
+- 🔴 安全漏洞
+- 🔴 服务完全不可用
+
+#### 回滚步骤
+
+1. **停止新系统**：停止使用PostgreSQL
+2. **恢复环境变量**：恢复SQLite数据库路径
+3. **恢复代码**：回滚到使用SQLite的代码版本
+4. **验证数据**：验证SQLite数据完整性
+5. **恢复服务**：恢复服务正常运行
+
+**预计回滚时间**：30分钟
+
+---
+
+### 11.6 成功标准
+
+迁移成功的标准：
+- ✅ 所有数据迁移完成（数据量对比一致）
+- ✅ 所有功能测试通过
+- ✅ 查询响应时间<500ms（95%请求）
+- ✅ 无严重错误日志
+- ✅ 服务稳定运行24小时
+
+---
+
+## 12. 检查清单（Checklist）
+
+### 12.1 迁移前检查
+
+- [ ] 完整备份SQLite数据库
+- [ ] 创建Supabase项目
+- [ ] 测试PostgreSQL连接
+- [ ] 准备迁移脚本
+- [ ] 代码改造完成
+- [ ] 功能测试通过
+- [ ] 回滚方案准备
+
+### 12.2 迁移中检查
+
+- [ ] 执行表结构迁移
+- [ ] 执行数据迁移
+- [ ] 验证数据完整性
+- [ ] 验证表数量一致
+- [ ] 验证记录数量一致
+- [ ] 验证索引创建
+
+### 12.3 迁移后检查
+
+- [ ] 所有功能测试通过
+- [ ] 性能测试通过
+- [ ] 错误日志检查
+- [ ] 监控告警配置
+- [ ] 备份配置验证
+- [ ] 文档更新完成
+
+---
+
+## 13. 时间线（Timeline）
+
+### Day 1：准备和开发
+- ✅ 创建Supabase项目
+- ✅ 安装PostgreSQL客户端库
+- ✅ 创建数据库连接层
+- ✅ 创建表结构迁移脚本
+
+### Day 2：开发和测试
+- ✅ 改造Controller为异步
+- ✅ 创建数据迁移脚本
+- ✅ 在测试环境执行迁移
+- ✅ 功能测试
+
+### Day 3：完善和优化
+- ✅ 修复发现的问题
+- ✅ 性能优化
+- ✅ 完整测试
+- ✅ 文档更新
+
+### Day 4：生产迁移
+- ✅ 生产数据备份
+- ✅ 生产环境迁移
+- ✅ 验证功能
+- ✅ 监控和告警
+
+---
+
+**评估完成时间**：2025-11-13
+**评估人员**：Auto (AI Assistant)
+**状态**：待决策
+
