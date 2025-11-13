@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  PlusIcon, 
-  PencilIcon, 
-  TrashIcon, 
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
   MagnifyingGlassIcon,
   FunnelIcon
 } from '@heroicons/react/24/outline';
+import { FILM_TYPE_DEFINITIONS, getFilmTypeLabel } from '../constants/filmTypes';
 
 const FilmStockManagement = () => {
   const [filmStocks, setFilmStocks] = useState([]);
@@ -148,7 +149,7 @@ const FilmStockManagement = () => {
       series: stock.series,
       iso: stock.iso.toString(),
       format: stock.format,
-      type: stock.type,
+      type: stock.type || '',
       description: stock.description || '',
       package_image: null,
       cartridge_image: null
@@ -254,10 +255,11 @@ const FilmStockManagement = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">全部类型</option>
-              <option value="彩色负片">彩色负片</option>
-              <option value="彩色正片">彩色正片</option>
-              <option value="黑白负片">黑白负片</option>
-              <option value="黑白正片">黑白正片</option>
+              {FILM_TYPE_DEFINITIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
           
@@ -347,7 +349,7 @@ const FilmStockManagement = () => {
                       {stock.format}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {stock.type}
+                      {getFilmTypeLabel(stock.type || stock.type_label)}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                       {stock.description}
@@ -484,14 +486,15 @@ const FilmStockManagement = () => {
                   <select
                     required
                     value={formData.type}
-                    onChange={(e) => setFormData({...formData, type: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">选择类型</option>
-                    <option value="彩色负片">彩色负片</option>
-                    <option value="彩色正片">彩色正片</option>
-                    <option value="黑白负片">黑白负片</option>
-                    <option value="黑白正片">黑白正片</option>
+                    {FILM_TYPE_DEFINITIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 

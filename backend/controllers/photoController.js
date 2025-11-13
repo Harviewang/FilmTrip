@@ -6,6 +6,7 @@ const sizeOf = require('image-size').default || require('image-size');
 const crypto = require('crypto');
 const ExifParser = require('exif-parser');
 const jwt = require('jsonwebtoken');
+const upyunService = require('../storage/upyunService');
 const {
   ensureVariant,
   calcHashes,
@@ -15,8 +16,7 @@ const {
   SHORT_LINK_PREFIX
 } = require('../storage/namingService');
 const { normalizeFilmType } = require('../utils/filmTypes');
-
-const DEFAULT_BUCKET = process.env.DEFAULT_BUCKET || 'local-dev';
+const DEFAULT_BUCKET = process.env.DEFAULT_BUCKET || process.env.UPYUN_BUCKET || 'local-dev';
 const SHORT_LINK_LOG_DIR = process.env.SHORT_LINK_LOG_DIR || path.join(__dirname, '../logs');
 const SHORT_LINK_LOG_FILE = process.env.SHORT_LINK_LOG_FILE || path.join(SHORT_LINK_LOG_DIR, 'short-links.log');
 
@@ -48,15 +48,81 @@ const logShortLinkEvent = (payload, { uploadSource } = {}) => {
   }
 };
 
-const buildVariantUrls = (filename) => {
-  if (!filename) {
-    return {
-      original: null,
-      thumbnail: null,
-      size1024: null,
-      size2048: null
-    };
+const buildVariantUrls = (photoOrFilename) => {
+  const emptyVariants = {
+    original: null,
+    thumbnail: null,
+    size1024: null,
+    size2048: null
+  };
+
+  if (!photoOrFilename) {
+    return emptyVariants;
   }
+
+  const isStringInput = typeof photoOrFilename === 'string';
+  const photo = isStringInput ? null : photoOrFilename;
+  const filename = isStringInput ? photoOrFilename : (photo?.filename || '');
+
+  if (
+    photo &&
+    upyunService.isImageProcessingEnabled() &&
+    photo.origin_path &&
+    photo.origin_bucket === upyunService.getConfig().bucket
+  ) {
+    // 只有当 origin_bucket 匹配又拍云 bucket 时，才使用又拍云 CDN URL
+    const objectPath = photo.origin_path;
+    const isProtected = !!(photo.effective_protection || photo.is_protected || photo.roll_is_protected);
+    
+    // 样式配置：
+    // - thumb: 600px，无水印（用于列表缩略图，提高清晰度适配Retina屏）
+    // - preview: 1024px，带水印（用于 size1024）
+    // - large: 2048px，带水印（用于 size2048 和 original）
+    const styleThumb = upyunService.getStyleName('thumb'); // 列表缩略图，无水印
+    const style1024 = upyunService.getStyleName('size1024'); // preview，带水印
+    const style2048 = upyunService.getStyleName('size2048'); // large，带水印
+
+    // 对受保护的照片使用签名URL（有效期10分钟），公开照片使用CDN链接
+    if (isProtected) {
+      // 受保护照片：使用签名URL，防止直接访问
+      const signedExpiresIn = 600; // 10分钟
+      return {
+        // original: 使用 large 样式（带水印），保证画质和版权保护
+        original: style2048 
+          ? upyunService.generateSignedUrl(objectPath, { expiresIn: signedExpiresIn, style: style2048, useCdn: true })
+          : upyunService.generateSignedUrl(objectPath, { expiresIn: signedExpiresIn, useCdn: true }),
+        // thumbnail: 使用 thumb 样式（无水印），列表展示不需要水印，但受保护照片仍使用签名URL
+        thumbnail: styleThumb 
+          ? upyunService.generateSignedUrl(objectPath, { expiresIn: signedExpiresIn, style: styleThumb, useCdn: true })
+          : null,
+        // size1024: 使用 preview 样式（带水印），预览图需要水印保护
+        size1024: style1024 
+          ? upyunService.generateSignedUrl(objectPath, { expiresIn: signedExpiresIn, style: style1024, useCdn: true })
+          : null,
+        // size2048: 使用 large 样式（带水印），大图需要水印保护
+        size2048: style2048 
+          ? upyunService.generateSignedUrl(objectPath, { expiresIn: signedExpiresIn, style: style2048, useCdn: true })
+          : null
+      };
+    } else {
+      // 公开照片：使用CDN链接，性能更好
+      return {
+        // original: 使用 large 样式（带水印），保证画质和版权保护
+        original: style2048 ? upyunService.buildCdnUrl(objectPath, style2048) : upyunService.buildCdnUrl(objectPath),
+        // thumbnail: 使用 thumb 样式（无水印），列表展示不需要水印
+        thumbnail: styleThumb ? upyunService.buildCdnUrl(objectPath, styleThumb) : null,
+        // size1024: 使用 preview 样式（带水印），预览图需要水印保护
+        size1024: style1024 ? upyunService.buildCdnUrl(objectPath, style1024) : null,
+        // size2048: 使用 large 样式（带水印），大图需要水印保护
+        size2048: style2048 ? upyunService.buildCdnUrl(objectPath, style2048) : null
+      };
+    }
+  }
+
+  if (!filename) {
+    return emptyVariants;
+  }
+
   const baseName = filename.replace(/\.[^.]+$/, '');
   return {
     original: `/uploads/${filename}`,
@@ -68,7 +134,7 @@ const buildVariantUrls = (filename) => {
 
 const buildUploadPayload = (photo, { duplicate = false, hashes } = {}) => {
   if (!photo) return null;
-  const variants = buildVariantUrls(photo.filename);
+  const variants = buildVariantUrls(photo);
   return {
     id: photo.id,
     film_roll_id: photo.film_roll_id,
@@ -170,6 +236,29 @@ const getAllPhotos = async (req, res) => {
       queryParams.push(shortCodeFilter.toString().trim());
     }
     
+    // 过滤占位符记录：只显示上传成功的照片
+    // 1. 如果是又拍云存储（origin_bucket 匹配又拍云 bucket），必须 origin_path 不为 null
+    // 2. 如果是本地存储（origin_bucket 为 null 或 local-dev），只要 filename 不为空即可
+    // 3. 如果 short_code 查询（查看单张照片），不过滤（允许查看占位符状态）
+    // 4. 如果 origin_bucket 为 null，说明是占位符记录，等待回调更新，暂时不过滤（允许显示占位符）
+    // 注意：开发环境可能收不到回调，所以不过滤有 POLICY_CREATED 但没有 UPLOAD_CALLBACK 的记录
+    // 生产环境应该确保回调正常工作，或者手动标记这些照片
+    if (!shortCodeFilter) {
+      const upyunBucket = upyunService.isConfigured() ? upyunService.getConfig().bucket : null;
+      if (upyunBucket) {
+        // 又拍云已配置：过滤掉占位符记录
+        // 只过滤 origin_bucket=upyunBucket 且 origin_path=null 的记录（占位符）
+        // 不过滤有 POLICY_CREATED 但没有 UPLOAD_CALLBACK 的记录（开发环境可能收不到回调）
+        // 如果文件真的上传成功了，即使没有回调也应该显示
+        whereConditions.push(`
+          NOT (p.origin_bucket = ? AND (p.origin_path IS NULL OR p.origin_path = ''))
+        `);
+        queryParams.push(upyunBucket);
+      }
+      // 本地存储的照片：只要 filename 不为空就显示（不需要额外过滤）
+      // origin_bucket 为 null 的记录：可能是占位符，暂时不过滤，等待回调更新
+    }
+    
     const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
 
     // 获取总数
@@ -242,9 +331,14 @@ const getAllPhotos = async (req, res) => {
       photo._raw.effective_protection = effectiveProtection;
       photo._raw.protection_level = photo.protection_level; // 确保_raw中也有protection_level
 
-      const variants = buildVariantUrls(photo.filename);
+      const variants = buildVariantUrls(photo);
       photo.short_link = buildShortLink(photo.short_code);
       photo.variants = variants;
+      
+      // 调试日志：检查 variants 生成（只记录又拍云存储的照片）
+      if (photo.origin_path && photo.origin_bucket && photo.origin_bucket === upyunService.getConfig().bucket) {
+        console.log(`[buildVariantUrls] Photo ${photo.short_code || photo.id}: origin_bucket=${photo.origin_bucket}, origin_path=${photo.origin_path.substring(0, 50)}..., variants.thumbnail=${variants.thumbnail?.substring(0, 80) || 'null'}...`);
+      }
       
       // 根据用户角色和保护状态决定是否生成URL
       if (photo.filename && photo.filename.trim()) {
@@ -256,19 +350,42 @@ const getAllPhotos = async (req, res) => {
           photo.size2048 = variants.size2048;
           
           // 尝试读取EXIF信息
-          try {
-            const uploadsDir = path.join(__dirname, '../uploads');
-            const origPathAbs = path.join(uploadsDir, photo.filename);
-            const buf = fs.readFileSync(origPathAbs);
-            const exif = ExifParser.create(buf).parse();
-            if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
-              photo.exif = photo.exif || {};
-              photo.exif.Orientation = exif.tags.Orientation;
-              photo._raw.exif = photo._raw.exif || {};
-              photo._raw.exif.Orientation = exif.tags.Orientation;
+          // 只有当文件存储在本地时，才尝试读取EXIF信息
+          // 如果文件存储在又拍云（origin_bucket=filmtrip-dev），则跳过EXIF读取
+          const isLocalFile = !photo.origin_bucket || 
+                              photo.origin_bucket === 'local-dev' || 
+                              photo.origin_bucket !== upyunService.getConfig().bucket;
+          
+          if (isLocalFile) {
+            try {
+              const uploadsDir = path.join(__dirname, '../uploads');
+              const origPathAbs = path.join(uploadsDir, photo.filename);
+              
+              // 检查文件是否存在
+              if (fs.existsSync(origPathAbs)) {
+                const buf = fs.readFileSync(origPathAbs);
+                const exif = ExifParser.create(buf).parse();
+                if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
+                  photo.exif = photo.exif || {};
+                  photo.exif.Orientation = exif.tags.Orientation;
+                  photo._raw.exif = photo._raw.exif || {};
+                  photo._raw.exif.Orientation = exif.tags.Orientation;
+                }
+              }
+            } catch (e) {
+              // EXIF读取失败，不影响图片显示
+              // 只记录错误，不抛出异常
+              console.warn(`[EXIF] 读取照片 ${photo.id} 的EXIF信息失败:`, e.message);
             }
-          } catch (e) {
-            // EXIF读取失败，不影响图片显示
+          } else {
+            // 文件存储在又拍云，EXIF信息应该在回调时已经保存到数据库
+            // 如果数据库中有orientation信息，直接使用
+            if (photo.orientation) {
+              photo.exif = photo.exif || {};
+              photo.exif.Orientation = photo.orientation;
+              photo._raw.exif = photo._raw.exif || {};
+              photo._raw.exif.Orientation = photo.orientation;
+            }
           }
         } else {
           // 普通用户且照片加密，不返回URL
@@ -410,8 +527,24 @@ const normalizeBoolean = (value) => {
   return false;
 };
 
+const isUpyunDirectUploadEnabled = () => {
+  if (!upyunService.isConfigured()) return false;
+  const flag =
+    process.env.UPYUN_DIRECT_UPLOAD_ENABLED ??
+    process.env.UPYUN_DIRECT_UPLOAD ??
+    process.env.UPYUN_FORM_UPLOAD_ONLY ??
+    'false';
+  return normalizeBoolean(flag);
+};
+
 const uploadPhotosBatch = async (req, res) => {
   try {
+    if (isUpyunDirectUploadEnabled()) {
+      return res.status(400).json({
+        success: false,
+        message: '系统已启用又拍云直传，请使用 /api/storage/policy 逐张生成上传策略后直传，又拍云回调会自动更新照片记录'
+      });
+    }
     console.log('=== 批量上传开始 ===');
     console.log('请求体字段:', Object.keys(req.body));
     console.log('文件数量:', req.files ? req.files.length : 0);
@@ -725,7 +858,7 @@ const getPhotoById = (req, res) => {
     photo._raw.effective_protection = effectiveProtection;
     photo._raw.protection_level = photo.protection_level; // 确保_raw中也有protection_level
 
-    const variants = buildVariantUrls(photo.filename);
+    const variants = buildVariantUrls(photo);
     photo.short_link = buildShortLink(photo.short_code);
     photo.variants = variants;
 
@@ -1067,6 +1200,13 @@ const uploadPhoto = async (req, res) => {
     console.log('=== 照片上传开始 ===');
     console.log('请求体:', req.body);
     console.log('上传的文件:', req.file);
+
+    if (isUpyunDirectUploadEnabled() && (!req.file || !req.file.buffer)) {
+      return res.status(400).json({
+        success: false,
+        message: '系统已启用又拍云直传，请先调用 /api/storage/policy 获取上传策略并直传，又拍云完成回调后会自动更新照片信息'
+      });
+    }
     
     const {
       title,
@@ -1363,7 +1503,7 @@ const uploadPhoto = async (req, res) => {
     const photoSerialNumber = `${newPhoto[0].film_roll_number}-${photoNumber.toString().padStart(3, '0')}`;
     const enrichedPhoto = { ...newPhoto[0] };
   enrichedPhoto.short_link = buildShortLink(enrichedPhoto.short_code);
-    enrichedPhoto.variants = buildVariantUrls(enrichedPhoto.filename);
+    enrichedPhoto.variants = buildVariantUrls(enrichedPhoto);
     const payload = buildUploadPayload(enrichedPhoto, { hashes });
 
     console.log('=== 照片上传成功 ===');
@@ -1415,7 +1555,28 @@ const getRandomPhotos = (req, res) => {
       }
     }
 
-    // 查询随机照片，排除受保护内容
+    // 查询随机照片，排除受保护内容和占位符记录
+    const upyunBucket = upyunService.isConfigured() ? upyunService.getConfig().bucket : null;
+    let whereConditions = [
+      '(p.is_protected = 0 OR p.is_protected IS NULL)',
+      '(fr.is_protected = 0 OR fr.is_protected IS NULL)'
+    ];
+    let queryParams = [];
+    
+    // 过滤占位符记录：只显示上传成功的照片
+    // 注意：开发环境可能收不到回调，所以不过滤有 POLICY_CREATED 但没有 UPLOAD_CALLBACK 的记录
+    if (upyunBucket) {
+      // 又拍云已配置：过滤掉占位符记录
+      // 只过滤 origin_bucket=upyunBucket 且 origin_path=null 的记录（占位符）
+      // 不过滤有 POLICY_CREATED 但没有 UPLOAD_CALLBACK 的记录（开发环境可能收不到回调）
+      whereConditions.push(`
+        NOT (p.origin_bucket = ? AND (p.origin_path IS NULL OR p.origin_path = ''))
+      `);
+      queryParams.push(upyunBucket);
+    }
+    
+    const whereClause = 'WHERE ' + whereConditions.join(' AND ');
+    
     const photos = query(`
       SELECT
         p.*,
@@ -1435,11 +1596,10 @@ const getRandomPhotos = (req, res) => {
       LEFT JOIN cameras c ON p.camera_id = c.id
       LEFT JOIN film_rolls fr ON p.film_roll_id = fr.id
       LEFT JOIN film_stocks fs ON fr.film_stock_id = fs.id
-      WHERE (p.is_protected = 0 OR p.is_protected IS NULL)
-        AND (fr.is_protected = 0 OR fr.is_protected IS NULL)
+      ${whereClause}
       ORDER BY RANDOM()
       LIMIT ?
-    `, [limit]);
+    `, [...queryParams, limit]);
 
     // 处理照片数据
     const processedPhotos = photos.map(photo => {
@@ -1459,7 +1619,7 @@ const getRandomPhotos = (req, res) => {
       photo._raw.effective_protection = effectiveProtection;
       photo._raw.protection_level = photo.protection_level; // 确保_raw中也有protection_level
 
-      const variants = buildVariantUrls(photo.filename);
+      const variants = buildVariantUrls(photo);
       photo.short_link = buildShortLink(photo.short_code);
       photo.variants = variants;
 
@@ -1471,19 +1631,41 @@ const getRandomPhotos = (req, res) => {
         photo.size2048 = variants.size2048;
 
         // 尝试读取EXIF信息
-        try {
-          const uploadsDir = path.join(__dirname, '../uploads');
-          const origPathAbs = path.join(uploadsDir, photo.filename);
-          const buf = fs.readFileSync(origPathAbs);
-          const exif = ExifParser.create(buf).parse();
-          if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
-            photo.exif = photo.exif || {};
-            photo.exif.Orientation = exif.tags.Orientation;
-            photo._raw.exif = photo._raw.exif || {};
-            photo._raw.exif.Orientation = exif.tags.Orientation;
+        // 只有当文件存储在本地时，才尝试读取EXIF信息
+        // 如果文件存储在又拍云（origin_bucket=filmtrip-dev），则跳过EXIF读取
+        const isLocalFile = !photo.origin_bucket || 
+                            photo.origin_bucket === 'local-dev' || 
+                            photo.origin_bucket !== upyunService.getConfig().bucket;
+        
+        if (isLocalFile) {
+          try {
+            const uploadsDir = path.join(__dirname, '../uploads');
+            const origPathAbs = path.join(uploadsDir, photo.filename);
+            
+            // 检查文件是否存在
+            if (fs.existsSync(origPathAbs)) {
+              const buf = fs.readFileSync(origPathAbs);
+              const exif = ExifParser.create(buf).parse();
+              if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
+                photo.exif = photo.exif || {};
+                photo.exif.Orientation = exif.tags.Orientation;
+                photo._raw.exif = photo._raw.exif || {};
+                photo._raw.exif.Orientation = exif.tags.Orientation;
+              }
+            }
+          } catch (e) {
+            // EXIF读取失败，不影响图片显示
+            console.warn(`[EXIF] 读取照片 ${photo.id} 的EXIF信息失败:`, e.message);
           }
-        } catch (e) {
-          // EXIF读取失败，不影响图片显示
+        } else {
+          // 文件存储在又拍云，EXIF信息应该在回调时已经保存到数据库
+          // 如果数据库中有orientation信息，直接使用
+          if (photo.orientation) {
+            photo.exif = photo.exif || {};
+            photo.exif.Orientation = photo.orientation;
+            photo._raw.exif = photo._raw.exif || {};
+            photo._raw.exif.Orientation = photo.orientation;
+          }
         }
       } else {
         photo.original = null;

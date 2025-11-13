@@ -27,6 +27,7 @@
 | BACKEND-FIX | 后端修复 | 修复服务器启动退出问题 | ✅ 已完成 | `index.js` 添加 `app.listen()` |
 | STORAGE-UPYUN | 规范/文档 | 输出又拍云存储与 CDN 接入规范 v1.0（含排期、API、审计模板） | ✅ 已完成 | 见 `docs/specifications/storage/upyun-integration.md` |
 | ROLL-SEC | 后端修复 | 回填胶卷 `name` 字段、统一 Map/Timeline 加密保护策略 | ✅ 已完成 | 见 `backend/routes/filmRolls.js`、`backend/routes/map.js`、`backend/database/2025-11-12-backfill-film-roll-names.sql`（2025-11-12 已执行，剩余空值 0 条） |
+| NAMING-1 | 命名规范 | 归一胶卷类型枚举、补全短链/存储脚本、整理历史文档 | ✅ 已完成（阶段一） | 见 `cff7448`、`backend/utils/filmTypes.js`、`backend/scripts/`、`docs/archive/` 重排 |
 
 ## 3. 技术方案总结
 
@@ -179,15 +180,18 @@ API请求 → mappedPhotos
 ### 文档文件
 #### 新增文档
 - `docs/work-plans/2025-11-12/summary.md` - 本工作总结
-- `docs/work-plans/2025-11-12/commits/CMT-20251112-001.md` - 提交记录
-- `docs/guides/短链访问帮助.md` - 短链用户帮助
-- `docs/knowledge-base/assets/film-stocks/README.md` - 胶卷素材归档指南
-- `docs/work-plans/2025-11-10/tests/SL-2-shortlink-regression.md` - 短链回归测试
+- `docs/work-plans/2025-11-12/commits/CMT-20251112-001.md` - Gallery 修复提交记录
+- `docs/work-plans/2025-11-12/commits/CMT-20251112-002.md` - 又拍云规范与加密修复提交记录
+- `docs/work-plans/2025-11-12/commits/CMT-20251112-003.md` - NAMING-1 / Map 短链增强提交记录
+- `docs/specifications/storage/upyun-integration.md` - 又拍云接入规范 v1.0
+- `docs/work-plans/2025-11-09/summary.md`、`notes.md`、`NAMING-1-db-migration-plan.md` - NAMING-1 阶段计划
+- `docs/archive/README.md` - 归档目录新索引
 
-#### 更新文档
-- `docs/specifications/命名与短链规范.md` - 更新短链规范至 v1.4
+#### 更新 / 归档文档
+- `docs/specifications/命名与短链规范.md` - 更新短链规范至 v1.4，补充存储章节
 - `docs/guides/README.md` - 添加短链帮助索引
-- `docs/knowledge-base/assets/胶卷素材清单-2025-11-07.md` - 添加短码和缺失素材备注
+- `docs/knowledge-base/README.md`、`best-practices/` 若干文档 - 增补 CDN 经验与表单最佳实践
+- `docs/archive/` 目录重排（迁移 legacy 文档与 CSV 数据）
 
 ## 7. 后续维护建议
 
@@ -248,52 +252,61 @@ API请求 → mappedPhotos
 
 ## 9. 提交信息
 
-### Commit Message
+### Commit Messages
+
+#### CMT-20251112-001 · `fix(gallery): 修复加密图片过滤与瀑布流布局问题`
 ```
-fix(gallery): 修复加密图片过滤与瀑布流布局问题
-
-核心修复:
-- 引入allPhotos状态维护完整照片列表，photos仅用于显示
-- 修复hideEncryptedPhotos切换时的顺序错乱问题
-- 移除瀑布流中的重复过滤逻辑
-- 在追加和切换时添加去重逻辑，防止重复显示
-
-状态管理优化:
-- allPhotos: 完整照片列表(包含加密)
-- photos: 根据hideEncryptedPhotos从allPhotos过滤的显示列表
-- 访客默认hideEncryptedPhotos=true，管理员默认false
-
-瀑布流修复:
-- 移除visiblePhotos的重复过滤
-- 直接使用已过滤的photos状态
-
-后端修复:
-- 修复index.js缺少app.listen()导致服务器退出
-- 添加Token验证日志，便于调试
-
-自测: 功能正常，无linter错误
-用户验收: 通过 ✅
-关联任务: docs/work-plans/2025-11-12/summary.md
+- 引入 allPhotos / photos 双状态，避免切换错乱
+- 移除瀑布流重复过滤、追加阶段去重
+- 后端补齐 app.listen()，新增 Token 日志
+自测：前端无 lint，访客/管理员双场景通过
 ```
 
-### 提交文件清单
+#### CMT-20251112-002 · `feat(storage): add upyun spec and secure film roll access`
+```
+- 新增《又拍云接入规范 v1.0》及实施排期
+- 后端统一图片可见性策略（photoVisibility），回填 film_rolls.name
+- Map/Timeline 复用短链与权限逻辑；执行 SQL 回填剩余空值 0
+自测：访客仅见锁屏提示，管理员可正常查看；SQL 回填验证通过
+```
+
+#### CMT-20251112-003 · `feat(naming): normalize film types and enhance map short links`
+```
+- 胶片类型枚举归一化，新增 backend/utils/filmTypes.js & 前端 constants
+- Map/Timeline 接入短链历史 & scroll 审计日志，移除 /uploads fallback
+- 对象存储命名工具 namingService、批处理脚本、归档目录重排
+自测：Map/Timeline 访客与管理员场景回归通过；脚本在测试库执行通过
+```
+
+### 提交文件清单（节选）
 ```bash
-# 前端文件
+# 前端
 frontend/src/pages/Gallery/index.jsx
+frontend/src/pages/Map/index.jsx
+frontend/src/pages/Map/MapLibre.jsx
+frontend/src/constants/filmTypes.js
+frontend/src/views/FilmStockManagement.jsx
 
-# 后端文件
+# 后端
 backend/index.js
-backend/controllers/photoController.js
+backend/routes/filmRolls.js
+backend/routes/map.js
+backend/utils/photoVisibility.js
+backend/utils/filmTypes.js
+backend/storage/namingService.js
+backend/database/2025-11-12-backfill-film-roll-names.sql
+backend/database/2025-11-09-add-photo-storage-fields.sql
+backend/scripts/*.js
 
-# 文档文件
+# 文档
+docs/specifications/storage/upyun-integration.md
 docs/work-plans/2025-11-12/summary.md
 docs/work-plans/2025-11-12/commits/CMT-20251112-001.md
-docs/specifications/命名与短链规范.md
-docs/guides/短链访问帮助.md
-docs/guides/README.md
-docs/knowledge-base/assets/胶卷素材清单-2025-11-07.md
-docs/knowledge-base/assets/film-stocks/README.md
-docs/work-plans/2025-11-10/tests/SL-2-shortlink-regression.md
+docs/work-plans/2025-11-12/commits/CMT-20251112-002.md
+docs/work-plans/2025-11-12/commits/CMT-20251112-003.md
+docs/work-plans/2025-11-09/*.md
+docs/archive/**（归档重排）
+docs/work-plans/git-log.md
 ```
 
 ## 10. 审计记录

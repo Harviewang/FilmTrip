@@ -156,6 +156,47 @@ const initialize = () => {
       );
     `);
 
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS storage_actions (
+        id TEXT PRIMARY KEY,
+        action TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        object_path TEXT,
+        resource_url TEXT,
+        operator TEXT,
+        status TEXT DEFAULT 'logged',
+        message TEXT,
+        payload TEXT,
+        photo_id TEXT,
+        film_roll_id TEXT,
+        album_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS storage_files (
+        id TEXT PRIMARY KEY,
+        bucket TEXT,
+        object_path TEXT NOT NULL UNIQUE,
+        cdn_url TEXT,
+        file_size INTEGER,
+        file_md5 TEXT,
+        file_hash TEXT,
+        mime_type TEXT,
+        operator TEXT,
+        source_ip TEXT,
+        user_agent TEXT,
+        status TEXT DEFAULT 'uploaded',
+        extra TEXT,
+        photo_id TEXT,
+        film_roll_id TEXT,
+        album_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // 创建索引优化查询性能
     try {
       db.exec(`
@@ -177,6 +218,30 @@ const initialize = () => {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_photos_short_code
           ON photos(short_code)
           WHERE short_code IS NOT NULL;
+
+        CREATE INDEX IF NOT EXISTS idx_storage_actions_created_at
+          ON storage_actions(created_at);
+
+        CREATE INDEX IF NOT EXISTS idx_storage_actions_action
+          ON storage_actions(action);
+
+        CREATE INDEX IF NOT EXISTS idx_storage_actions_photo_id
+          ON storage_actions(photo_id);
+
+        CREATE INDEX IF NOT EXISTS idx_storage_actions_film_roll_id
+          ON storage_actions(film_roll_id);
+
+        CREATE INDEX IF NOT EXISTS idx_storage_files_object_path
+          ON storage_files(object_path);
+
+        CREATE INDEX IF NOT EXISTS idx_storage_files_file_hash
+          ON storage_files(file_hash);
+
+        CREATE INDEX IF NOT EXISTS idx_storage_files_photo_id
+          ON storage_files(photo_id);
+
+        CREATE INDEX IF NOT EXISTS idx_storage_files_film_roll_id
+          ON storage_files(film_roll_id);
 
         -- 命名与存储规范错误记录表
         CREATE TABLE IF NOT EXISTS storage_variant_errors (

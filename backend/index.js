@@ -22,8 +22,8 @@ const corsOptions = {
       'http://localhost:3002',  // 管理后台开发服务器
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3002',
-      'https://filmtrip.imhw.top',  // 生产环境前端
-      'https://filmtrip.cn'  // 备用生产环境前端
+      'https://filmtrip.cn',  // 生产环境前端
+      'https://filmtrip.imhw.top'  // 测试环境前端（兼容旧配置）
     ];
 
     // 检查环境变量中是否有额外的允许域名
@@ -87,6 +87,7 @@ const filmRollRoutes = require('./routes/filmRolls');
 const rollPhotosRoutes = require('./routes/rollPhotos');
 const mapRoutes = require('./routes/map');
 const geocodeRoutes = require('./routes/geocode');
+const storageRoutes = require('./routes/storage');
 
 // 根路径路由
 app.get('/', (req, res) => {
@@ -102,7 +103,8 @@ app.get('/', (req, res) => {
       stats: '/api/stats',
       filmStocks: '/api/filmStocks',
       filmRolls: '/api/filmRolls',
-      map: '/api/map'
+      map: '/api/map',
+      storage: '/api/storage'
     },
     status: 'running',
     timestamp: new Date().toISOString()
@@ -121,6 +123,7 @@ app.use('/api/filmRolls', filmRollRoutes);
 app.use('/api/rollPhotos', rollPhotosRoutes);
 app.use('/api/map', mapRoutes);
 app.use('/api/geocode', geocodeRoutes);
+app.use('/api/storage', storageRoutes);
 
 // 错误处理中间件
 app.use((err, req, res, next) => {

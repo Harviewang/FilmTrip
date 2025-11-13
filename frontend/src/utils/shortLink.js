@@ -1,6 +1,6 @@
 import API_CONFIG from '../config/api.js';
 
-const SHORT_LINK_PREFIX_RAW = API_CONFIG.SHORT_LINK_PREFIX || 'https://filmtrip.app/s';
+const SHORT_LINK_PREFIX_RAW = API_CONFIG.SHORT_LINK_PREFIX || (import.meta.env.PROD ? 'https://filmtrip.cn/s' : 'http://localhost:3002/s');
 export const SHORT_LINK_PREFIX = SHORT_LINK_PREFIX_RAW.replace(/\/$/, '');
 export const SHORT_LINK_ROUTE_PREFIX = '/s';
 

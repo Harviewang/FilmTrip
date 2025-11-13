@@ -73,6 +73,7 @@ FilmTrip Backend ──────┘
      - `UPYUN_OPERATOR`（操作员）
      - `UPYUN_PASSWORD`（操作员密码：建议使用密文或动态密钥服务）
      - `UPYUN_CDN_DOMAIN`（加速域名）
+     - `UPYUN_DIRECT_UPLOAD_ENABLED`（开启直传模式后，上传接口仅返回错误提示，需通过 `/api/storage/policy` 获取策略）
 2. **上传流程**
    - `POST /api/storage/policy`：生成 `policy + signature`，限制 MIME/大小/有效期（默认 5 分钟）。
    - 前端直传至 `https://v0.api.upyun.com/<bucket>/`，使用 HTML Form Data。
@@ -80,6 +81,7 @@ FilmTrip Backend ──────┘
      ```
      storage_path, cdn_url, file_size, md5, operator, ip, ua, uploaded_at
      ```
+   - 当 `UPYUN_DIRECT_UPLOAD_ENABLED=true` 时，原有的 `/api/photos`、`/api/photos/batch` 上传接口将返回引导错误，必须通过直传流程完成上传。
 3. **访问接口**
    - 公共资源直接返回 `https://{cdn_domain}/{storage_path}`。
    - 受保护资源：
@@ -295,7 +297,16 @@ FilmTrip Backend ──────┘
     "saveKey": "/filmtrip/prod/alb_123/photo_456/v1/cover.jpg",
     "notifyUrl": "https://api.filmtrip.cn/storage/callback",
     "cdnUrl": "https://img.filmtrip.cn/filmtrip/prod/alb_123/photo_456/v1/cover.jpg",
-    "expiresIn": 300
+    "expiresIn": 300,
+    "photoId": "8b9d4a4d-...-....",
+    "photoNumber": 12,
+    "photoSerialNumber": "KODPOR135CN-012",
+    "styles": {
+      "thumb": "thumb",
+      "size1024": "preview",
+      "size2048": "large",
+      "watermark": "watermark"
+    }
   }
   ```
 - **错误码**
@@ -327,8 +338,8 @@ FilmTrip Backend ──────┘
   ```
 - **后端流程**
   1. 校验 Authorization 签名。
-  2. 写入 `storage_files` 表（路径、MD5、上传人等）。
-  3. 触发业务事件（例如通知管理后台刷新列表）。
+  2. 写入/更新 `storage_files` 表并落审计。
+  3. 若回调中包含 `photo` 元数据，则更新 `photos` 表字段（`origin_bucket`, `origin_path`, `storage_variant`, `width/height`, `taken_date` 等）。
   4. 返回 `{"status":"ok"}`。
 
 ### `GET /api/storage/protected/:photoId`

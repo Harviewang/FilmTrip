@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   PlusIcon,
   PencilIcon,
@@ -13,6 +13,7 @@ import ImageRotateControl from '../components/ImageRotateControl';
 import MapPicker from '../components/MapPicker';
 import { resolvePhotoShortLink } from '../utils/shortLink.js';
 import { resolveProtectionLevelInfo } from '../constants/protectionLevels.js';
+import storageApi from '../services/storage.js';
 
 const API_BASE_URL = API_CONFIG.BASE_URL;
 const API_BASE = API_CONFIG.API_BASE;
@@ -85,12 +86,23 @@ const PhotoManagement = () => {
   const [batchFileLocations, setBatchFileLocations] = useState({}); // 批量上传时每个文件的位置信息 {fileIndex: {latitude, longitude, country, province, city, district, township}}
   const [batchFileTags, setBatchFileTags] = useState({}); // 批量上传时每个文件的标签 {fileIndex: tags}
   const [batchFileProtection, setBatchFileProtection] = useState({}); // 批量上传时每个文件的隐私保护设置 {fileIndex: {is_protected, protection_level}}
+  const [isUploading, setIsUploading] = useState(false);
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false); // 控制地图选点弹窗
   const [currentFileIndex, setCurrentFileIndex] = useState(null); // 当前正在选点的文件索引
   const [previewUrl, setPreviewUrl] = useState(null); // 图片预览 URL
   const mapPickerRef = useRef(null); // MapPicker 组件的 ref
   const uploadMapPickerRef = useRef(null); // 单张上传的 MapPicker ref
   const editMapPickerRef = useRef(null); // 编辑表单的 MapPicker ref
+
+  const DIRECT_UPLOAD_ENABLED = Boolean(API_CONFIG.UPYUN_DIRECT_UPLOAD_ENABLED);
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}');
+    } catch {
+      return {};
+    }
+  }, []);
 
   const ensureAbsoluteUrl = useCallback((url) => {
     if (!url) return null;
@@ -103,6 +115,144 @@ const PhotoManagement = () => {
   }, []);
 
   const resolveShortLink = useCallback((photo) => resolvePhotoShortLink(photo), []);
+
+  const waitFor = useCallback(
+    (ms) =>
+      new Promise((resolve) => {
+        setTimeout(resolve, ms);
+      }),
+    []
+  );
+
+  const uploadFileToUpyun = useCallback(async (policyData, file) => {
+    if (!policyData || !policyData.bucket || !policyData.policy) {
+      throw new Error('上传策略不完整，缺少关键字段');
+    }
+    if (!file) {
+      throw new Error('未选择上传文件');
+    }
+    
+    // 又拍云 FORM API 必须使用 policy + signature 方式
+    if (!policyData.signature) {
+      throw new Error('上传策略不完整，缺少 signature 字段');
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('policy', policyData.policy);
+    formData.append('signature', policyData.signature);
+    
+    // 调试：检查 FormData 内容
+    console.log('[Upyun] 上传 FormData 内容:');
+    console.log('  file:', file.name, `(${file.size} bytes)`);
+    console.log('  policy:', policyData.policy);
+    console.log('  signature:', policyData.signature);
+    console.log('  bucket:', policyData.bucket);
+    
+    // 验证 FormData 字段
+    const formDataEntries = [];
+    for (const [key, value] of formData.entries()) {
+      if (key === 'file') {
+        formDataEntries.push(`${key}: [File: ${value.name}]`);
+      } else {
+        formDataEntries.push(`${key}: ${value}`);
+      }
+    }
+    console.log('  FormData entries:', formDataEntries);
+    
+    const endpoint = `https://v0.api.upyun.com/${policyData.bucket}/`;
+    console.log('  endpoint:', endpoint);
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      body: formData
+    });
+    
+    // 解析响应体（只能读取一次）
+    const responseText = await response.text();
+    
+    if (!response.ok) {
+      let errorMessage = responseText || `又拍云上传失败（HTTP ${response.status}）`;
+      let errorCode = null;
+      try {
+        const errorJson = JSON.parse(responseText);
+        if (errorJson.message) {
+          errorMessage = errorJson.message;
+        } else if (errorJson.error) {
+          errorMessage = errorJson.error;
+        } else if (errorJson.msg) {
+          errorMessage = errorJson.msg;
+        }
+        if (errorJson.code) {
+          errorCode = errorJson.code;
+        }
+      } catch (e) {
+        // 如果不是 JSON，使用原始文本
+      }
+      
+      // 详细错误日志
+      console.error('又拍云上传错误:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorCode: errorCode,
+        responseText: responseText,
+        endpoint: endpoint,
+        bucket: policyData.bucket,
+        policyLength: policyData.policy?.length,
+        signatureLength: policyData.signature?.length,
+        hasPolicy: !!policyData.policy,
+        hasSignature: !!policyData.signature
+      });
+      
+      // 400错误特殊处理
+      if (response.status === 400) {
+        if (responseText && responseText.toLowerCase().includes('need signature')) {
+          errorMessage = '又拍云上传需要 signature 参数。请检查后端策略生成是否正确，或者联系技术支持。';
+        } else if (responseText && responseText.toLowerCase().includes('invalid signature')) {
+          errorMessage = '又拍云签名验证失败。请检查表单API密钥（UPYUN_FORM_API_SECRET）是否正确。';
+        } else if (responseText && responseText.toLowerCase().includes('expired')) {
+          errorMessage = '又拍云上传策略已过期。请重新获取上传策略。';
+        } else {
+          errorMessage = `又拍云上传失败（${response.status}）：${errorMessage}。请检查上传策略和签名是否正确。`;
+        }
+      }
+      
+      // 403错误特殊处理
+      if (response.status === 403) {
+        if (responseText && responseText.toLowerCase().includes('form api disabled')) {
+          errorMessage = '又拍云表单上传API未启用。请检查又拍云控制台：1) 确认表单上传API已启用；2) 检查表单API密钥是否正确；3) 检查bucket权限设置。';
+        } else if (responseText && responseText.toLowerCase().includes('signature')) {
+          errorMessage = `又拍云签名验证失败（${response.status}）。请检查表单API密钥是否正确。`;
+        } else {
+          errorMessage = `又拍云上传被拒绝（${response.status}）：${errorMessage}。请检查又拍云控制台的bucket权限和表单API配置。`;
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
+    
+    // 解析成功响应
+    try {
+      if (responseText && responseText.trim()) {
+        const responseJson = JSON.parse(responseText);
+        if (responseJson.code && responseJson.code !== 200) {
+          throw new Error(responseJson.message || responseJson.error || '又拍云上传失败');
+        }
+        return responseJson;
+      }
+      // 响应为空，但状态码为 200，认为成功
+      return { success: true, message: '上传成功' };
+    } catch (e) {
+      // 如果不是 JSON，检查响应文本
+      if (responseText && responseText.trim()) {
+        if (responseText.includes('error') || responseText.includes('fail')) {
+          throw new Error(responseText);
+        }
+      }
+      // 响应为空或无法解析，但状态码为 200，认为成功
+      return { success: true, message: '上传成功' };
+    }
+  }, []);
 
   const handleCopyLink = useCallback(async (link) => {
     if (!link) return;
@@ -181,7 +331,7 @@ const PhotoManagement = () => {
       console.log('=== 开始获取照片列表 ===');
       setLoading(true);
       
-      const response = await photoApi.getAllPhotos();
+      const response = await photoApi.getAllPhotos({ sort: 'uploaded_at', order: 'desc' });
       console.log('获取照片列表响应:', response);
       console.log('响应数据结构:', {
         data: response.data,
@@ -252,28 +402,97 @@ const PhotoManagement = () => {
   // 处理照片上传
   const handleUpload = async (e) => {
     e.preventDefault();
-    console.log('=== 开始上传照片 ===');
-    console.log('上传表单数据:', uploadForm);
-    
-    // 前端验证
+    setError(null);
+
     if (!uploadForm.title.trim()) {
       setError('标题为必填字段');
       return;
     }
-    
+
+    if (!uploadForm.film_roll_id || !uploadForm.film_roll_id.trim()) {
+      setError('胶卷实例为必填字段');
+      return;
+    }
+
+    if (DIRECT_UPLOAD_ENABLED) {
+      if (!uploadForm.file) {
+        setError('请选择要上传的照片文件');
+        return;
+      }
+      try {
+        setIsUploading(true);
+        const payload = {
+          fileName: uploadForm.file.name,
+          mime: uploadForm.file.type,
+          size: uploadForm.file.size,
+          title: uploadForm.title.trim(),
+          description: uploadForm.description || '',
+          film_roll_id: uploadForm.film_roll_id,
+          camera_id: uploadForm.camera_id || '',
+          taken_date: uploadForm.taken_date || '',
+          latitude: uploadForm.latitude || '',
+          longitude: uploadForm.longitude || '',
+          country: uploadForm.country || '',
+          province: uploadForm.province || '',
+          city: uploadForm.city || '',
+          district: uploadForm.district || '',
+          township: uploadForm.township || '',
+          tags: uploadForm.tags || '',
+          is_protected: uploadForm.is_protected,
+          protection_level: uploadForm.protection_level || '',
+          rotation: uploadForm.rotation || 0,
+          storageVariant: 'WEB'
+        };
+        if (currentUser?.username) {
+          payload.uploader = currentUser.username;
+        }
+
+        const policyResponse = await storageApi.createPolicy(payload);
+        const policyData = policyResponse?.data?.data || policyResponse?.data;
+        
+        // 检查策略数据：又拍云 FORM API 必须使用 policy + signature
+        if (!policyData || !policyData.policy || !policyData.signature) {
+          throw new Error('未获取到有效的上传策略：缺少 policy 或 signature 字段');
+        }
+
+        await uploadFileToUpyun(policyData, uploadForm.file);
+        const serialInfo =
+          policyData.photoSerialNumber || policyData.photoNumber || policyData.photoId || '';
+        alert(
+          `上传已提交${serialInfo ? `（编号：${serialInfo}）` : ''}。系统将自动处理，请稍候刷新列表。`
+        );
+
+        setShowUploadModal(false);
+        resetUploadForm();
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
+        await waitFor(1500);
+        await fetchPhotos();
+      } catch (err) {
+        console.error('又拍云直传失败:', err);
+        const message = err.response?.data?.message || err.message || '上传照片失败';
+        setError(message);
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
+
     if (!uploadForm.file) {
       setError('请选择要上传的照片文件');
       return;
     }
-    
+
     try {
+      setIsUploading(true);
       const formData = new FormData();
       formData.append('title', uploadForm.title.trim());
       formData.append('description', uploadForm.description || '');
       formData.append('film_roll_id', uploadForm.film_roll_id || '');
       formData.append('camera_id', uploadForm.camera_id || '');
       formData.append('taken_date', uploadForm.taken_date || '');
-      // 新增：地址相关字段
       if (uploadForm.latitude) formData.append('latitude', uploadForm.latitude);
       if (uploadForm.longitude) formData.append('longitude', uploadForm.longitude);
       if (uploadForm.country) formData.append('country', uploadForm.country);
@@ -286,19 +505,12 @@ const PhotoManagement = () => {
       formData.append('is_protected', uploadForm.is_protected ? '1' : '0');
       formData.append('protection_level', uploadForm.protection_level || '');
       formData.append('rotation', uploadForm.rotation || '0');
-      
-      console.log('FormData内容:');
-      for (let [key, value] of formData.entries()) {
-        console.log(`${key}:`, value);
-      }
-      
-      console.log('调用照片上传API...');
+
       const response = await photoApi.uploadPhoto(formData);
       console.log('照片上传成功:', response);
-      
+
       setShowUploadModal(false);
-      resetUploadForm(); // 重置上传表单
-      // 清理预览URL
+      resetUploadForm();
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl(null);
@@ -322,18 +534,14 @@ const PhotoManagement = () => {
         protection_level: '',
         rotation: 0
       });
-      
-      console.log('刷新照片列表...');
+
       await fetchPhotos();
-      console.log('照片列表刷新完成');
     } catch (err) {
       console.error('上传照片失败:', err);
-      console.error('错误详情:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status
-      });
-      setError('上传照片失败');
+      const message = err.response?.data?.message || err.message || '上传照片失败';
+      setError(message);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -397,35 +605,145 @@ const PhotoManagement = () => {
   // 处理批量照片上传
   const handleBatchUpload = async (e) => {
     e.preventDefault();
-    console.log('=== 开始批量上传照片 ===');
-    console.log('批量上传表单数据:', batchUploadForm);
-    
-    // 前端验证
+    setError(null);
+
     if (!batchUploadForm.film_roll_id.trim()) {
       setError('胶卷实例为必填字段');
       return;
     }
-    
-    if (!batchUploadForm.files || batchUploadForm.files.length === 0) {
+
+    const files = Array.from(batchUploadForm.files || []);
+    if (files.length === 0) {
       setError('请至少选择一张照片文件');
       return;
     }
-    
+
+    if (DIRECT_UPLOAD_ENABLED) {
+      try {
+        setIsBatchUploading(true);
+        const summary = [];
+        for (let index = 0; index < files.length; index += 1) {
+          const file = files[index];
+          const location = batchFileLocations[index] || {};
+          const protection = batchFileProtection[index] || {};
+          const perFileTags = batchFileTags[index];
+          const payload = {
+            fileName: file.name,
+            mime: file.type,
+            size: file.size,
+            film_roll_id: batchUploadForm.film_roll_id.trim(),
+            camera_id: batchUploadForm.camera_id || '',
+            tags: perFileTags || batchUploadForm.tags || '',
+            is_protected:
+              protection.is_protected !== undefined
+                ? protection.is_protected
+                : batchUploadForm.is_protected,
+            protection_level:
+              protection.protection_level || batchUploadForm.protection_level || '',
+            latitude: location.latitude || '',
+            longitude: location.longitude || '',
+            country: location.country || '',
+            province: location.province || '',
+            city: location.city || '',
+            district: location.district || '',
+            township: location.township || '',
+            rotation: batchFileRotations[index] || 0,
+            storageVariant: 'WEB'
+          };
+          if (currentUser?.username) {
+            payload.uploader = currentUser.username;
+          }
+
+          const policyResponse = await storageApi.createPolicy(payload);
+          
+          // 调试：检查 API 响应结构
+          console.log('[Upyun] 策略 API 响应:', {
+            hasData: !!policyResponse?.data,
+            hasDataData: !!policyResponse?.data?.data,
+            success: policyResponse?.data?.success,
+            responseKeys: policyResponse?.data ? Object.keys(policyResponse.data) : []
+          });
+          
+          const policyData = policyResponse?.data?.data || policyResponse?.data;
+          
+          // 调试：检查策略数据
+          console.log('[Upyun] 策略数据:', {
+            hasPolicy: !!policyData?.policy,
+            hasSignature: !!policyData?.signature,
+            hasBucket: !!policyData?.bucket,
+            policyLength: policyData?.policy?.length,
+            signatureLength: policyData?.signature?.length,
+            signature: policyData?.signature,
+            useAuthorizationHeader: policyData?.useAuthorizationHeader
+          });
+          
+          // 检查策略数据：又拍云 FORM API 必须使用 policy + signature
+          if (!policyData || !policyData.policy || !policyData.signature) {
+            console.error('[Upyun] 策略数据不完整:', policyData);
+            throw new Error(`文件 ${file.name} 未获得有效上传策略：缺少 policy 或 signature 字段`);
+          }
+
+          await uploadFileToUpyun(policyData, file);
+          summary.push(
+            policyData.photoSerialNumber ||
+              policyData.photoNumber ||
+              policyData.photoId ||
+              file.name
+          );
+        }
+
+        alert(
+          `批量上传已提交。${summary.length > 0 ? `编号：${summary.join(', ')}` : '系统将自动处理'}.`
+        );
+        setShowBatchUploadModal(false);
+        resetBatchUploadForm();
+        setBatchFileRotations({});
+        setBatchFileLocations({});
+        setBatchFileTags({});
+        setBatchFileProtection({});
+        await waitFor(2000);
+        await fetchPhotos();
+      } catch (err) {
+        console.error('批量直传失败:', err);
+        console.error('错误详情:', {
+          message: err.message,
+          response: err.response?.data,
+          status: err.response?.status,
+          stack: err.stack
+        });
+        
+        // 提取错误消息
+        let message = err.response?.data?.message || err.message || '批量上传照片失败';
+        
+        // 如果是又拍云403错误，提供更详细的错误信息
+        if (err.message && err.message.includes('403')) {
+          message = err.message;
+        } else if (err.message && err.message.toLowerCase().includes('form api disabled')) {
+          message = '又拍云表单上传API未启用。请检查又拍云控制台：1) 确认表单上传API已启用；2) 检查表单API密钥是否正确；3) 检查bucket权限设置。';
+        } else if (err.response?.status === 403) {
+          message = '又拍云上传被拒绝（403）。请检查又拍云控制台的bucket权限和表单API配置。';
+        }
+        
+        setError(message);
+      } finally {
+        setIsBatchUploading(false);
+      }
+      return;
+    }
+
     try {
+      setIsBatchUploading(true);
       const formData = new FormData();
       formData.append('film_roll_id', batchUploadForm.film_roll_id.trim());
       formData.append('camera_id', batchUploadForm.camera_id || '');
       formData.append('tags', batchUploadForm.tags || '');
-      console.log('批量上传 is_protected 值:', batchUploadForm.is_protected);
       formData.append('is_protected', batchUploadForm.is_protected ? '1' : '0');
       formData.append('protection_level', batchUploadForm.protection_level || '');
-      
-      // 添加多个文件和对应的旋转角度、位置信息、标签、隐私保护
-      batchUploadForm.files.forEach((file, index) => {
+
+      files.forEach((file, index) => {
         formData.append('photos', file);
         formData.append(`rotation_${index}`, batchFileRotations[index] || 0);
-        
-        // 添加每张照片的位置信息
+
         const location = batchFileLocations[index] || {};
         if (location.latitude && location.longitude) {
           formData.append(`latitude_${index}`, location.latitude);
@@ -436,43 +754,35 @@ const PhotoManagement = () => {
           formData.append(`district_${index}`, location.district || '');
           formData.append(`township_${index}`, location.township || '');
         }
-        
-        // 添加每张照片的标签
+
         if (batchFileTags[index]) {
           formData.append(`tags_${index}`, batchFileTags[index]);
         }
-        
-        // 添加每张照片的隐私保护设置
+
         const protection = batchFileProtection[index] || {};
         formData.append(`is_protected_${index}`, protection.is_protected ? '1' : '0');
         if (protection.protection_level) {
           formData.append(`protection_level_${index}`, protection.protection_level);
         }
       });
-      
-      console.log('批量上传FormData文件数量:', batchUploadForm.files.length);
-      console.log('调用批量上传API...');
+
       const response = await photoApi.uploadPhotosBatch(formData);
       console.log('批量上传成功:', response);
-      
+
       setShowBatchUploadModal(false);
-      resetBatchUploadForm(); // 重置批量上传表单
-      setBatchFileRotations({}); // 清理旋转状态
-      setBatchFileLocations({}); // 清理位置信息
-      setBatchFileTags({}); // 清理标签信息
-      setBatchFileProtection({}); // 清理隐私保护信息
-      
-      console.log('刷新照片列表...');
+      resetBatchUploadForm();
+      setBatchFileRotations({});
+      setBatchFileLocations({});
+      setBatchFileTags({});
+      setBatchFileProtection({});
+
       await fetchPhotos();
-      console.log('照片列表刷新完成');
     } catch (err) {
       console.error('批量上传照片失败:', err);
-      console.error('错误详情:', {
-        message: err.message,
-        response: err.response?.data,
-        status: err.response?.status
-      });
-      setError('批量上传照片失败');
+      const message = err.response?.data?.message || err.message || '批量上传照片失败';
+      setError(message);
+    } finally {
+      setIsBatchUploading(false);
     }
   };
 
@@ -755,6 +1065,11 @@ const PhotoManagement = () => {
             {/* 弹窗内容区域 */}
             <div className="p-6 space-y-4">
               <h2 className="text-xl font-bold mb-4">上传照片</h2>
+              {DIRECT_UPLOAD_ENABLED && (
+                <div className="mb-4 p-3 rounded-lg bg-blue-50 text-sm text-blue-700 border border-blue-100">
+                  已启用又拍云直传：提交后文件将直接上传至云端，系统回调处理需要一些时间，请稍候刷新列表查看结果。
+                </div>
+              )}
               <form id="upload-form" onSubmit={handleUpload}>
                 <div className="space-y-4">
                 {/* 第一行：标题和描述 */}
@@ -991,9 +1306,14 @@ const PhotoManagement = () => {
               <button
                 type="submit"
                 form="upload-form"
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg"
+                disabled={isUploading}
+                className={`flex-1 py-2 px-4 rounded-lg text-white transition-colors ${
+                  isUploading
+                    ? 'bg-blue-400 cursor-not-allowed opacity-70'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
-                上传
+                {isUploading ? '上传中…' : '上传'}
               </button>
               <button
                 type="button"
@@ -1261,6 +1581,11 @@ const PhotoManagement = () => {
           <div className="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 space-y-4">
               <h2 className="text-xl font-bold mb-4">批量上传照片</h2>
+              {DIRECT_UPLOAD_ENABLED && (
+                <div className="mb-4 p-3 rounded-lg bg-blue-50 text-sm text-blue-700 border border-blue-100">
+                  已启用又拍云直传：批量提交的文件会逐张上传到又拍云，并由系统回调生成记录。处理可能需要几十秒，请稍候再刷新。
+                </div>
+              )}
               <form id="batch-upload-form" onSubmit={handleBatchUpload}>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -1491,9 +1816,14 @@ const PhotoManagement = () => {
               <button
                 type="submit"
                 form="batch-upload-form"
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg"
+                disabled={isBatchUploading}
+                className={`flex-1 py-2 px-4 rounded-lg text-white transition-colors ${
+                  isBatchUploading
+                    ? 'bg-green-400 cursor-not-allowed opacity-70'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
               >
-                批量上传
+                {isBatchUploading ? '批量上传中…' : '批量上传'}
               </button>
               <button
                 type="button"

@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const BASE62_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 const STORAGE_VARIANTS = ['RAW', 'WEB', 'THUMB', 'SHARE'];
 const SHORT_CODE_LENGTH = 5;
-const SHORT_LINK_PREFIX = (process.env.SHORT_LINK_PREFIX || 'https://filmtrip.app/s').replace(/\/$/, '');
+const SHORT_LINK_PREFIX = (process.env.SHORT_LINK_PREFIX || (process.env.NODE_ENV === 'production' ? 'https://filmtrip.cn/s' : 'http://localhost:3002/s')).replace(/\/$/, '');
 
 const getStorageEnv = () => process.env.STORAGE_ENV || (process.env.NODE_ENV === 'production' ? 'prod' : 'dev');
 
@@ -35,7 +35,58 @@ const getHashedSegments = (input) => {
   return [digest.slice(0, 2), digest.slice(2, 4), digest.slice(4, 6)];
 };
 
-const generateObjectPath = ({ variant = 'WEB', extension = '' } = {}) => {
+/**
+ * 生成简化版的对象路径（减少信息泄露）
+ * 新格式: {hash_prefix_2}/{hash}.{ext}
+ * 例如: a7/b3c8f9e2d1a4b5c6d7e8f9a0b1c2d3e4.jpg
+ * 
+ * 优点：
+ * - 隐藏环境信息（dev/prod）
+ * - 隐藏类型信息（WEB/RAW等）
+ * - 隐藏UUID
+ * - 保留2级目录结构（避免单目录文件过多）
+ */
+const generateObjectPath = ({ variant = 'WEB', extension = '', shortCode = null } = {}) => {
+  const normalizedVariant = ensureVariant(variant);
+  const ext = normalizeExtension(extension);
+  
+  // 如果提供了short_code，使用short_code作为文件名（最简洁）
+  if (shortCode) {
+    // 使用short_code的前2个字符作为目录前缀，保持目录结构
+    const prefix = shortCode.slice(0, 2);
+    const objectPath = `${prefix}/${shortCode}${ext}`;
+    return {
+      shortCode,
+      objectPath,
+      variant: normalizedVariant,
+      segments: [prefix],
+      env: null // 不暴露环境信息
+    };
+  }
+  
+  // 否则使用UUID生成hash路径
+  const uuid = uuidv4();
+  const hash = crypto.createHash('sha256').update(uuid).digest('hex');
+  // 使用hash的前2个字符作为目录前缀
+  const prefix = hash.slice(0, 2);
+  // 使用hash的前32个字符作为文件名（避免UUID泄露）
+  const fileName = hash.slice(0, 32);
+  const objectPath = `${prefix}/${fileName}${ext}`;
+  
+  return {
+    uuid,
+    objectPath,
+    variant: normalizedVariant,
+    segments: [prefix],
+    env: null // 不暴露环境信息
+  };
+};
+
+/**
+ * 旧版路径生成（保留兼容性，但不推荐使用）
+ * 格式: {env}/{variant}/{segments}/{uuid}.{ext}
+ */
+const generateObjectPathLegacy = ({ variant = 'WEB', extension = '' } = {}) => {
   const normalizedVariant = ensureVariant(variant);
   const ext = normalizeExtension(extension);
   const uuid = uuidv4();
@@ -92,6 +143,7 @@ module.exports = {
   ensureVariant,
   calcHashes,
   generateObjectPath,
+  generateObjectPathLegacy, // 保留旧版，但不推荐使用
   generateShortCode,
   getStorageEnv,
   SHORT_CODE_LENGTH,

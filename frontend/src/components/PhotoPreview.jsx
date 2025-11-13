@@ -423,18 +423,23 @@ const PhotoPreview = ({
             );
           }
 
-          const imageUrl = photo.size2048 
-            ? `${API_CONFIG.BASE_URL}${photo.size2048}?v=${stableVRef.current}` 
-            : (photo.size1024 
-              ? `${API_CONFIG.BASE_URL}${photo.size1024}?v=${stableVRef.current}` 
-              : (photo.original 
-                ? `${API_CONFIG.BASE_URL}${photo.original}?v=${stableVRef.current}` 
-                : (photo.thumbnail 
-                  ? `${API_CONFIG.BASE_URL}${photo.thumbnail}?v=${stableVRef.current}` 
-                  : null)));
+          // 选择图片URL（按优先级：size2048 > size1024 > original > thumbnail）
+          const rawImageUrl = photo.size2048 || photo.size1024 || photo.original || photo.thumbnail;
+          
+          // 构建完整的图片URL
+          let imageUrl = null;
+          if (rawImageUrl) {
+            // 如果是完整的 URL（又拍云 CDN），直接使用
+            if (rawImageUrl.startsWith('http://') || rawImageUrl.startsWith('https://')) {
+              imageUrl = `${rawImageUrl}?v=${stableVRef.current}`;
+            } else {
+              // 如果是相对路径（本地文件），拼接 BASE_URL
+              imageUrl = `${API_CONFIG.BASE_URL}${rawImageUrl}?v=${stableVRef.current}`;
+            }
+          }
           
           // 如果没有图片URL
-          if (!imageUrl || (!photo.size2048 && !photo.size1024 && !photo.original && !photo.thumbnail)) {
+          if (!imageUrl || !rawImageUrl) {
             return (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-2xl px-6">
                 <div className="text-center py-8 space-y-3 max-w-xs">

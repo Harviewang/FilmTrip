@@ -44,7 +44,7 @@ const Gallery = () => {
   // 分页相关状态
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const pageSize = 20; // 每页加载20张照片
+  const pageSize = 36; // 每页加载36张照片（一个胶卷的数量）
   
   // 视图模式状态
   const WATERFALL_ENABLED = true; // 启用瀑布流
@@ -119,10 +119,12 @@ const Gallery = () => {
       photo.effective_protection !== undefined ? photo.effective_protection : photo.is_protected
     );
 
-    const backendThumbnail = photo.thumbnail || null;
-    const backendSize1024 = photo.size1024 || null;
-    const backendSize2048 = photo.size2048 || null;
-    const backendOriginal = photo.original || null;
+    // 使用 variants 作为后备，确保即使受保护照片也能显示（使用 variants 中的 URL）
+    const variants = photo.variants || {};
+    const backendThumbnail = photo.thumbnail || variants.thumbnail || null;
+    const backendSize1024 = photo.size1024 || variants.size1024 || null;
+    const backendSize2048 = photo.size2048 || variants.size2048 || null;
+    const backendOriginal = photo.original || variants.original || null;
     const hasBackendImageUrl = Boolean(backendThumbnail || backendSize1024 || backendSize2048 || backendOriginal);
 
     const filename = hasBackendImageUrl ? (photo.filename || photo.original_name || '') : '';
@@ -757,7 +759,7 @@ const Gallery = () => {
     }
     const protectionInfo = resolveProtectionLevelInfo(photo.protection_level);
     const isProtectedForViewer = effectiveProtection && !isAdmin;
-    const hasValidImageUrl = photo.size1024 || photo.thumbnail;
+    const hasValidImageUrl = photo.thumbnail || photo.size1024;
 
     const renderPlaceholder = () => {
       if (isProtectedForViewer) {
@@ -791,7 +793,17 @@ const Gallery = () => {
             renderPlaceholder()
           ) : (
             <LazyImage
-              src={`${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}`}
+              src={(() => {
+                // 列表缩略图优先使用 thumbnail（thumb 样式，400px，无水印）
+                const imageUrl = photo.thumbnail || photo.size1024;
+                if (!imageUrl) return '';
+                // 如果是完整的 URL（又拍云 CDN），直接使用
+                if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                  return `${imageUrl}?v=${stableTimestamp}`;
+                }
+                // 如果是相对路径（本地文件），拼接 BASE_URL
+                return `${API_CONFIG.BASE_URL}${imageUrl}?v=${stableTimestamp}`;
+              })()}
               alt={photo.title || '照片'}
               className={`transition-transform duration-300 group-hover:scale-110 w-full h-full object-cover`}
               onClick={(e) => handlePhotoClick(photo, e)}
@@ -1172,13 +1184,85 @@ const Gallery = () => {
                                   </div>
                                 ) : (
                                   <img
-                                    src={(photo.size1024 || photo.thumbnail) ? `${API_CONFIG.BASE_URL}${photo.size1024 || photo.thumbnail}?v=${stableTimestamp}` : ''}
+                                    src={(() => {
+                                      // 瀑布流缩略图优先使用 thumbnail（thumb 样式，400px，无水印）
+                                      const imageUrl = photo.thumbnail || photo.size1024;
+                                      if (!imageUrl) return '';
+                                      // 如果是完整的 URL（又拍云 CDN），直接使用
+                                      if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                                        return `${imageUrl}?v=${stableTimestamp}`;
+                                      }
+                                      // 如果是相对路径（本地文件），拼接 BASE_URL
+                                      return `${API_CONFIG.BASE_URL}${imageUrl}?v=${stableTimestamp}`;
+                                    })()}
                                     alt={photo.title || '照片'}
                                     className="w-full h-full object-cover select-none hover:opacity-95 transition-opacity"
                                     loading="lazy"
                                     onMouseDown={(e) => handlePhotoMouseDown(photo, e)}
                                     onMouseMove={(e) => handlePhotoMouseMove(photo, e)}
                                     draggable={false}
+                                    onError={async (e) => {
+                                      // 处理图片加载失败（可能是签名URL过期）
+                                      const img = e.target;
+                                      const originalSrc = img.src;
+                                      
+                                      // 如果是受保护照片的签名URL过期（403/404），重新获取照片信息
+                                      if (originalSrc.includes('_upt=') || originalSrc.includes('?v=')) {
+                                        try {
+                                          // 重新获取照片信息以刷新URL
+                                          const photoId = photo.id;
+                                          const shortCode = photo.shortCode || photo.short_code;
+                                          
+                                          if (shortCode) {
+                                            // 通过短码重新获取照片
+                                            const response = await photoApi.getPhotoByShortCode(shortCode);
+                                            const updatedPhoto = response?.data?.data?.[0] || response?.data?.[0];
+                                            
+                                            if (updatedPhoto && updatedPhoto.variants) {
+                                              // 使用新的URL重新加载
+                                              const newUrl = updatedPhoto.variants.thumbnail || updatedPhoto.variants.size1024;
+                                              if (newUrl) {
+                                                // 更新照片对象中的URL
+                                                photo.thumbnail = updatedPhoto.thumbnail || updatedPhoto.variants.thumbnail;
+                                                photo.size1024 = updatedPhoto.size1024 || updatedPhoto.variants.size1024;
+                                                
+                                                // 重新设置图片src
+                                                img.src = `${newUrl}?v=${Date.now()}`;
+                                                return;
+                                              }
+                                            }
+                                          }
+                                        } catch (error) {
+                                          console.error('重新获取照片URL失败:', error);
+                                        }
+                                      }
+                                      
+                                      // 如果无法重新获取，显示占位符
+                                      img.style.display = 'none';
+                                      const placeholder = document.createElement('div');
+                                      placeholder.className = 'w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 text-xs';
+                                      placeholder.textContent = '加载失败';
+                                      img.parentElement.appendChild(placeholder);
+                                    }}
+                                    onLoad={(e) => {
+                                      // 确保图片正确填充容器
+                                      const img = e.target;
+                                      if (img.naturalWidth && img.naturalHeight) {
+                                        // 如果图片尺寸与容器不匹配，调整object-fit
+                                        const container = img.parentElement;
+                                        if (container) {
+                                          const containerWidth = container.clientWidth;
+                                          const containerHeight = container.clientHeight;
+                                          const imgAspect = img.naturalWidth / img.naturalHeight;
+                                          const containerAspect = containerWidth / containerHeight;
+                                          
+                                          // 如果宽高比差异较大，确保图片正确填充
+                                          if (Math.abs(imgAspect - containerAspect) > 0.1) {
+                                            img.style.objectFit = 'cover';
+                                          }
+                                        }
+                                      }
+                                    }}
                                   />
                                 )}
                                 {!isProtectedForViewer && effectiveProtection && (

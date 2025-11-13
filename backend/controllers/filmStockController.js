@@ -411,7 +411,7 @@ const updateFilmStock = (req, res) => {
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     
     // 更新数据
-    const result = insert(
+    const result = update(
       `UPDATE film_stocks SET stock_serial_number = ?, brand = ?, series = ?, iso = ?, format = ?, type = ?, description = ?, package_image = ?, cartridge_image = ?, updated_at = ? 
        WHERE id = ?`,
       [stockSerialNumber, brand, series, parseInt(iso), format, typeCode, description || '', packageImagePath, cartridgeImagePath, now, id]
@@ -475,7 +475,7 @@ const deleteFilmStock = (req, res) => {
     }
     
     // 删除胶卷品类
-    const result = insert('DELETE FROM film_stocks WHERE id = ?', [id]);
+    const result = deleteRecord('DELETE FROM film_stocks WHERE id = ?', [id]);
     
     if (result.changes === 0) {
       return res.status(500).json({
