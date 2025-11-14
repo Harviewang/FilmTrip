@@ -13,9 +13,10 @@
 
 ### 1. 地图功能优化（Codex）
 - **MapTiler 配置**：
-  - 创建 `.env.local` 文件，设置 `VITE_MAPTILER_KEY=DKuhLqblnLLkKdQ88ScQ`
+  - 创建 `.env.local` 文件，设置 `VITE_MAPTILER_KEY=[密钥已移除，存储在环境变量中]`
   - 重启前端开发服务器应用新配置
   - 验证 MapTiler API 调用正常
+  - ⚠️ **安全警告**: 密钥已从文档中移除，请使用环境变量配置
 - **地图缩放修复**：
   - 完全禁用所有自动地图源切换逻辑（性能监控、错误处理、zoomend事件）
   - 移除地图加载失败的 tileerror 事件监听器

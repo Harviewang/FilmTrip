@@ -1,6 +1,13 @@
 const https = require('https');
 
-const MAPTILER_KEY = 'DKuhLqblnLLkKdQ88ScQ';
+// ⚠️ 安全：使用环境变量，不要硬编码密钥
+const MAPTILER_KEY = process.env.MAPTILER_KEY || process.env.VITE_MAPTILER_KEY;
+
+if (!MAPTILER_KEY) {
+  console.error('⚠️ MAPTILER_KEY is not configured in environment variables');
+  console.error('请设置环境变量: MAPTILER_KEY=your_key');
+  process.exit(1);
+}
 
 // 10个全球不同地点
 const testLocations = [

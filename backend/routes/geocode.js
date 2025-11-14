@@ -440,7 +440,15 @@ router.post('/reverse', async (req, res) => {
     }
     
         // 统一使用MapTiler API（支持全球）
-    const MAPTILER_KEY = 'DKuhLqblnLLkKdQ88ScQ';
+    // ⚠️ 安全：使用环境变量，不要硬编码密钥
+    const MAPTILER_KEY = process.env.MAPTILER_KEY || process.env.VITE_MAPTILER_KEY;
+    if (!MAPTILER_KEY) {
+      console.error('MAPTILER_KEY is not configured in environment variables');
+      return res.status(500).json({
+        success: false,
+        message: '地图服务配置错误'
+      });
+    }
     const url = `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`;
     
     let result = null;
@@ -529,7 +537,15 @@ router.post('/reverse-maptiler', async (req, res) => {
       });
     }
     
-    const MAPTILER_KEY = 'DKuhLqblnLLkKdQ88ScQ';
+    // ⚠️ 安全：使用环境变量，不要硬编码密钥
+    const MAPTILER_KEY = process.env.MAPTILER_KEY || process.env.VITE_MAPTILER_KEY;
+    if (!MAPTILER_KEY) {
+      console.error('MAPTILER_KEY is not configured in environment variables');
+      return res.status(500).json({
+        success: false,
+        message: '地图服务配置错误'
+      });
+    }
     const url = `https://api.maptiler.com/geocoding/${longitude},${latitude}.json?key=${MAPTILER_KEY}`;
     
     const response = await new Promise((resolve, reject) => {
