@@ -28,12 +28,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: false
-      }
-    }
+    minify: 'esbuild',  // 改用 esbuild，Vite 内置支持，无需额外安装
+    // 移除了 terserOptions，esbuild 不需要这些配置
   },
   optimizeDeps: {
     include: ['react', 'react-dom']
