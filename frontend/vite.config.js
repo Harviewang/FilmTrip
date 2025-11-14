@@ -23,7 +23,15 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'map-vendor': ['leaflet', 'react-leaflet', 'maplibre-gl']
+        }
+      }
+    }
   },
   optimizeDeps: {
     include: ['react', 'react-dom']
