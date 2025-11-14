@@ -67,29 +67,96 @@ async function migrateSchema() {
     
     console.log('📝 执行表结构迁移...\n');
     
-    // 执行SQL（使用事务）
-    await db.tx(async (t) => {
-      // 按语句分割执行（PostgreSQL需要分别执行）
-      const statements = cleanSql
-        .split(';')
-        .map(s => s.trim())
-        .filter(s => s.length > 0 && !s.startsWith('--'));
-      
-      for (const statement of statements) {
+    // 按语句分割执行（不使用事务，避免错误影响后续语句）
+    let statements = cleanSql
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+    
+    // 分离CREATE TABLE、CREATE INDEX和ALTER TABLE语句
+    const createTables = [];
+    const createIndexes = [];
+    const alterTables = [];
+    
+    for (const statement of statements) {
+      const upper = statement.toUpperCase().trim();
+      if (upper.startsWith('CREATE TABLE')) {
+        createTables.push(statement);
+      } else if (upper.startsWith('CREATE INDEX') || upper.startsWith('CREATE UNIQUE INDEX')) {
+        createIndexes.push(statement);
+      } else if (upper.startsWith('ALTER TABLE')) {
+        alterTables.push(statement);
+      } else if (upper.length > 0) {
+        // 其他语句（如注释等）忽略
+      }
+    }
+    
+    // 先执行所有CREATE TABLE（不使用事务）
+    console.log('📋 创建表结构...');
+    let tableCount = 0;
+    for (const statement of createTables) {
+      try {
+        await db.none(statement);
+        tableCount++;
+        const tableName = statement.match(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)/i)?.[1] || 'table';
+        console.log(`   ✅ ${tableName}`);
+      } catch (error) {
+        if (error.message.includes('already exists') || 
+            error.code === '42P07' || // 表已存在
+            error.code === '42710') { // 对象已存在
+          const tableName = statement.match(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(\w+)/i)?.[1] || 'table';
+          console.log(`   ⚠️  ${tableName} 已存在，跳过`);
+        } else {
+          console.error(`   ❌ 创建表失败: ${error.message}`);
+          throw error;
+        }
+      }
+    }
+    console.log(`\n✅ 已创建/跳过 ${tableCount} 个表\n`);
+    
+    // 再执行所有CREATE INDEX（不使用事务）
+    console.log('📋 创建索引...');
+    let indexCount = 0;
+    for (const statement of createIndexes) {
+      try {
+        await db.none(statement);
+        indexCount++;
+      } catch (error) {
+        if (error.message.includes('already exists') || 
+            error.code === '42P07' || // 索引已存在
+            error.code === '42710') { // 对象已存在
+          // 忽略已存在的索引
+        } else if (error.code === '42P01') { // 关系不存在（表不存在）
+          console.log(`   ⚠️  跳过索引（表不存在）: ${statement.substring(0, 60)}...`);
+        } else {
+          // 其他错误只记录，不中断
+          console.log(`   ⚠️  索引创建失败（继续）: ${error.message.substring(0, 60)}...`);
+        }
+      }
+    }
+    console.log(`\n✅ 已创建/跳过 ${indexCount} 个索引\n`);
+    
+    // 最后执行ALTER TABLE（不使用事务）
+    if (alterTables.length > 0) {
+      console.log('📋 添加约束...');
+      for (const statement of alterTables) {
         try {
-          await t.none(statement);
+          await db.none(statement);
         } catch (error) {
-          // 忽略"已存在"的错误
           if (error.message.includes('already exists') || 
-              error.code === '42P07' || // 表已存在
-              error.code === '42710') { // 对象已存在
-            console.log(`⚠️  跳过: ${error.message.substring(0, 60)}...`);
+              error.code === '42P07' || 
+              error.code === '42710' ||
+              error.message.includes('does not exist') ||
+              error.code === '42P16') { // 约束已存在
+            // 忽略已存在的约束
           } else {
-            throw error;
+            // 其他错误只记录，不中断
+            console.log(`   ⚠️  约束添加失败（继续）: ${error.message.substring(0, 60)}...`);
           }
         }
       }
-    });
+      console.log('');
+    }
     
     console.log('\n✅ PostgreSQL表结构迁移完成！\n');
     

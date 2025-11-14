@@ -100,10 +100,9 @@ async function migrateData() {
     
     let totalMigrated = 0;
     
-    // 使用事务迁移数据
-    await pgDb.tx(async (t) => {
-      for (const tableName of migrationOrder) {
-        try {
+    // 不使用事务，每个表单独迁移（避免一个表失败影响其他表）
+    for (const tableName of migrationOrder) {
+      try {
           // 检查表是否存在
           const tableExists = sqliteTables.some(t => t.name === tableName);
           if (!tableExists) {
@@ -125,6 +124,18 @@ async function migrateData() {
           const columnNames = columns.join(', ');
           const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
           
+          // 识别BOOLEAN列（PostgreSQL中的BOOLEAN类型）
+          // SQLite中这些列是INTEGER（0或1），需要转换为PostgreSQL的BOOLEAN（true/false）
+          const booleanColumns = new Set([
+            'is_encrypted', 'is_private'
+          ]);
+          
+          // 识别INTEGER列（需要处理空字符串和null）
+          const integerColumns = new Set([
+            'iso', 'photo_number', 'rating', 'width', 'height', 
+            'orientation', 'rotation', 'is_protected', 'protection_level'
+          ]);
+          
           // 构建INSERT语句（使用ON CONFLICT DO NOTHING避免重复插入）
           const insertSql = `
             INSERT INTO ${tableName} (${columnNames})
@@ -137,10 +148,29 @@ async function migrateData() {
           
           // 批量插入数据
           for (const row of rows) {
-            const values = columns.map(col => row[col]);
+            // 转换值：处理BOOLEAN和INTEGER类型转换
+            const values = columns.map(col => {
+              const value = row[col];
+              
+              // 如果是BOOLEAN列且值是数字，转换为布尔值
+              if (booleanColumns.has(col) && (value === 0 || value === 1)) {
+                return value === 1;
+              }
+              
+              // 如果是INTEGER列，处理空字符串和null
+              if (integerColumns.has(col)) {
+                if (value === null || value === undefined || value === '') {
+                  return null;
+                }
+                const numValue = parseInt(value);
+                return isNaN(numValue) ? null : numValue;
+              }
+              
+              return value;
+            });
             
             try {
-              const result = await t.none(insertSql, values);
+              const result = await pgDb.none(insertSql, values);
               insertedCount++;
             } catch (error) {
               // ON CONFLICT DO NOTHING会返回0行，这不算错误
@@ -161,7 +191,6 @@ async function migrateData() {
           continue;
         }
       }
-    });
     
     console.log(`\n✅ 数据迁移完成！共迁移 ${totalMigrated} 条记录\n`);
     

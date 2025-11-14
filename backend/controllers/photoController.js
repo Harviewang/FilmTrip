@@ -50,11 +50,11 @@ const logShortLinkEvent = (payload, { uploadSource } = {}) => {
 
 const buildVariantUrls = (photoOrFilename) => {
   const emptyVariants = {
-    original: null,
-    thumbnail: null,
-    size1024: null,
-    size2048: null
-  };
+      original: null,
+      thumbnail: null,
+      size1024: null,
+      size2048: null
+    };
 
   if (!photoOrFilename) {
     return emptyVariants;
@@ -357,23 +357,23 @@ const getAllPhotos = async (req, res) => {
                               photo.origin_bucket !== upyunService.getConfig().bucket;
           
           if (isLocalFile) {
-            try {
-              const uploadsDir = path.join(__dirname, '../uploads');
-              const origPathAbs = path.join(uploadsDir, photo.filename);
+          try {
+            const uploadsDir = path.join(__dirname, '../uploads');
+            const origPathAbs = path.join(uploadsDir, photo.filename);
               
               // 检查文件是否存在
               if (fs.existsSync(origPathAbs)) {
-                const buf = fs.readFileSync(origPathAbs);
-                const exif = ExifParser.create(buf).parse();
-                if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
-                  photo.exif = photo.exif || {};
-                  photo.exif.Orientation = exif.tags.Orientation;
-                  photo._raw.exif = photo._raw.exif || {};
-                  photo._raw.exif.Orientation = exif.tags.Orientation;
+            const buf = fs.readFileSync(origPathAbs);
+            const exif = ExifParser.create(buf).parse();
+            if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
+              photo.exif = photo.exif || {};
+              photo.exif.Orientation = exif.tags.Orientation;
+              photo._raw.exif = photo._raw.exif || {};
+              photo._raw.exif.Orientation = exif.tags.Orientation;
                 }
-              }
-            } catch (e) {
-              // EXIF读取失败，不影响图片显示
+            }
+          } catch (e) {
+            // EXIF读取失败，不影响图片显示
               // 只记录错误，不抛出异常
               console.warn(`[EXIF] 读取照片 ${photo.id} 的EXIF信息失败:`, e.message);
             }
@@ -1638,23 +1638,23 @@ const getRandomPhotos = (req, res) => {
                             photo.origin_bucket !== upyunService.getConfig().bucket;
         
         if (isLocalFile) {
-          try {
-            const uploadsDir = path.join(__dirname, '../uploads');
-            const origPathAbs = path.join(uploadsDir, photo.filename);
+        try {
+          const uploadsDir = path.join(__dirname, '../uploads');
+          const origPathAbs = path.join(uploadsDir, photo.filename);
             
             // 检查文件是否存在
             if (fs.existsSync(origPathAbs)) {
-              const buf = fs.readFileSync(origPathAbs);
-              const exif = ExifParser.create(buf).parse();
-              if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
-                photo.exif = photo.exif || {};
-                photo.exif.Orientation = exif.tags.Orientation;
-                photo._raw.exif = photo._raw.exif || {};
-                photo._raw.exif.Orientation = exif.tags.Orientation;
+          const buf = fs.readFileSync(origPathAbs);
+          const exif = ExifParser.create(buf).parse();
+          if (exif && exif.tags && typeof exif.tags.Orientation !== 'undefined') {
+            photo.exif = photo.exif || {};
+            photo.exif.Orientation = exif.tags.Orientation;
+            photo._raw.exif = photo._raw.exif || {};
+            photo._raw.exif.Orientation = exif.tags.Orientation;
               }
-            }
-          } catch (e) {
-            // EXIF读取失败，不影响图片显示
+          }
+        } catch (e) {
+          // EXIF读取失败，不影响图片显示
             console.warn(`[EXIF] 读取照片 ${photo.id} 的EXIF信息失败:`, e.message);
           }
         } else {

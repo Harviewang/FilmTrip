@@ -14,11 +14,13 @@
 ### 泄露的密钥
 
 1. **又拍云FORM API密钥**：
-   - `KsdvRi49VRNj7W9NcHQj9BYDAPw=`（当前使用）
-   - `402e4c36b7c75b85586f5fa12b27bc89`（旧密钥）
+   - `[密钥1，已从文档中移除]`（当前使用）
+   - `[密钥2，已从文档中移除]`（旧密钥）
 
 2. **又拍云操作员/密码**：
-   - `2f7e682861014d71a9119678f8027deb`
+   - `[密钥3，已从文档中移除]`
+   
+   ⚠️ **安全提示**：真实密钥信息已从文档中移除，仅记录泄露历史，不包含实际密钥值
 
 ### 泄露位置
 
@@ -93,10 +95,12 @@ git filter-branch --force --index-filter \
 # brew install bfg  # macOS
 # 或下载: https://rtyley.github.io/bfg-repo-cleaner/
 
-# 创建密钥列表文件
-echo "KsdvRi49VRNj7W9NcHQj9BYDAPw=" > secrets.txt
-echo "2f7e682861014d71a9119678f8027deb" >> secrets.txt
-echo "402e4c36b7c75b85586f5fa12b27bc89" >> secrets.txt
+# 创建密钥列表文件（示例，请替换为实际需要清理的密钥）
+echo "[密钥1，已从文档中移除]" > secrets.txt
+echo "[密钥2，已从文档中移除]" >> secrets.txt
+echo "[密钥3，已从文档中移除]" >> secrets.txt
+
+# ⚠️ 注意：真实密钥信息不应存储在文档中，这里仅为清理Git历史的示例格式
 
 # 清理Git历史
 bfg --replace-text secrets.txt
@@ -156,7 +160,8 @@ git secrets --install
 git secrets --register-aws
 
 # 添加自定义模式
-git secrets --add 'KsdvRi49VRNj7W9NcHQj9BYDAPw='
+git secrets --add '[密钥，已从文档中移除]'
+# ⚠️ 注意：真实密钥信息不应存储在文档中，这里仅为示例
 git secrets --add '[0-9a-fA-F]{32,}'
 ```
 

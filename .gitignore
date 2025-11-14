@@ -119,3 +119,8 @@ backend/uploads/size2048/
 
 # PID files
 *.pid
+
+# Credentials and secrets (explicit)
+project/credentials/
+!project/credentials/.gitignore
+!project/credentials/README.md
