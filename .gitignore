@@ -124,3 +124,9 @@ backend/uploads/size2048/
 project/credentials/
 !project/credentials/.gitignore
 !project/credentials/README.md
+
+# Security documents with real passwords (never commit)
+**/password-update-*.md
+**/password-update-summary-*.md
+**/*-password-*.md
+**/*-with-secrets-*.md
