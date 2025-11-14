@@ -35,26 +35,27 @@ Error: Command "npm run build" exited with 1
 
 1. **访问Vercel Dashboard**
    - https://vercel.com/dashboard
-   - 找到前端项目
+   - 找到前端项目（Project Name: `frontend`）
 
-2. **检查Root Directory**
-   - Settings → General → Root Directory
+2. **检查Root Directory（在Build and Deployment设置中）**
+   - Settings → **Build and Deployment**（不是General）
+   - 找到 "Root Directory" 设置
    - 应该设置为：`frontend`
-   - 如果不是，设置为 `frontend` 并保存
+   - 如果未设置或设置为空，设置为 `frontend` 并保存
 
 3. **检查Build Settings**
-   - Settings → Build and Deployment
+   - 在同一页面（Build and Deployment）
    - Build Command 应该是：`npm run build`
    - Output Directory 应该是：`dist`
    - Install Command 应该是：`npm install`
 
 4. **清空Production Overrides**
-   - 展开 "Production Overrides"
-   - 清空所有字段
+   - 在同一页面展开 "Production Overrides"
+   - 清空所有字段（如果有的话）
    - 保存
 
 5. **重新部署**
-   - Deployments → Redeploy
+   - Deployments → 选择最新的部署 → Redeploy
    - 等待部署完成
 
 ---
