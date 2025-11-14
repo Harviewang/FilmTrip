@@ -183,7 +183,6 @@ const Gallery = () => {
       shutter_speed: photo.shutter_speed,
       focal_length: photo.focal_length,
       iso: photo.iso,
-      camera_model: photo.camera_model,
       lens_model: photo.lens_model,
       is_protected: photo.is_protected,
       protection_level: photo.protection_level,
