@@ -6,6 +6,7 @@ import {
   MagnifyingGlassIcon,
   EyeIcon
 } from '@heroicons/react/24/outline';
+import API_CONFIG from '../config/api.js';
 
 const FilmRollManagement = () => {
   const [filmRolls, setFilmRolls] = useState([]);
@@ -47,7 +48,7 @@ const FilmRollManagement = () => {
       if (filterStatus) params.append('status', filterStatus);
       if (filterStock) params.append('film_stock_id', filterStock);
 
-      const response = await fetch(`http://localhost:3001/api/filmRolls?${params}`);
+      const response = await fetch(`${API_CONFIG.API_BASE}/filmRolls?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -65,7 +66,7 @@ const FilmRollManagement = () => {
   // 获取胶卷品类列表
   const fetchFilmStocks = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/filmStocks');
+      const response = await fetch(`${API_CONFIG.API_BASE}/filmStocks`);
       const data = await response.json();
       if (data.success) {
         const stocksArray = data.filmStocks || [];
@@ -79,7 +80,7 @@ const FilmRollManagement = () => {
   // 获取相机列表
   const fetchCameras = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/cameras');
+      const response = await fetch(`${API_CONFIG.API_BASE}/cameras`);
       const data = await response.json();
       if (data.success) {
         const camerasArray = data.cameras || [];
@@ -93,7 +94,7 @@ const FilmRollManagement = () => {
   // 获取扫描仪列表
   const fetchScanners = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/scanners');
+      const response = await fetch(`${API_CONFIG.API_BASE}/scanners`);
       const data = await response.json();
       if (data.success) {
         const scannersArray = data.scanners || [];
@@ -115,16 +116,16 @@ const FilmRollManagement = () => {
       let url;
       if (editingRoll) {
         if (editingRoll.id) {
-          url = `http://localhost:3001/api/filmRolls/${editingRoll.id}`;
+          url = `${API_CONFIG.API_BASE}/filmRolls/${editingRoll.id}`;
         } else if (editingRoll.roll_number) {
           // 如果没有ID，使用roll_number作为标识
-          url = `http://localhost:3001/api/filmRolls/${editingRoll.roll_number}`;
+          url = `${API_CONFIG.API_BASE}/filmRolls/${editingRoll.roll_number}`;
         } else {
           alert('无法编辑该胶卷实例：缺少ID和编号。请刷新页面后重试。');
           return;
         }
       } else {
-        url = 'http://localhost:3001/api/filmRolls';
+        url = `${API_CONFIG.API_BASE}/filmRolls`;
       }
       
       const method = editingRoll ? 'PUT' : 'POST';
@@ -167,7 +168,7 @@ const FilmRollManagement = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/filmRolls/${id}`, {
+      const response = await fetch(`${API_CONFIG.API_BASE}/filmRolls/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -191,7 +192,7 @@ const FilmRollManagement = () => {
   const handleStatusUpdate = async (id, newStatus) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/filmRolls/${id}/status`, {
+      const response = await fetch(`${API_CONFIG.API_BASE}/filmRolls/${id}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -443,7 +444,7 @@ const FilmRollManagement = () => {
                       <div className="flex items-center space-x-3">
                         {roll.package_image ? (
                           <img 
-                            src={`http://localhost:3001${roll.package_image}`}
+                            src={`${API_CONFIG.BASE_URL}${roll.package_image}`}
                             alt={`${roll.film_roll_brand} ${roll.film_roll_name}`}
                             className="h-8 w-8 object-cover rounded"
                             onError={(e) => {

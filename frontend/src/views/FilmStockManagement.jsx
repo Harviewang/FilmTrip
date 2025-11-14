@@ -7,6 +7,7 @@ import {
   FunnelIcon
 } from '@heroicons/react/24/outline';
 import { FILM_TYPE_DEFINITIONS, getFilmTypeLabel } from '../constants/filmTypes';
+import API_CONFIG from '../config/api.js';
 
 const FilmStockManagement = () => {
   const [filmStocks, setFilmStocks] = useState([]);
@@ -49,7 +50,7 @@ const FilmStockManagement = () => {
       if (filterFormat) params.append('format', filterFormat);
       if (filterType) params.append('type', filterType);
 
-      const response = await fetch(`http://localhost:3001/api/filmStocks?${params}`);
+      const response = await fetch(`${API_CONFIG.API_BASE}/filmStocks?${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -70,8 +71,8 @@ const FilmStockManagement = () => {
     try {
       const token = localStorage.getItem('token');
       const url = editingStock 
-        ? `http://localhost:3001/api/filmStocks/${editingStock.id}`
-        : 'http://localhost:3001/api/filmStocks';
+        ? `${API_CONFIG.API_BASE}/filmStocks/${editingStock.id}`
+        : `${API_CONFIG.API_BASE}/filmStocks`;
       
       const method = editingStock ? 'PUT' : 'POST';
       
@@ -121,7 +122,7 @@ const FilmStockManagement = () => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:3001/api/filmStocks/${id}`, {
+      const response = await fetch(`${API_CONFIG.API_BASE}/filmStocks/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -328,7 +329,7 @@ const FilmStockManagement = () => {
                       <div className="flex items-center space-x-3">
                         {stock.package_image ? (
                           <img 
-                            src={`http://localhost:3001${stock.package_image}`}
+                            src={`${API_CONFIG.BASE_URL}${stock.package_image}`}
                             alt={`${stock.brand} ${stock.series}`}
                             className="h-8 w-8 object-cover rounded"
                             onError={(e) => {

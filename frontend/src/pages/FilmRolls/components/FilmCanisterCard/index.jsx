@@ -1,4 +1,5 @@
 import React from 'react';
+import API_CONFIG from '../../../../config/api.js';
 import LazyImage from '../../../../components/LazyImage';
 
 // 胶卷暗盒卡片（以暗盒图为主图，底部显示卷名）
@@ -32,7 +33,7 @@ const FilmCanisterCard = ({
         {/* 主图 */}
         {imageSrc ? (
           <LazyImage
-            src={imageSrc.startsWith('/') ? `http://localhost:3001${imageSrc}` : imageSrc}
+            src={imageSrc.startsWith('/') ? `${API_CONFIG.BASE_URL}${imageSrc}` : imageSrc}
             alt={title}
             className="absolute inset-2 w-[calc(100%-16px)] h-[calc(100%-16px)] object-contain"
             onError={(e) => {

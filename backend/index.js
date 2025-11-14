@@ -144,33 +144,43 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 启动服务器
-app.listen(PORT, () => {
-  console.log(`服务器运行在 http://localhost:${PORT}`);
-  // 初始化数据库
-  db.initialize();
+// 初始化数据库（在模块加载时执行，适用于Vercel Serverless Functions）
+// 注意：在Vercel Serverless Functions中，app.listen()不会被执行
+// 所以数据库初始化需要在这里执行
+db.initialize();
 
-  // 自动创建admin用户
+// 自动创建admin用户（仅在非Vercel环境或首次初始化时执行）
+if (process.env.VERCEL !== '1') {
   const bcrypt = require('bcryptjs');
   const { v4: uuidv4 } = require('uuid');
 
-  // 检查admin用户是否存在
-  const existingUsers = db.query('SELECT * FROM users WHERE username = ?', ['admin']);
-  if (existingUsers.length === 0) {
-    // 创建admin用户
-    const saltRounds = 12;
-    const hashedPassword = bcrypt.hashSync('admin', saltRounds);
-    const id = uuidv4();
-    db.insert(
-      'INSERT INTO users (id, username, password) VALUES (?, ?, ?)',
-      [id, 'admin', hashedPassword]
-    );
-    console.log('已创建管理员账号: admin/admin');
-  } else {
-    console.log('管理员账号已存在');
+  try {
+    // 检查admin用户是否存在
+    const existingUsers = db.query('SELECT * FROM users WHERE username = ?', ['admin']);
+    if (existingUsers.length === 0) {
+      // 创建admin用户
+      const saltRounds = 12;
+      const hashedPassword = bcrypt.hashSync('admin', saltRounds);
+      const id = uuidv4();
+      db.insert(
+        'INSERT INTO users (id, username, password) VALUES (?, ?, ?)',
+        [id, 'admin', hashedPassword]
+      );
+      console.log('已创建管理员账号: admin/admin');
+    } else {
+      console.log('管理员账号已存在');
+    }
+  } catch (error) {
+    console.error('创建管理员账号失败:', error.message);
   }
-  
-  console.log(`✅ HTTP Server is running on http://localhost:${PORT}`);
-});
+}
+
+// 启动服务器（仅在本地开发环境执行）
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`服务器运行在 http://localhost:${PORT}`);
+    console.log(`✅ HTTP Server is running on http://localhost:${PORT}`);
+  });
+}
 
 module.exports = app;

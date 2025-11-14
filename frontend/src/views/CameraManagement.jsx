@@ -7,6 +7,7 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { cameraApi } from '../services/api';
+import API_CONFIG from '../config/api.js';
 
 const CameraManagement = () => {
   const [cameras, setCameras] = useState([]);
@@ -247,7 +248,7 @@ const CameraManagement = () => {
                                   <div className="flex items-center gap-3">
                   {camera.image ? (
                     <img 
-                      src={`http://localhost:3001${camera.image}`}
+                      src={`${API_CONFIG.BASE_URL}${camera.image}`}
                       alt={camera.name}
                       className="h-8 w-8 object-cover rounded"
                       onError={(e) => {

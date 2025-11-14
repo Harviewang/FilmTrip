@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import LazyImage from '../../../../components/LazyImage';
+import API_CONFIG from '../../../../config/api.js';
 
 /**
  * 胶片条查看器组件 - 参考第二张图的设计
@@ -63,7 +64,7 @@ const FilmStripViewer = ({
     const path = photo.thumbnail || photo.original || '';
     if (!path) return '';
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    return path.startsWith('/') ? `http://localhost:3001${path}` : path;
+    return path.startsWith('/') ? `${API_CONFIG.BASE_URL}${path}` : path;
   };
 
   // 处理关闭
