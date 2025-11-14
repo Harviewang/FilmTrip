@@ -26,9 +26,17 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'map-vendor': ['leaflet', 'react-leaflet', 'maplibre-gl']
+        manualChunks(id) {
+          // 确保React相关库正确打包
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'react-vendor';
+            }
+            if (id.includes('leaflet') || id.includes('maplibre')) {
+              return 'map-vendor';
+            }
+            return 'vendor';
+          }
         }
       }
     }
